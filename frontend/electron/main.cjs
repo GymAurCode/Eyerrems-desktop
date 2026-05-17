@@ -85,12 +85,24 @@ function createWindow() {
     width: 1400,
     height: 900,
     icon: ICON_PATH,
+    // Don't show until content is ready — prevents the black flash
+    show: false,
+    backgroundColor: "#0a0a0f", // Match app background so no white flash either
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: true,
+      // webSecurity must be false for file:// protocol.
+      // With webSecurity: true, Electron treats local file requests as cross-origin
+      // and blocks the JS/CSS bundles (the crossorigin attribute on <script>/<link>
+      // triggers a CORS preflight that always fails under file://).
+      webSecurity: false,
     },
+  });
+
+  // Show window only once the renderer has painted — eliminates black screen flash
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
   });
 
   if (isDev) {
@@ -101,13 +113,40 @@ function createWindow() {
     // dist/index.html sits one level up at .../resources/app/dist/index.html
     const indexPath = path.join(__dirname, "../dist/index.html");
     console.log("[main] Loading production build from:", indexPath);
+
+    // Verify the file exists before trying to load it
+    if (!fsSync.existsSync(indexPath)) {
+      dialog.showErrorBox(
+        "App failed to start",
+        `Build output not found at:\n${indexPath}\n\nPlease reinstall the application.`
+      );
+      app.quit();
+      return;
+    }
+
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("[main] loadFile failed:", err);
-      // Fallback: show a diagnostic dialog so the user knows what went wrong
       dialog.showErrorBox(
         "Failed to load app",
         `Could not load: ${indexPath}\n\n${err.message}`
       );
+    });
+
+    // Log renderer-side errors that would otherwise be silent
+    mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
+      console.error("[renderer] did-fail-load:", errorCode, errorDescription, validatedURL);
+      dialog.showErrorBox(
+        "Page failed to load",
+        `Error ${errorCode}: ${errorDescription}\nURL: ${validatedURL}`
+      );
+    });
+
+    mainWindow.webContents.on("render-process-gone", (event, details) => {
+      console.error("[renderer] render-process-gone:", details);
+    });
+
+    mainWindow.webContents.on("unresponsive", () => {
+      console.warn("[renderer] window became unresponsive");
     });
   }
 

@@ -43,6 +43,64 @@ log = logging.getLogger("rems")
 app = FastAPI(title="REMS API", version="1.0.0")
 
 
+def _repair_alembic_version(db_url: str) -> None:
+    """
+    If alembic_version contains a revision ID that doesn't exist in the
+    migration files, reset it to the known head so upgrade can proceed.
+
+    This handles the case where the DB was stamped with a revision from a
+    different migration history (e.g. after a SQLite→PostgreSQL migration
+    or a branch merge that was never cleaned up).
+    """
+    from sqlalchemy import create_engine, text as sa_text
+
+    KNOWN_HEAD = "0028_maintenance_unit_id"
+
+    # All valid revision IDs in our migration chain
+    VALID_REVISIONS = {
+        "0001_initial", "0002_erp_extensions", "0003_property_module",
+        "0004_property_categories", "0005_crm_overhaul", "0006_crm_upgrade",
+        "0007_tenant_module", "0008_finance_module", "0009_finance_upgrade",
+        "0010_installment_engine", "0011", "0012", "0013",
+        "0014_construction_module", "0015_reminder_module", "0016_hr_module",
+        "0017_mail_module", "0018_crm_activities", "0019_rbac_system",
+        "0020_multitenant_saas", "0021_town_module", "0022_booking_module",
+        "0023_booking_financial_refactor", "0024_reports_module",
+        "0025_currency_settings", "0026_ai_intelligence_module",
+        "0027_maintenance_upgrade", "0028_maintenance_unit_id",
+    }
+
+    try:
+        engine = create_engine(db_url, pool_pre_ping=True)
+        with engine.connect() as conn:
+            # Check table exists
+            exists = conn.execute(sa_text(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'alembic_version')"
+            )).scalar()
+            if not exists:
+                return  # Fresh DB — alembic upgrade head will create it
+
+            rows = conn.execute(
+                sa_text("SELECT version_num FROM alembic_version")
+            ).fetchall()
+
+            if not rows:
+                return  # Empty — alembic upgrade head will insert
+
+            current = rows[0][0]
+            if current not in VALID_REVISIONS:
+                print(f"[REMS] Repairing alembic_version: {current!r} → {KNOWN_HEAD!r}")
+                conn.execute(
+                    sa_text("UPDATE alembic_version SET version_num = :v"),
+                    {"v": KNOWN_HEAD},
+                )
+                conn.commit()
+    except Exception as e:
+        print(f"[REMS] alembic_version repair skipped: {e}")
+
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all handler — returns JSON instead of uvicorn's bare text/plain 500.
@@ -101,7 +159,39 @@ app.include_router(ai_router, tags=["ai-intelligence"])
 
 @app.on_event("startup")
 def on_startup():
-    """Auto-seed default Chart of Accounts if empty, then start scheduler."""
+    """Run migrations, seed default data, then start schedulers."""
+    # ── Auto-migrate on startup (safe for Railway deploys) ────────────────────
+    # This runs `alembic upgrade head` every time the app starts.
+    # It is idempotent — if the DB is already at head, it does nothing.
+    # It also repairs a broken alembic_version row before upgrading.
+    try:
+        import os
+        from sqlalchemy import create_engine, text as sa_text
+        from alembic.config import Config
+        from alembic import command as alembic_command
+
+        def _normalise_url(url: str) -> str:
+            if url.startswith("postgres://"):
+                return url.replace("postgres://", "postgresql+psycopg2://", 1)
+            return url
+
+        db_url = _normalise_url(
+            os.environ.get("DATABASE_URL", "") or settings.database_url
+        )
+
+        # Repair alembic_version if it points to a non-existent revision
+        _repair_alembic_version(db_url)
+
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        alembic_command.upgrade(alembic_cfg, "head")
+        print("[REMS] Migrations applied (or already at head).")
+    except Exception as e:
+        # Non-fatal — log and continue. The app can still serve requests
+        # if the schema is already correct.
+        print(f"[REMS] Migration warning: {e}")
+
+    # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
     try:
         seeded = seed_default_coa(db)
