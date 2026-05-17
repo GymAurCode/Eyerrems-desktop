@@ -102,71 +102,14 @@ app.include_router(ai_router, tags=["ai-intelligence"])
 
 @app.on_event("startup")
 def on_startup():
-    """Run migrations, seed default data, then start schedulers."""
-    # ── Auto-migrate on startup (safe for Railway deploys) ────────────────────
-    # Uses alembic stamp + upgrade head via the Python API (not subprocess).
-    # If alembic_version is empty or points to an unknown revision, it stamps
-    # the DB at the known head first so upgrade head becomes a no-op.
-    try:
-        import os
-        from alembic.config import Config as AlembicConfig
-        from alembic import command as alembic_command
-        from sqlalchemy import create_engine, text as sa_text
+    """Seed default data and start schedulers.
 
-        def _normalise_url(url: str) -> str:
-            return url.replace("postgres://", "postgresql+psycopg2://", 1) if url.startswith("postgres://") else url
-
-        db_url = _normalise_url(os.environ.get("DATABASE_URL", "") or settings.database_url)
-
-        KNOWN_HEAD = "0028_maintenance_unit_id"
-        VALID_REVISIONS = {
-            "0001_initial", "0002_erp_extensions", "0003_property_module",
-            "0004_property_categories", "0005_crm_overhaul", "0006_crm_upgrade",
-            "0007_tenant_module", "0008_finance_module", "0009_finance_upgrade",
-            "0010_installment_engine", "0011", "0012", "0013",
-            "0014_construction_module", "0015_reminder_module", "0016_hr_module",
-            "0017_mail_module", "0018_crm_activities", "0019_rbac_system",
-            "0020_multitenant_saas", "0021_town_module", "0022_booking_module",
-            "0023_booking_financial_refactor", "0024_reports_module",
-            "0025_currency_settings", "0026_ai_intelligence_module",
-            "0027_maintenance_upgrade", "0028_maintenance_unit_id",
-        }
-
-        alembic_cfg = AlembicConfig("alembic.ini")
-        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-
-        # Check and repair alembic_version before upgrading
-        _engine = create_engine(db_url, pool_pre_ping=True)
-        with _engine.connect() as _conn:
-            tbl_exists = _conn.execute(sa_text(
-                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')"
-            )).scalar()
-
-            needs_stamp = False
-            if tbl_exists:
-                rows = _conn.execute(sa_text("SELECT version_num FROM alembic_version")).fetchall()
-                if not rows:
-                    needs_stamp = True  # empty table
-                elif rows[0][0] not in VALID_REVISIONS:
-                    # Unknown revision — wipe and re-stamp
-                    _conn.execute(sa_text("DELETE FROM alembic_version"))
-                    _conn.commit()
-                    needs_stamp = True
-                    print(f"[REMS] Cleared unknown alembic_version: {rows[0][0]!r}")
-            else:
-                needs_stamp = True  # fresh DB — stamp before upgrade
-
-        _engine.dispose()
-
-        if needs_stamp:
-            print(f"[REMS] Stamping alembic_version at {KNOWN_HEAD}")
-            alembic_command.stamp(alembic_cfg, KNOWN_HEAD)
-
-        alembic_command.upgrade(alembic_cfg, "head")
-        print("[REMS] Migrations applied (or already at head).")
-    except Exception as e:
-        print(f"[REMS] Migration warning (non-fatal): {e}")
-
+    Migrations are intentionally NOT run here — they run via the
+    pre-start script (scripts/migrate.py) which Railway executes before
+    uvicorn starts. Running migrations inside the ASGI startup handler
+    can cause port-binding timeouts on Railway (health check fails while
+    migrations are running, triggering a 502).
+    """
     # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
     try:
@@ -177,12 +120,11 @@ def on_startup():
         print(f"[REMS] COA seed skipped: {e}")
     finally:
         db.close()
+
     start_scheduler()
     register_mail_sync_job()
-    # Register follow-up scheduler on the same APScheduler instance
     from app.services.reminder_scheduler import get_scheduler
     register_followup_job(get_scheduler())
-    # Register booking expiry scheduler
     from app.services.booking_scheduler import register_booking_expiry_job
     register_booking_expiry_job(get_scheduler())
 
