@@ -20,9 +20,18 @@ export default function AdvancedOptions({ open, onClose }: Props) {
   const [catError, setCatError]     = useState("");
 
   const loadAll = () => Promise.all([
-    propApi.getLocations().then(({ data }) => setLocations(data)),
-    propApi.getAmenities().then(({ data }) => setAmenities(data)),
-    propApi.getCategories().then(({ data }) => setCategories(data)),
+    propApi.getLocations().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setLocations(Array.isArray(data) ? data : []);
+    }),
+    propApi.getAmenities().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setAmenities(Array.isArray(data) ? data : []);
+    }),
+    propApi.getCategories().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setCategories(Array.isArray(data) ? data : []);
+    }),
   ]);
 
   useEffect(() => { if (open) void loadAll(); }, [open]);
@@ -31,14 +40,20 @@ export default function AdvancedOptions({ open, onClose }: Props) {
     if (!locName.trim()) return;
     await propApi.createLocation({ name: locName.trim(), parent_id: locParent });
     setLocName(""); setLocParent(null);
-    propApi.getLocations().then(({ data }) => setLocations(data));
+    propApi.getLocations().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setLocations(Array.isArray(data) ? data : []);
+    });
   };
 
   const addAmenity = async () => {
     if (!amName.trim()) return;
     await propApi.createAmenity(amName.trim());
     setAmName("");
-    propApi.getAmenities().then(({ data }) => setAmenities(data));
+    propApi.getAmenities().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setAmenities(Array.isArray(data) ? data : []);
+    });
   };
 
   const addCategory = async () => {
@@ -47,7 +62,10 @@ export default function AdvancedOptions({ open, onClose }: Props) {
     try {
       await propApi.createCategory(catName.trim());
       setCatName("");
-      propApi.getCategories().then(({ data }) => setCategories(data));
+      propApi.getCategories().then((res) => {
+        const data = res && 'data' in res ? (res as any).data : res;
+        setCategories(Array.isArray(data) ? data : []);
+      });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setCatError(typeof msg === "string" ? msg : "Failed to add category");
@@ -56,7 +74,10 @@ export default function AdvancedOptions({ open, onClose }: Props) {
 
   const deleteCategory = async (id: number) => {
     await propApi.deleteCategory(id);
-    propApi.getCategories().then(({ data }) => setCategories(data));
+    propApi.getCategories().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setCategories(Array.isArray(data) ? data : []);
+    });
   };
 
   const parents   = locations.filter((l) => !l.parent_id || l.has_children);

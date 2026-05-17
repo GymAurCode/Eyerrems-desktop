@@ -26,12 +26,23 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const [status, setStatus]         = useState("active");
   const [notes, setNotes]           = useState("");
 
-  const load = () => propApi.getLeases().then(({ data }) => setLeases(data));
+  const load = () => propApi.getLeases().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setLeases(Array.isArray(data) ? data : []);
+  });
   useEffect(() => { void load(); }, [refresh]);
-  useEffect(() => { propApi.getProperties().then(({ data }) => setProperties(data)); }, []);
+  useEffect(() => {
+    propApi.getProperties().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setProperties(Array.isArray(data) ? data : []);
+    });
+  }, []);
   useEffect(() => {
     if (!propId) { setUnits([]); setUnitId(""); return; }
-    propApi.getUnits(Number(propId)).then(({ data }) => setUnits(data));
+    propApi.getUnits(Number(propId)).then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setUnits(Array.isArray(data) ? data : []);
+    });
   }, [propId]);
 
   const reset = () => {

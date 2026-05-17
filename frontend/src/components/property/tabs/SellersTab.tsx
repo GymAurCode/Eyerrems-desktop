@@ -14,7 +14,10 @@ export default function SellersTab({ refresh, onRefresh }: Props) {
   const [address, setAddr]    = useState("");
   const [notes, setNotes]     = useState("");
 
-  const load = () => propApi.getSellers().then(({ data }) => setSellers(data));
+  const load = () => propApi.getSellers().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setSellers(Array.isArray(data) ? data : []);
+  });
   useEffect(() => { void load(); }, [refresh]);
 
   const reset = () => { setName(""); setEmail(""); setPhone(""); setAddr(""); setNotes(""); };

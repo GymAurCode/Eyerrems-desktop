@@ -90,15 +90,25 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const [floorsExpanded, setFloorsExpanded] = useState(false);
   const [mediaExpanded, setMediaExpanded]   = useState(true);
 
-  const loadProperties = () => propApi.getProperties().then(({ data }) => setProperties(data));
-  const loadCategories = () => propApi.getCategories().then(({ data }) => setCategories(data));
+  const loadProperties = () => propApi.getProperties().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setProperties(Array.isArray(data) ? data : []);
+  });
+  const loadCategories = () => propApi.getCategories().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setCategories(Array.isArray(data) ? data : []);
+  });
 
   useEffect(() => { void loadProperties(); }, [refresh]);
   useEffect(() => { void loadCategories(); }, []);
 
   const openDialog = async () => {
     reset();
-    try { const { data } = await propApi.previewTid(); setTid(data.tid); }
+    try {
+      const res = await propApi.previewTid();
+      const data = res && 'data' in res ? (res as any).data : res;
+      setTid(data?.tid ?? "PRO-0001");
+    }
     catch { setTid("PRO-0001"); }
     setOpen(true);
   };
@@ -118,8 +128,9 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     if (!value.trim()) { setTidError("TID is required"); return; }
     setTidChecking(true);
     try {
-      const { data } = await propApi.checkTid(value.trim());
-      setTidError(data.available ? "" : `TID "${value}" is already in use`);
+      const res = await propApi.checkTid(value.trim());
+      const data = res && 'data' in res ? (res as any).data : res;
+      setTidError(data?.available ? "" : `TID "${value}" is already in use`);
     } catch {
       setTidError("");
     } finally {
@@ -179,7 +190,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     }
     setSubmitting(true);
     try {
-      const { data: prop } = await propApi.createProperty({
+      const propRes = await propApi.createProperty({
         tid: tid.trim(),
         address: address || null, description: description || null,
         status, category_id: categoryId || null, size: size || null,
@@ -187,10 +198,13 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
         year_built: yearBuilt ? Number(yearBuilt) : null,
         location_id: locationId, amenity_ids: amenityIds,
       });
+      const prop = propRes && 'data' in propRes ? (propRes as any).data : propRes;
+
       if (imageFile) await propApi.uploadImage(prop.id, imageFile);
       for (const file of attachFiles) await propApi.uploadAttachment(prop.id, file);
       for (const f of floors) {
-        const { data: floor } = await propApi.createFloor({ property_id: prop.id, floor_number: Number(f.floor_number) });
+        const floorRes = await propApi.createFloor({ property_id: prop.id, floor_number: Number(f.floor_number) });
+        const floor = floorRes && 'data' in floorRes ? (floorRes as any).data : floorRes;
         for (const u of f.units) {
           await propApi.createUnit({
             floor_id: floor.id, unit_number: u.unit_number,

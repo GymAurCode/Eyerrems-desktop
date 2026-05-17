@@ -14,12 +14,18 @@ export default function UnitsTab({ refresh }: Props) {
   const [units, setUnits]           = useState<Unit[]>([]);
 
   useEffect(() => {
-    propApi.getProperties().then(({ data }) => setProperties(data));
+    propApi.getProperties().then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setProperties(Array.isArray(data) ? data : []);
+    });
   }, [refresh]);
 
   useEffect(() => {
     if (selectedProp === "") { setUnits([]); return; }
-    propApi.getUnits(Number(selectedProp)).then(({ data }) => setUnits(data));
+    propApi.getUnits(Number(selectedProp)).then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setUnits(Array.isArray(data) ? data : []);
+    });
   }, [selectedProp, refresh]);
 
   return (

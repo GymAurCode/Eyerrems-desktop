@@ -242,9 +242,12 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
       crmApi.getDealers(),
       propApi.getProperties(),
     ]).then(([cRes, dRes, pRes]) => {
-      setClients(cRes.data);
-      setDealers(dRes.data);
-      setProps(pRes.data);
+      const clientsData = cRes && 'data' in cRes ? (cRes as any).data : cRes;
+      const dealersData = dRes && 'data' in dRes ? (dRes as any).data : dRes;
+      const propsData = pRes && 'data' in pRes ? (pRes as any).data : pRes;
+      setClients(Array.isArray(clientsData) ? clientsData : []);
+      setDealers(Array.isArray(dealersData) ? dealersData : []);
+      setProps(Array.isArray(propsData) ? propsData : []);
     });
   }, []);
 

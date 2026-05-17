@@ -28,16 +28,29 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
   const [status, setStatus]     = useState("pending");
   const [notes, setNotes]       = useState("");
 
-  const load = () => propApi.getSales().then(({ data }) => setSales(data));
+  const load = () => propApi.getSales().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setSales(Array.isArray(data) ? data : []);
+  });
   useEffect(() => { void load(); }, [refresh]);
   useEffect(() => {
     Promise.all([
       propApi.getProperties(), propApi.getBuyers(), propApi.getSellers(),
-    ]).then(([p, b, s]) => { setProperties(p.data); setBuyers(b.data); setSellers(s.data); });
+    ]).then(([p, b, s]) => {
+      const pData = p && 'data' in p ? (p as any).data : p;
+      const bData = b && 'data' in b ? (b as any).data : b;
+      const sData = s && 'data' in s ? (s as any).data : s;
+      setProperties(Array.isArray(pData) ? pData : []);
+      setBuyers(Array.isArray(bData) ? bData : []);
+      setSellers(Array.isArray(sData) ? sData : []);
+    });
   }, []);
   useEffect(() => {
     if (!propId) { setUnits([]); setUnitId(""); return; }
-    propApi.getUnits(Number(propId)).then(({ data }) => setUnits(data));
+    propApi.getUnits(Number(propId)).then((res) => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setUnits(Array.isArray(data) ? data : []);
+    });
   }, [propId]);
 
   const reset = () => {
