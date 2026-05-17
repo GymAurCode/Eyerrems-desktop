@@ -111,7 +111,7 @@ function MaintenanceFormModal({
 
   // Load properties once
   useEffect(() => {
-    propApi.getProperties().then(r => setProps(r.data)).catch(() => {});
+    propApi.getProperties().then(props => setProps(props)).catch(() => {});
   }, []);
 
   // When property changes → load its units
@@ -123,7 +123,7 @@ function MaintenanceFormModal({
     }
     setUL(true);
     propApi.getUnits(Number(form.property_id))
-      .then(r => setUnits(r.data))
+      .then(units => setUnits(units))
       .catch(() => setUnits([]))
       .finally(() => setUL(false));
   }, [form.property_id, scope]);
@@ -137,12 +137,11 @@ function MaintenanceFormModal({
     }
     setTL(true);
     tenantApi.getUnitTenant(Number(form.unit_id))
-      .then(r => {
-        setUnitInfo(r.data);
-        // Auto-fill tenant_id if a tenant is linked
+      .then(info => {
+        setUnitInfo(info);
         setForm(p => ({
           ...p,
-          tenant_id: r.data.tenant ? String(r.data.tenant.id) : "",
+          tenant_id: info.tenant ? String(info.tenant.id) : "",
         }));
       })
       .catch(() => { setUnitInfo(null); setForm(p => ({ ...p, tenant_id: "" })); })
@@ -504,7 +503,7 @@ function DetailPanel({ record, onBack, onRefresh }: {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setFull(await tenantApi.getMaintenance(record.id).then(r => r.data)); }
+    try { setFull(await tenantApi.getMaintenance(record.id)); }
     catch { setFull(record); }
     finally { setLoading(false); }
   }, [record.id]);
@@ -789,13 +788,13 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await tenantApi.listMaintenance({
+      const records = await tenantApi.listMaintenance({
         status:   statusF   || undefined,
         priority: priorityF || undefined,
         category: categoryF || undefined,
         limit: 200,
       });
-      setRecords(Array.isArray(r.data) ? r.data : []);
+      setRecords(Array.isArray(records) ? records : []);
     } catch { setRecords([]); }
     finally { setLoading(false); }
   }, [statusF, priorityF, categoryF]);
@@ -915,13 +914,13 @@ export default function MaintenancePage() {
 
   const loadStats = useCallback(async () => {
     try {
-      const r = await tenantApi.listMaintenance({ limit: 500 });
-      const records = Array.isArray(r.data) ? r.data : [];
+      const records = await tenantApi.listMaintenance({ limit: 500 });
+      const list = Array.isArray(records) ? records : [];
       setStats({
-        total:      records.length,
-        pending:    records.filter(m => m.status === "pending").length,
-        inProgress: records.filter(m => m.status === "in_progress").length,
-        totalCost:  records.reduce((s, m) => s + Number(m.actual_cost ?? m.cost ?? 0), 0),
+        total:      list.length,
+        pending:    list.filter(m => m.status === "pending").length,
+        inProgress: list.filter(m => m.status === "in_progress").length,
+        totalCost:  list.reduce((s, m) => s + Number(m.actual_cost ?? m.cost ?? 0), 0),
       });
     } catch { /* ignore */ }
   }, []);

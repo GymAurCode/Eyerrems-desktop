@@ -67,16 +67,16 @@ export default function CRMPage() {
   const [searchQ, setSearchQ] = useState("");
 
   const load = async () => {
-    const [lRes, cRes, dRes, dealsRes] = await Promise.all([
+    const [leads, clients, dealers, deals] = await Promise.all([
       crmApi.getLeads(),
       crmApi.getClients(),
       crmApi.getDealers(),
       crmApi.getDeals(),
     ]);
-    setLeads(lRes.data);
-    setClients(cRes.data);
-    setDealers(dRes.data);
-    setDeals(dealsRes.data);
+    setLeads(leads);
+    setClients(clients);
+    setDealers(dealers);
+    setDeals(deals);
   };
 
   useEffect(() => { void load(); }, []);
@@ -99,7 +99,7 @@ export default function CRMPage() {
     if (!searchQ.trim()) return;
     try {
       const res = await crmApi.search(searchQ.trim());
-      if (res.data.client) navigate(`/crm/clients/${res.data.client.id}`);
+      if (res.client) navigate(`/crm/clients/${res.client.id}`);
     } catch {
       alert("No results found for: " + searchQ);
     }

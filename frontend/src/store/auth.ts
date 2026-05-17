@@ -126,8 +126,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       _bootstrapCache = data;
       _bootstrapCacheAt = Date.now();
       return data;
-    } catch {
-      return null;
+    } catch (err) {
+      _bootstrapCache = null;
+      _bootstrapCacheAt = 0;
+      throw err;
     }
   },
 

@@ -240,8 +240,8 @@ export default function TenantDetailPage() {
 
   const load = async () => {
     setLoading(true);
-    const r = await tenantApi.get(Number(id));
-    setTenant(r.data);
+    const tenant = await tenantApi.get(Number(id));
+    setTenant(tenant);
     setLoading(false);
   };
 

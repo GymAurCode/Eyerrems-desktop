@@ -46,8 +46,7 @@ export default function RemindersPage() {
     setLoading(true);
     try {
       if (tab === "dashboard") {
-        const r = await remindersApi.dashboard();
-        const d = r.data;
+        const d = await remindersApi.dashboard();
         setDashboard({
           today_count: d?.today_count ?? 0,
           upcoming_count: d?.upcoming_count ?? 0,
@@ -61,19 +60,19 @@ export default function RemindersPage() {
         const params: Record<string, string> = {};
         if (statusFilter) params.status = statusFilter;
         if (priorityFilter) params.priority = priorityFilter;
-        const r = await remindersApi.list(params);
-        setReminders(Array.isArray(r.data) ? r.data : []);
+        const list = await remindersApi.list(params);
+        setReminders(Array.isArray(list) ? list : []);
       } else if (tab === "notifications") {
         await fetchNotifications().catch(() => {});
       } else if (tab === "templates") {
-        const r = await remindersApi.templates();
-        setTemplates(Array.isArray(r.data) ? r.data : []);
+        const tmpls = await remindersApi.templates();
+        setTemplates(Array.isArray(tmpls) ? tmpls : []);
       } else if (tab === "logs") {
-        const r = await remindersApi.logs();
-        setLogs(Array.isArray(r.data) ? r.data : []);
+        const logData = await remindersApi.logs();
+        setLogs(Array.isArray(logData) ? logData : []);
       } else if (tab === "settings") {
-        const r = await remindersApi.getSettings();
-        if (r.data?.user_id) setSettings(r.data);
+        const s = await remindersApi.getSettings();
+        if (s?.user_id) setSettings(s);
       }
     } catch {
       // backend unavailable — keep existing state, don't crash

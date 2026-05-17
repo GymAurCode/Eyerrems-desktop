@@ -101,11 +101,11 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [error, setError]      = useState("");
   const [saving, setSaving]    = useState(false);
 
-  useEffect(() => { propApi.getProperties().then(r => setProps(r.data)); }, []);
+  useEffect(() => { propApi.getProperties().then(props => setProps(props)); }, []);
   useEffect(() => {
     if (!form.property_id) { setUnits([]); return; }
-    propApi.getProperty(Number(form.property_id)).then(r => {
-      setUnits(r.data.floors.flatMap((f: FloorWithUnits) => f.units));
+    propApi.getProperty(Number(form.property_id)).then(prop => {
+      setUnits(prop.floors.flatMap((f: FloorWithUnits) => f.units));
     });
   }, [form.property_id]);
 
@@ -373,12 +373,12 @@ export default function TenantPage() {
     setLoading(true);
     try {
       const [t, d] = await Promise.all([tenantApi.list(), tenantApi.dashboard()]);
-      setTenants(Array.isArray(t.data) ? t.data : []);
-      setDashboard(d.data ?? null);
+      setTenants(Array.isArray(t) ? t : []);
+      setDashboard(d ?? null);
     } catch { setTenants([]); }
     try {
       const a = await tenantApi.alerts();
-      setAlerts(Array.isArray(a.data) ? a.data : []);
+      setAlerts(Array.isArray(a) ? a : []);
     } catch { setAlerts([]); }
     setLoading(false);
   };

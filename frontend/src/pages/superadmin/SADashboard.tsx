@@ -38,13 +38,21 @@ export default function SADashboard() {
 
   useEffect(() => {
     saApi.listCompanies()
-      .then(setCompanies)
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCompanies(data);
+        } else {
+          console.error("Expected array from listCompanies, got:", data);
+          setCompanies([]);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const active    = companies.filter((c) => c.status === "active").length;
-  const suspended = companies.filter((c) => c.status === "suspended").length;
+  const safeCompanies = Array.isArray(companies) ? companies : [];
+  const active    = safeCompanies.filter((c) => c.status === "active").length;
+  const suspended = safeCompanies.filter((c) => c.status === "suspended").length;
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -56,7 +64,7 @@ export default function SADashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total Companies" value={loading ? "…" : companies.length}
+        <StatCard label="Total Companies" value={loading ? "…" : safeCompanies.length}
           icon={Building2} accentColor="var(--sa-accent)"
           onClick={() => navigate("/super-admin/companies")} />
         <StatCard label="Active" value={loading ? "…" : active}
@@ -92,7 +100,7 @@ export default function SADashboard() {
               <div key={i} className="h-10 rounded-xl sa-skeleton" />
             ))}
           </div>
-        ) : companies.length === 0 ? (
+        ) : safeCompanies.length === 0 ? (
           <p className="text-xs text-center py-6 sa-text-muted">
             No companies yet.{" "}
             <button
@@ -105,7 +113,7 @@ export default function SADashboard() {
           </p>
         ) : (
           <div className="space-y-2">
-            {companies.slice(0, 6).map((c) => (
+            {safeCompanies.slice(0, 6).map((c) => (
               <div
                 key={c.id}
                 className="sa-table-row flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer"

@@ -12,9 +12,17 @@ export default function SuperAdminRoute({ children }: { children: React.ReactNod
 
   if (!token) return <Navigate to="/login" replace />;
 
-  // User loaded but not super-admin → kick to company dashboard
-  if (user && !isSuperAdmin) return <Navigate to="/" replace />;
+  // Token exists but user not yet loaded → show loading spinner
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0a0f1d]">
+        <div className="text-slate-400 text-sm font-medium animate-pulse">Loading session...</div>
+      </div>
+    );
+  }
 
-  // Token exists but user not yet loaded → render children (fetchMe in progress)
+  // User loaded but not super-admin → kick to company dashboard
+  if (!isSuperAdmin) return <Navigate to="/" replace />;
+
   return <>{children}</>;
 }

@@ -45,8 +45,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Not authenticated
   if (!token) return <Navigate to="/login" replace />;
 
+  // Token exists but user not yet loaded → show loading spinner
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#07090e]">
+        <div className="text-slate-400 text-sm font-medium animate-pulse">Loading session...</div>
+      </div>
+    );
+  }
+
   // Super-admins must use /super-admin routes — never the company dashboard
-  if (user && isSuperAdmin) return <Navigate to="/super-admin" replace />;
+  if (isSuperAdmin) return <Navigate to="/super-admin" replace />;
 
   // If no authorization rules specified, just check authentication
   if (!allowedRoles && !permission && !anyPermissions && !allPermissions) {

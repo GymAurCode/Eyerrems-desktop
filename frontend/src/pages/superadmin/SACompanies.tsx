@@ -17,14 +17,22 @@ export default function SACompanies() {
   const load = () => {
     setLoading(true);
     saApi.listCompanies()
-      .then(setCompanies)
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCompanies(data);
+        } else {
+          console.error("Expected array from listCompanies, got:", data);
+          setCompanies([]);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
   useEffect(load, []);
 
-  const filtered = companies.filter(
+  const safeCompanies = Array.isArray(companies) ? companies : [];
+  const filtered = safeCompanies.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.slug.toLowerCase().includes(search.toLowerCase()),
@@ -34,7 +42,7 @@ export default function SACompanies() {
     setUpdating(c.id);
     try {
       const updated = await saApi.setStatus(c.id, c.status === "active" ? "suspended" : "active");
-      setCompanies((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      setCompanies((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x.id === updated.id ? updated : x)));
     } catch { /* ignore */ }
     finally { setUpdating(null); }
   };
@@ -46,7 +54,7 @@ export default function SACompanies() {
         <div>
           <h1 className="text-xl font-bold sa-text-primary">Companies</h1>
           <p className="text-xs mt-0.5 sa-text-muted">
-            {companies.length} tenant{companies.length !== 1 ? "s" : ""} registered
+            {safeCompanies.length} tenant{safeCompanies.length !== 1 ? "s" : ""} registered
           </p>
         </div>
         <div className="flex items-center gap-2">
