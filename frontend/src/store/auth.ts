@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../lib/api";
+import { api, registerLogoutCallback } from "../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -97,14 +97,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   fetchMe: async () => {
-    const { data } = await api.get("/auth/me");
-    set({
-      user: data,
-      permissions: data.permissions ?? [],
-      features: data.features ?? {},
-      companyId: data.company_id ?? null,
-      isSuperAdmin: data.is_super_admin ?? false,
-    });
+    try {
+      const { data } = await api.get("/auth/me");
+      set({
+        user: data,
+        permissions: data.permissions ?? [],
+        features: data.features ?? {},
+        companyId: data.company_id ?? null,
+        isSuperAdmin: data.is_super_admin ?? false,
+      });
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        get().logout();
+      }
+      throw err;
+    }
   },
 
   bootstrap: async () => {
@@ -126,9 +133,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       _bootstrapCache = data;
       _bootstrapCacheAt = Date.now();
       return data;
-    } catch (err) {
+    } catch (err: any) {
       _bootstrapCache = null;
       _bootstrapCacheAt = 0;
+      if (err.response?.status === 401) {
+        get().logout();
+      }
       throw err;
     }
   },
@@ -180,3 +190,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return features[key] === true;
   },
 }));
+
+registerLogoutCallback(() => {
+  useAuthStore.getState().logout();
+});
