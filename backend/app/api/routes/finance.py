@@ -279,6 +279,8 @@ async def create_invoice(
 ):
     try:
         invoice = Invoice(**payload.model_dump())
+        if not user.is_super_admin:
+            invoice.company_id = user.company_id
         db.add(invoice)
         db.flush()
 
@@ -317,9 +319,11 @@ async def list_invoices(
     status: str | None = None,
     tenant_id: int | None = None,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission("finance:manage", "finance:view")),
+    user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
     query = db.query(Invoice)
+    if not user.is_super_admin:
+        query = query.filter(Invoice.company_id == user.company_id)
     if status:
         query = query.filter(Invoice.status == status)
     if tenant_id:
@@ -331,9 +335,12 @@ async def list_invoices(
 async def get_invoice(
     invoice_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission("finance:manage", "finance:view")),
+    user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    query = db.query(Invoice)
+    if not user.is_super_admin:
+        query = query.filter(Invoice.company_id == user.company_id)
+    invoice = query.filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
@@ -346,7 +353,10 @@ async def update_invoice(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    query = db.query(Invoice)
+    if not user.is_super_admin:
+        query = query.filter(Invoice.company_id == user.company_id)
+    invoice = query.filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -443,6 +453,8 @@ async def create_commission(
 ):
     try:
         commission = Commission(**payload.model_dump(exclude_unset=True))
+        if not user.is_super_admin:
+            commission.company_id = user.company_id
         commission.date = commission.date or datetime.utcnow()
         db.add(commission)
         db.flush()
@@ -487,9 +499,11 @@ async def list_commissions(
     agent_id: int | None = None,
     type: str | None = None,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission("finance:manage", "finance:view")),
+    user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
     query = db.query(Commission)
+    if not user.is_super_admin:
+        query = query.filter(Commission.company_id == user.company_id)
     if agent_id:
         query = query.filter(Commission.agent_id == agent_id)
     if type:

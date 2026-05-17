@@ -69,6 +69,7 @@ class Invoice(Base):
     status = Column(String(20), nullable=False, default="pending", index=True)  # pending, paid, partial
     due_date = Column(DateTime, nullable=False)
     description = Column(String(500), nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -105,6 +106,7 @@ class Commission(Base):
     date = Column(DateTime, nullable=False)
     reference = Column(String(100), nullable=True)
     description = Column(String(500), nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     agent = relationship("User")

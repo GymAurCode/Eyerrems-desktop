@@ -40,9 +40,9 @@ REVISION_CHAIN = [
     ("0008_finance_module",           "journals"),
     ("0009_finance_upgrade",          "expenses"),
     ("0010_installment_engine",       "installment_payments"),
-    ("0011",                          "installment_payments"),   # column-only
+    ("0011",                          ("accounts", "description")),                # column-only
     ("0012",                          "finance_operations"),
-    ("0013",                          "finance_operations"),     # column-only
+    ("0013",                          ("finance_operations", "sub_type")),         # column-only
     ("0014_construction_module",      "construction_projects"),
     ("0015_reminder_module",          "reminders"),
     ("0016_hr_module",                "employees"),
@@ -52,13 +52,14 @@ REVISION_CHAIN = [
     ("0020_multitenant_saas",         "companies"),
     ("0021_town_module",              "towns"),
     ("0022_booking_module",           "bookings"),
-    ("0023_booking_financial_refactor", "bookings"),             # column-only
+    ("0023_booking_financial_refactor", ("bookings", "final_price")),              # column-only
     ("0024_reports_module",           "report_templates"),
-    ("0025_currency_settings",        "companies"),              # column-only
+    ("0025_currency_settings",        ("companies", "currency_code")),             # column-only
     ("0026_ai_intelligence_module",   "ai_anomalies"),
     ("0027_maintenance_upgrade",      "maintenance_activity_logs"),
-    ("0028_maintenance_unit_id",      "maintenance_records"),    # column-only
-    ("0029_fix_missing_company_id",   "companies"),              # column-only
+    ("0028_maintenance_unit_id",      ("maintenance_records", "unit_id")),        # column-only
+    ("0029_fix_missing_company_id",   ("invoices", "company_id")),                 # column-only
+    ("0030_force_fix_missing_company_id", ("invoices", "description")),             # column-only
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}
@@ -79,9 +80,18 @@ def get_db_url() -> str:
     return normalise_url(raw)
 
 
-def get_existing_tables(engine) -> set:
+def get_existing_tables_and_columns(engine) -> dict:
+    """Returns a dict mapping table name to a set of its column names."""
+    result = {}
     with engine.connect() as conn:
-        return set(inspect(conn).get_table_names())
+        inspector = inspect(conn)
+        for table_name in inspector.get_table_names():
+            try:
+                cols = {c["name"] for c in inspector.get_columns(table_name)}
+                result[table_name] = cols
+            except Exception:
+                result[table_name] = set()
+    return result
 
 
 def get_alembic_version(engine) -> str | None:
@@ -105,15 +115,23 @@ def clear_alembic_version(engine) -> None:
         conn.commit()
 
 
-def detect_completed_revision(existing_tables: set) -> str | None:
+def detect_completed_revision(schema_info: dict) -> str | None:
     """
     Walk the revision chain in reverse and return the highest revision
-    whose sentinel table exists in the DB.
-    Returns None if not even the first migration's table exists.
+    whose sentinel exists in the DB.
+    
+    The sentinel can be:
+      - A string: the name of a table that must exist.
+      - A tuple of (table_name, column_name): the column must exist in that table.
     """
     for revision, sentinel in reversed(REVISION_CHAIN):
-        if sentinel in existing_tables:
-            return revision
+        if isinstance(sentinel, tuple):
+            table_name, column_name = sentinel
+            if table_name in schema_info and column_name in schema_info[table_name]:
+                return revision
+        else:
+            if sentinel in schema_info:
+                return revision
     return None
 
 
@@ -134,11 +152,12 @@ def main():
     engine = create_engine(db_url, pool_pre_ping=True)
 
     try:
-        existing_tables = get_existing_tables(engine)
+        schema_info = get_existing_tables_and_columns(engine)
         current_ver = get_alembic_version(engine)
     finally:
         engine.dispose()
 
+    existing_tables = set(schema_info.keys())
     has_any_schema = bool(existing_tables - {"alembic_version"})
     print(f"[migrate] Tables in DB: {len(existing_tables)}")
     print(f"[migrate] alembic_version: {current_ver!r}")
@@ -164,7 +183,7 @@ def main():
 
     else:
         # ── State B: Partial schema, missing/unknown version ──────────────────
-        completed = detect_completed_revision(existing_tables)
+        completed = detect_completed_revision(schema_info)
         print(f"[migrate] Partial schema detected.")
         print(f"[migrate] Highest completed revision (by table inspection): {completed!r}")
 
