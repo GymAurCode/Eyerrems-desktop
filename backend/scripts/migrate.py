@@ -1,29 +1,29 @@
 """
-Pre-start migration script for Railway.
+Pre-start migration script for Railway (and local use).
 
-Railway runs this before uvicorn via the startCommand in railway.toml:
-  python scripts/migrate.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Strategy:
+  1. Check whether the actual schema exists (probe for the 'users' table).
+  2. If schema is MISSING  → wipe alembic_version, run upgrade head from scratch.
+  3. If schema EXISTS but alembic_version is empty/unknown → stamp at head (schema
+     was built outside Alembic), then run upgrade head for any new migrations.
+  4. If schema EXISTS and alembic_version is valid → just run upgrade head (no-op
+     if already at head, applies new migrations if any).
 
-This script:
-  1. Normalises the DATABASE_URL (Railway uses postgres://, SQLAlchemy needs postgresql+psycopg2://)
-  2. Repairs alembic_version if it contains an unknown revision
-  3. Runs alembic upgrade head (no-op if already at head)
+This covers every possible Railway/local state without data loss.
 
-Exit codes:
-  0 — success (migrations applied or already at head)
-  1 — fatal error (startup should be aborted)
+Usage (from backend/ directory):
+  python scripts/migrate.py
 """
 import os
 import sys
 
-# Allow importing app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
 
-# ── All valid revision IDs in our migration chain ─────────────────────────────
+# ── All valid revision IDs in our local migration chain ───────────────────────
 VALID_REVISIONS = {
     "0001_initial", "0002_erp_extensions", "0003_property_module",
     "0004_property_categories", "0005_crm_overhaul", "0006_crm_upgrade",
@@ -46,68 +46,103 @@ def normalise_url(url: str) -> str:
     return url
 
 
-def repair_alembic_version(engine) -> bool:
-    """
-    Returns True if a stamp is needed (empty or unknown version),
-    False if the version is already valid.
-    """
+def get_db_url() -> str:
+    raw = os.environ.get("DATABASE_URL", "")
+    if not raw:
+        from app.core.config import settings
+        raw = settings.database_url
+    return normalise_url(raw)
+
+
+def schema_exists(engine) -> bool:
+    """Return True if the 'users' table exists — proxy for 'schema is built'."""
+    inspector = inspect(engine)
+    return "users" in inspector.get_table_names()
+
+
+def get_alembic_version(engine):
+    """Return current version string, or None if table missing/empty."""
     with engine.connect() as conn:
         tbl_exists = conn.execute(text(
             "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
             "WHERE table_name = 'alembic_version')"
         )).scalar()
-
         if not tbl_exists:
-            print("[migrate] Fresh database — will stamp then upgrade.")
-            return True
-
+            return None
         rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        return rows[0][0] if rows else None
 
-        if not rows:
-            print("[migrate] alembic_version is empty — will stamp.")
-            return True
 
-        current = rows[0][0]
-        if current in VALID_REVISIONS:
-            print(f"[migrate] alembic_version is valid: {current}")
-            return False
-
-        # Unknown revision — clear it so stamp can insert cleanly
-        print(f"[migrate] Unknown revision {current!r} — clearing and re-stamping at {KNOWN_HEAD}")
-        conn.execute(text("DELETE FROM alembic_version"))
+def clear_alembic_version(engine):
+    with engine.connect() as conn:
+        conn.execute(text(
+            "DELETE FROM alembic_version"
+            " WHERE EXISTS (SELECT 1 FROM information_schema.tables"
+            " WHERE table_name = 'alembic_version')"
+        ))
         conn.commit()
-        return True
+
+
+def make_alembic_cfg(db_url: str) -> AlembicConfig:
+    cfg_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "alembic.ini",
+    )
+    cfg = AlembicConfig(cfg_path)
+    cfg.set_main_option("sqlalchemy.url", db_url)
+    return cfg
 
 
 def main():
-    raw_url = os.environ.get("DATABASE_URL", "")
-    if not raw_url:
-        # Fall back to .env via pydantic settings
-        from app.core.config import settings
-        raw_url = settings.database_url
-
-    db_url = normalise_url(raw_url)
-    print(f"[migrate] Connecting to database...")
+    db_url = get_db_url()
+    print("[migrate] Connecting to database...")
 
     engine = create_engine(db_url, pool_pre_ping=True)
 
     try:
-        needs_stamp = repair_alembic_version(engine)
+        has_schema = schema_exists(engine)
+        current_ver = get_alembic_version(engine)
     finally:
         engine.dispose()
 
-    # Build alembic config — path is relative to backend/ directory
-    cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "alembic.ini")
-    alembic_cfg = AlembicConfig(cfg_path)
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+    print(f"[migrate] Schema exists (users table): {has_schema}")
+    print(f"[migrate] alembic_version: {current_ver!r}")
 
-    if needs_stamp:
-        print(f"[migrate] Stamping at {KNOWN_HEAD}...")
-        alembic_command.stamp(alembic_cfg, KNOWN_HEAD)
+    cfg = make_alembic_cfg(db_url)
 
-    print("[migrate] Running alembic upgrade head...")
-    alembic_command.upgrade(alembic_cfg, "head")
-    print("[migrate] Done — database is up to date.")
+    if not has_schema:
+        # ── Case 1: Empty database — run all migrations from scratch ──────────
+        print("[migrate] Empty database detected. Running full migration from 0001...")
+        # Clear any stale alembic_version row so Alembic starts from None
+        engine2 = create_engine(db_url, pool_pre_ping=True)
+        try:
+            clear_alembic_version(engine2)
+        finally:
+            engine2.dispose()
+        alembic_command.upgrade(cfg, "head")
+        print("[migrate] Full migration complete.")
+
+    elif current_ver is None or current_ver not in VALID_REVISIONS:
+        # ── Case 2: Schema exists but version is missing/unknown ──────────────
+        # The schema was built outside Alembic (e.g. direct SQL, old tool).
+        # Stamp at head so Alembic knows the schema is current, then upgrade
+        # to apply any genuinely new migrations.
+        print(f"[migrate] Schema exists but version {current_ver!r} is unknown.")
+        print(f"[migrate] Stamping at {KNOWN_HEAD} and upgrading...")
+        engine3 = create_engine(db_url, pool_pre_ping=True)
+        try:
+            clear_alembic_version(engine3)
+        finally:
+            engine3.dispose()
+        alembic_command.stamp(cfg, KNOWN_HEAD)
+        alembic_command.upgrade(cfg, "head")
+        print("[migrate] Stamp + upgrade complete.")
+
+    else:
+        # ── Case 3: Schema exists and version is valid — normal upgrade ───────
+        print(f"[migrate] Version {current_ver!r} is valid. Running upgrade head...")
+        alembic_command.upgrade(cfg, "head")
+        print("[migrate] Done — database is up to date.")
 
 
 if __name__ == "__main__":
