@@ -202,10 +202,12 @@ export default function TownList() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = towns.filter(
+  const filtered = (towns || []).filter(
     (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      (t.location ?? "").toLowerCase().includes(search.toLowerCase())
+      t && t.name && (
+        t.name.toLowerCase().includes(search.toLowerCase()) ||
+        (t.location ?? "").toLowerCase().includes(search.toLowerCase())
+      )
   );
 
   const openCreate = () => { setEditTown(null); setFormOpen(true); };
@@ -219,9 +221,9 @@ export default function TownList() {
         <div>
           <h1 className="text-xl font-bold text-primary">Town Management</h1>
           <p className="text-xs text-muted mt-0.5">
-            {towns.length} town{towns.length !== 1 ? "s" : ""} ·{" "}
-            {towns.reduce((s, t) => s + t.block_count, 0)} blocks ·{" "}
-            {towns.reduce((s, t) => s + t.plot_count, 0)} plots
+            {(towns || []).length} town{(towns || []).length !== 1 ? "s" : ""} ·{" "}
+            {(towns || []).reduce((s, t) => s + (t.block_count || 0), 0)} blocks ·{" "}
+            {(towns || []).reduce((s, t) => s + (t.plot_count || 0), 0)} plots
           </p>
         </div>
         <button

@@ -678,10 +678,10 @@ export default function TownDetail() {
     );
   }
 
-  const totalPlots     = town.blocks.reduce((s, b) => s + b.plot_count, 0);
-  const availablePlots = town.blocks.reduce((s, b) => s + b.available_plots, 0);
-  const soldPlots      = town.blocks.reduce((s, b) => s + b.sold_plots, 0);
-  const bookedPlots    = town.blocks.reduce((s, b) => s + b.booked_plots, 0);
+  const totalPlots     = (town.blocks || []).reduce((s, b) => s + (b.plot_count || 0), 0);
+  const availablePlots = (town.blocks || []).reduce((s, b) => s + (b.available_plots || 0), 0);
+  const soldPlots      = (town.blocks || []).reduce((s, b) => s + (b.sold_plots || 0), 0);
+  const bookedPlots    = (town.blocks || []).reduce((s, b) => s + (b.booked_plots || 0), 0);
 
   return (
     <div className="p-6 space-y-5 animate-slide-up">
@@ -805,7 +805,7 @@ export default function TownDetail() {
                 </tr>
               </thead>
               <tbody>
-                {town.blocks.map((block) => (
+                {(town.blocks || []).map((block) => (
                   <BlockRow
                     key={block.id}
                     block={block}
