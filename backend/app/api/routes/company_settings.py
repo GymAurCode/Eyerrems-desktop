@@ -91,17 +91,19 @@ def update_my_features(
 def list_my_company_users(
     request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("user.view")),
+    current_user: User = Depends(require_permissions("user.view")),
 ):
     """List all users in the current company."""
     company_id = request.state.company_id
-    users = (
+    query = (
         db.query(User)
         .options(joinedload(User.roles))
         .filter(User.company_id == company_id)
-        .order_by(User.created_at.desc())
-        .all()
     )
+    if not current_user.is_super_admin:
+        query = query.filter(User.is_super_admin == False)
+        
+    users = query.order_by(User.created_at.desc()).all()
     return [
         {
             "id": u.id,

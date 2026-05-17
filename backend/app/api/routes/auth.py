@@ -265,10 +265,14 @@ def list_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("user.view"))
+    current_user: User = Depends(require_permissions("user.view"))
 ):
     """List all users (requires user.view permission)"""
     query = db.query(User).options(joinedload(User.roles))
+    
+    if not current_user.is_super_admin:
+        query = query.filter(User.company_id == current_user.company_id)
+        query = query.filter(User.is_super_admin == False)
     
     if status_filter:
         query = query.filter(User.status == status_filter)
@@ -292,16 +296,20 @@ def list_users(
 @router.get("/users/pending", response_model=list[UserListResponse])
 def list_pending_users(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("user.approve"))
+    current_user: User = Depends(require_permissions("user.approve"))
 ):
     """List users pending approval"""
-    users = (
+    query = (
         db.query(User)
         .options(joinedload(User.roles))
         .filter(User.status == "pending", User.is_approved == False)
-        .order_by(User.created_at)
-        .all()
     )
+    
+    if not current_user.is_super_admin:
+        query = query.filter(User.company_id == current_user.company_id)
+        query = query.filter(User.is_super_admin == False)
+        
+    users = query.order_by(User.created_at).all()
     
     return [
         UserListResponse(
@@ -321,7 +329,7 @@ def list_pending_users(
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("user.view"))
+    current_user: User = Depends(require_permissions("user.view"))
 ):
     """Get user details by ID"""
     user = (
@@ -340,6 +348,13 @@ def get_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+        
+    if not current_user.is_super_admin:
+        if user.company_id != current_user.company_id or user.is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
     
     return _user_detail_response(user, db)
 
@@ -360,6 +375,13 @@ def approve_or_reject_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+        
+    if not admin.is_super_admin:
+        if user.company_id != admin.company_id or user.is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
     
     if payload.approved:
         user.status = "active"

@@ -58,6 +58,7 @@ REVISION_CHAIN = [
     ("0026_ai_intelligence_module",   "ai_anomalies"),
     ("0027_maintenance_upgrade",      "maintenance_activity_logs"),
     ("0028_maintenance_unit_id",      "maintenance_records"),    # column-only
+    ("0029_fix_missing_company_id",   "companies"),              # column-only
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}
