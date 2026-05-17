@@ -63,6 +63,13 @@ def upgrade() -> None:
             op.create_index(f"ix_{table}_company_id", table, ["company_id"])
             # Seed with default company if empty/NULL
             conn.execute(sa.text(f"UPDATE {table} SET company_id = 1 WHERE company_id IS NULL"))
+            
+        if table in ["invoices", "commissions"] and "description" not in columns:
+            print(f"[0029] Adding description column to table: {table}")
+            op.add_column(
+                table,
+                sa.Column("description", sa.String(length=500), nullable=True)
+            )
 
 def downgrade() -> None:
     conn = op.get_bind()
@@ -76,3 +83,6 @@ def downgrade() -> None:
         if "company_id" in columns:
             op.drop_index(f"ix_{table}_company_id", table)
             op.drop_column(table, "company_id")
+            
+        if table in ["invoices", "commissions"] and "description" in columns:
+            op.drop_column(table, "description")
