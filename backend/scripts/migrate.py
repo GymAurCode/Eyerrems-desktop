@@ -184,9 +184,39 @@ def main():
         print("[migrate] Migration complete.")
 
 
+def seed_data() -> None:
+    """
+    Seed default roles/permissions and superadmin after migrations.
+    Both are idempotent — they skip if data already exists.
+    """
+    try:
+        from app.core.database import SessionLocal
+        from app.scripts.seed_rbac import seed_rbac
+
+        db = SessionLocal()
+        try:
+            print("[migrate] Seeding RBAC roles and permissions...")
+            seed_rbac(db)
+        except Exception as e:
+            print(f"[migrate] RBAC seed warning (non-fatal): {e}")
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[migrate] RBAC seed skipped: {e}")
+
+    try:
+        from app.scripts.seed_superadmin import seed_superadmin
+        print("[migrate] Seeding superadmin account...")
+        seed_superadmin()
+    except Exception as e:
+        print(f"[migrate] Superadmin seed warning (non-fatal): {e}")
+
+
 if __name__ == "__main__":
     try:
         main()
+        seed_data()
     except Exception as e:
         print(f"[migrate] FATAL: {e}", file=sys.stderr)
         import traceback
