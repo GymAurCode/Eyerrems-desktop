@@ -2,6 +2,7 @@ import axios from "axios";
 import { FormEvent, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
+// Note: axios is imported only for axios.isAxiosError — all API calls go through ../lib/api
 import { Building2, Eye, EyeOff, ArrowRight, CheckCircle } from "lucide-react";
 
 export default function SignupPage() {

@@ -97,7 +97,18 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    // In packaged builds, __dirname is .../resources/app/electron/
+    // dist/index.html sits one level up at .../resources/app/dist/index.html
+    const indexPath = path.join(__dirname, "../dist/index.html");
+    console.log("[main] Loading production build from:", indexPath);
+    mainWindow.loadFile(indexPath).catch((err) => {
+      console.error("[main] loadFile failed:", err);
+      // Fallback: show a diagnostic dialog so the user knows what went wrong
+      dialog.showErrorBox(
+        "Failed to load app",
+        `Could not load: ${indexPath}\n\n${err.message}`
+      );
+    });
   }
 
   mainWindow.on("closed", () => {

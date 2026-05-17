@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // Relative base so assets load correctly from file:// in packaged Electron
+    base: "./",
     server: {
       port: Number(env.VITE_PORT) || 5173,
       proxy: {

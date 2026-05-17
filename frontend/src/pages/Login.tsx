@@ -2,6 +2,7 @@ import axios from "axios";
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
+// Note: axios is imported only for axios.isAxiosError — all API calls go through ../lib/api
 import { Building2, Package, Zap, Eye, EyeOff, ArrowRight } from "lucide-react";
 
 // ── Centralized app theme map — single source of truth ───────────────────────
