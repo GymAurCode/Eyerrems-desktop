@@ -1,1 +1,18 @@
-# This file has been replaced by 0030_force_fix_company_id.py to comply with PostgreSQL's 32-character migration revision limit.
+"""dummy migration to satisfy Alembic scanner
+
+Revision ID: 0030_dummy
+Revises: 0029_fix_missing_company_id
+Create Date: 2026-05-17
+"""
+from alembic import op
+
+revision = "0030_dummy"
+down_revision = "0029_fix_missing_company_id"
+branch_labels = None
+depends_on = None
+
+def upgrade() -> None:
+    pass
+
+def downgrade() -> None:
+    pass

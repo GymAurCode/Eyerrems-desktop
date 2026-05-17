@@ -59,7 +59,9 @@ REVISION_CHAIN = [
     ("0027_maintenance_upgrade",      "maintenance_activity_logs"),
     ("0028_maintenance_unit_id",      ("maintenance_records", "unit_id")),        # column-only
     ("0029_fix_missing_company_id",   ("invoices", "company_id")),                 # column-only
-    ("0030_force_fix_company_id",     ("invoices", "description")),                # column-only
+    ("0030_dummy",                    ("invoices", "company_id")),                 # column-only
+    ("0030_dummy_alt",                ("invoices", "company_id")),                 # column-only
+    ("0031_force_fix_company_id",     ("invoices", "description")),                # column-only
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}
