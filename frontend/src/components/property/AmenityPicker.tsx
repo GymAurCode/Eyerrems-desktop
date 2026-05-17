@@ -11,7 +11,10 @@ export default function AmenityPicker({ selected, onChange }: Props) {
   const [all, setAll]       = useState<Amenity[]>([]);
   const [newName, setNewName] = useState("");
 
-  const load = () => propApi.getAmenities().then(({ data }) => setAll(data));
+  const load = () => propApi.getAmenities().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setAll(Array.isArray(data) ? data : []);
+  });
   useEffect(() => { void load(); }, []);
 
   const toggle = (id: number) =>
@@ -19,10 +22,13 @@ export default function AmenityPicker({ selected, onChange }: Props) {
 
   const add = async () => {
     if (!newName.trim()) return;
-    const { data } = await propApi.createAmenity(newName.trim());
+    const res = await propApi.createAmenity(newName.trim());
+    const data = res && 'data' in res ? (res as any).data : res;
     setNewName("");
     await load();
-    onChange([...selected, data.id]);
+    if (data?.id) {
+      onChange([...selected, data.id]);
+    }
   };
 
   return (

@@ -101,11 +101,21 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [error, setError]      = useState("");
   const [saving, setSaving]    = useState(false);
 
-  useEffect(() => { propApi.getProperties().then(props => setProps(props)); }, []);
+  useEffect(() => {
+    propApi.getProperties().then(res => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setProps(Array.isArray(data) ? data : []);
+    });
+  }, []);
   useEffect(() => {
     if (!form.property_id) { setUnits([]); return; }
-    propApi.getProperty(Number(form.property_id)).then(prop => {
-      setUnits(prop.floors.flatMap((f: FloorWithUnits) => f.units));
+    propApi.getProperty(Number(form.property_id)).then(res => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      if (data?.floors) {
+        setUnits(data.floors.flatMap((f: FloorWithUnits) => f.units));
+      } else {
+        setUnits([]);
+      }
     });
   }, [form.property_id]);
 

@@ -44,12 +44,27 @@ export default function PropertyViewPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [pd, locs, ams] = await Promise.all([
-        propApi.getProperty(propId), propApi.getLocations(), propApi.getAmenities(),
+      const [pdRes, locsRes, amsRes] = await Promise.all([
+        propApi.getProperty(propId),
+        propApi.getLocations(),
+        propApi.getAmenities(),
       ]);
-      setProp(pd.data); setLocations(locs.data); setAmenities(ams.data);
-      setExpanded(new Set(pd.data.floors.map((f) => f.id)));
-    } finally { setLoading(false); }
+      const pd = pdRes && 'data' in pdRes ? (pdRes as any).data : pdRes;
+      const locs = locsRes && 'data' in locsRes ? (locsRes as any).data : locsRes;
+      const ams = amsRes && 'data' in amsRes ? (amsRes as any).data : amsRes;
+      setProp(pd || null);
+      setLocations(Array.isArray(locs) ? locs : []);
+      setAmenities(Array.isArray(ams) ? ams : []);
+      if (pd?.floors) {
+        setExpanded(new Set(pd.floors.map((f: any) => f.id)));
+      }
+    } catch {
+      setProp(null);
+      setLocations([]);
+      setAmenities([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { void load(); }, [propId]);
@@ -104,9 +119,11 @@ export default function PropertyViewPage() {
     </div>
   );
 
-  const location      = locations.find((l) => l.id === prop.location_id);
-  const parentLoc     = location ? locations.find((l) => l.id === location.parent_id) : null;
-  const propAmenities = amenities.filter((a) => prop.amenity_ids.includes(a.id));
+  const location      = Array.isArray(locations) ? locations.find((l) => l.id === prop.location_id) : null;
+  const parentLoc     = location && Array.isArray(locations) ? locations.find((l) => l.id === location.parent_id) : null;
+  const propAmenities = Array.isArray(amenities) && prop.amenity_ids
+    ? amenities.filter((a) => prop.amenity_ids.includes(a.id))
+    : [];
   const locationStr   = parentLoc ? `${parentLoc.name} › ${location?.name}` : location?.name || "—";
   const totalUnits    = prop.floors.reduce((s, f) => s + f.units.length, 0);
 

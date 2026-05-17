@@ -111,7 +111,10 @@ function MaintenanceFormModal({
 
   // Load properties once
   useEffect(() => {
-    propApi.getProperties().then(props => setProps(props)).catch(() => {});
+    propApi.getProperties().then(res => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setProps(Array.isArray(data) ? data : []);
+    }).catch(() => {});
   }, []);
 
   // When property changes → load its units
@@ -123,7 +126,10 @@ function MaintenanceFormModal({
     }
     setUL(true);
     propApi.getUnits(Number(form.property_id))
-      .then(units => setUnits(units))
+      .then(res => {
+        const data = res && 'data' in res ? (res as any).data : res;
+        setUnits(Array.isArray(data) ? data : []);
+      })
       .catch(() => setUnits([]))
       .finally(() => setUL(false));
   }, [form.property_id, scope]);
@@ -137,11 +143,12 @@ function MaintenanceFormModal({
     }
     setTL(true);
     tenantApi.getUnitTenant(Number(form.unit_id))
-      .then(info => {
+      .then(res => {
+        const info = res && 'data' in res ? (res as any).data : res;
         setUnitInfo(info);
         setForm(p => ({
           ...p,
-          tenant_id: info.tenant ? String(info.tenant.id) : "",
+          tenant_id: info?.tenant ? String(info.tenant.id) : "",
         }));
       })
       .catch(() => { setUnitInfo(null); setForm(p => ({ ...p, tenant_id: "" })); })
@@ -503,7 +510,11 @@ function DetailPanel({ record, onBack, onRefresh }: {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setFull(await tenantApi.getMaintenance(record.id)); }
+    try {
+      const res = await tenantApi.getMaintenance(record.id);
+      const data = res && 'data' in res ? (res as any).data : res;
+      setFull(data || record);
+    }
     catch { setFull(record); }
     finally { setLoading(false); }
   }, [record.id]);
@@ -688,7 +699,10 @@ function AnalyticsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    tenantApi.maintenanceAnalytics().then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false));
+    tenantApi.maintenanceAnalytics().then(res => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      setData(data ?? null);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="p-10 text-center text-muted text-sm">Loading analytics...</div>;

@@ -23,12 +23,15 @@ export default function LocationPicker({ value, onChange }: Props) {
   // Selected parent location (top-level)
   const [parentId, setParentId]     = useState<number | null>(null);
 
-  const load = () => propApi.getLocations().then(({ data }) => setLocations(data));
+  const load = () => propApi.getLocations().then((res) => {
+    const data = res && 'data' in res ? (res as any).data : res;
+    setLocations(Array.isArray(data) ? data : []);
+  });
   useEffect(() => { void load(); }, []);
 
   // Derive lists
-  const topLevel     = locations.filter((l) => !l.parent_id);
-  const subsidiaries = parentId
+  const topLevel     = Array.isArray(locations) ? locations.filter((l) => !l.parent_id) : [];
+  const subsidiaries = parentId && Array.isArray(locations)
     ? locations.filter((l) => l.parent_id === parentId)
     : [];
 
@@ -36,13 +39,13 @@ export default function LocationPicker({ value, onChange }: Props) {
   useEffect(() => {
     if (!parentId) { onChange(null); return; }
     // If current value is not a child of the new parent, clear it
-    const current = locations.find((l) => l.id === value);
+    const current = Array.isArray(locations) ? locations.find((l) => l.id === value) : null;
     if (current && current.parent_id !== parentId) onChange(null);
   }, [parentId]);
 
   // Derive parentId from current value on load
   useEffect(() => {
-    if (!value || locations.length === 0) return;
+    if (!value || !Array.isArray(locations) || locations.length === 0) return;
     const sel = locations.find((l) => l.id === value);
     if (sel?.parent_id) setParentId(sel.parent_id);
     else if (sel && !sel.parent_id) setParentId(sel.id); // top-level selected directly
@@ -58,11 +61,14 @@ export default function LocationPicker({ value, onChange }: Props) {
 
   const saveSubsidiary = async () => {
     if (!newSubName.trim() || !parentId) return;
-    const { data } = await propApi.createLocation({ name: newSubName.trim(), parent_id: parentId });
+    const res = await propApi.createLocation({ name: newSubName.trim(), parent_id: parentId });
+    const data = res && 'data' in res ? (res as any).data : res;
     setNewSubName("");
     setSubOpen(false);
     await load();
-    onChange(data.id); // auto-select the new subsidiary
+    if (data?.id) {
+      onChange(data.id); // auto-select the new subsidiary
+    }
   };
 
   return (

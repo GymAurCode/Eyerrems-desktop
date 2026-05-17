@@ -28,16 +28,27 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
   const [unitRent, setUnitRent]     = useState("");
 
   const load = async () => {
-    const [pd, locs, ams] = await Promise.all([
-      propApi.getProperty(propertyId),
-      propApi.getLocations(),
-      propApi.getAmenities(),
-    ]);
-    setProp(pd.data);
-    setLocations(locs.data);
-    setAmenities(ams.data);
-    // expand all floors by default
-    setExpanded(new Set(pd.data.floors.map((f) => f.id)));
+    try {
+      const [pdRes, locsRes, amsRes] = await Promise.all([
+        propApi.getProperty(propertyId),
+        propApi.getLocations(),
+        propApi.getAmenities(),
+      ]);
+      const pd = pdRes && 'data' in pdRes ? (pdRes as any).data : pdRes;
+      const locs = locsRes && 'data' in locsRes ? (locsRes as any).data : locsRes;
+      const ams = amsRes && 'data' in amsRes ? (amsRes as any).data : amsRes;
+      setProp(pd || null);
+      setLocations(Array.isArray(locs) ? locs : []);
+      setAmenities(Array.isArray(ams) ? ams : []);
+      // expand all floors by default
+      if (pd?.floors) {
+        setExpanded(new Set(pd.floors.map((f: any) => f.id)));
+      }
+    } catch {
+      setProp(null);
+      setLocations([]);
+      setAmenities([]);
+    }
   };
 
   useEffect(() => { void load(); }, [propertyId]);
@@ -81,9 +92,11 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
     );
   }
 
-  const location = locations.find((l) => l.id === prop.location_id);
-  const parentLoc = location ? locations.find((l) => l.id === location.parent_id) : null;
-  const propAmenities = amenities.filter((a) => prop.amenity_ids.includes(a.id));
+  const location = Array.isArray(locations) ? locations.find((l) => l.id === prop.location_id) : null;
+  const parentLoc = location && Array.isArray(locations) ? locations.find((l) => l.id === location.parent_id) : null;
+  const propAmenities = Array.isArray(amenities) && prop.amenity_ids
+    ? amenities.filter((a) => prop.amenity_ids.includes(a.id))
+    : [];
   const statusColor = STATUS_COLOR[prop.status] ?? "#94a3b8";
 
   return (

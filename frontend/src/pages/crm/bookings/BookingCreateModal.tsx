@@ -256,11 +256,13 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
     if (!propertyId) { setFloors([]); setUnitId(null); setAvail({}); return; }
     setLoadingUnits(true);
     setUnitId(null);
-    propApi.getProperty(propertyId).then(r => {
-      setFloors(r.data.floors);
+    propApi.getProperty(propertyId).then(res => {
+      const data = res && 'data' in res ? (res as any).data : res;
+      const floorsList = data?.floors || [];
+      setFloors(floorsList);
       // Check availability for all units
-      const allUnits = r.data.floors.flatMap(f => f.units);
-      checkAllUnits(allUnits.map(u => u.id));
+      const allUnits = floorsList.flatMap((f: any) => f.units);
+      checkAllUnits(allUnits.map((u: any) => u.id));
     }).finally(() => setLoadingUnits(false));
   }, [propertyId]);
 

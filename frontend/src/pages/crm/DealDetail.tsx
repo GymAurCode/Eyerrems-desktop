@@ -94,13 +94,34 @@ export default function DealDetail() {
     setLoading(true);
     try {
       const [dRes] = await Promise.all([crmApi.getDeal(Number(id))]);
-      setDeal(dRes.data);
-      if (dRes.data.property_id) {
-        try { const fRes = await propApi.getFloors(dRes.data.property_id); setFloors(fRes.data); } catch { setFloors([]); }
+      const dData = dRes && 'data' in dRes ? (dRes as any).data : dRes;
+      setDeal(dData);
+      if (dData?.property_id) {
+        try {
+          const fRes = await propApi.getFloors(dData.property_id);
+          const fData = fRes && 'data' in fRes ? (fRes as any).data : fRes;
+          setFloors(Array.isArray(fData) ? fData : []);
+        } catch {
+          setFloors([]);
+        }
       }
-      try { const pRes = await crmApi.getInstallmentPlan(Number(id)); setPlan(pRes.data); } catch { setPlan(null); }
-      try { const sRes = await crmApi.getInstallmentSchedule(Number(id)); setSchedule(sRes.data); } catch { setSchedule([]); }
-    } finally { setLoading(false); }
+      try {
+        const pRes = await crmApi.getInstallmentPlan(Number(id));
+        const pData = pRes && 'data' in pRes ? (pRes as any).data : pRes;
+        setPlan(pData || null);
+      } catch {
+        setPlan(null);
+      }
+      try {
+        const sRes = await crmApi.getInstallmentSchedule(Number(id));
+        const sData = sRes && 'data' in sRes ? (sRes as any).data : sRes;
+        setSchedule(Array.isArray(sData) ? sData : []);
+      } catch {
+        setSchedule([]);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { void load(); }, [id]);

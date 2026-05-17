@@ -53,8 +53,14 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
       crmApi.getClients(), crmApi.getDealers(),
       propApi.getProperties(), propApi.getUnits(),
     ]).then(([c, d, p, u]) => {
-      setClients(c.data); setDealers(d.data);
-      setProperties(p.data); setUnits(u.data);
+      const cData = c && 'data' in c ? (c as any).data : c;
+      const dData = d && 'data' in d ? (d as any).data : d;
+      const pData = p && 'data' in p ? (p as any).data : p;
+      const uData = u && 'data' in u ? (u as any).data : u;
+      setClients(Array.isArray(cData) ? cData : []);
+      setDealers(Array.isArray(dData) ? dData : []);
+      setProperties(Array.isArray(pData) ? pData : []);
+      setUnits(Array.isArray(uData) ? uData : []);
     });
     if (initial) {
       setTitle(initial.deal_title ?? ""); setClientId(initial.client_id);
