@@ -1,15 +1,18 @@
 """
 Pre-start migration script for Railway (and local use).
 
-Strategy:
-  1. Check whether the actual schema exists (probe for the 'users' table).
-  2. If schema is MISSING  → wipe alembic_version, run upgrade head from scratch.
-  3. If schema EXISTS but alembic_version is empty/unknown → stamp at head (schema
-     was built outside Alembic), then run upgrade head for any new migrations.
-  4. If schema EXISTS and alembic_version is valid → just run upgrade head (no-op
-     if already at head, applies new migrations if any).
+Handles every possible DB state without data loss:
 
-This covers every possible Railway/local state without data loss.
+  State A — Empty DB (no tables at all)
+    → Run upgrade head from scratch (0001 → 0028)
+
+  State B — Partially migrated (some tables exist, alembic_version empty/wrong)
+    → Detect the highest completed revision by inspecting which tables exist
+    → Stamp at that revision
+    → Run upgrade head to apply the remaining migrations
+
+  State C — Fully migrated, alembic_version valid
+    → Run upgrade head (no-op if already at head)
 
 Usage (from backend/ directory):
   python scripts/migrate.py
@@ -23,24 +26,45 @@ from sqlalchemy import create_engine, inspect, text
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
 
-# ── All valid revision IDs in our local migration chain ───────────────────────
-VALID_REVISIONS = {
-    "0001_initial", "0002_erp_extensions", "0003_property_module",
-    "0004_property_categories", "0005_crm_overhaul", "0006_crm_upgrade",
-    "0007_tenant_module", "0008_finance_module", "0009_finance_upgrade",
-    "0010_installment_engine", "0011", "0012", "0013",
-    "0014_construction_module", "0015_reminder_module", "0016_hr_module",
-    "0017_mail_module", "0018_crm_activities", "0019_rbac_system",
-    "0020_multitenant_saas", "0021_town_module", "0022_booking_module",
-    "0023_booking_financial_refactor", "0024_reports_module",
-    "0025_currency_settings", "0026_ai_intelligence_module",
-    "0027_maintenance_upgrade", "0028_maintenance_unit_id",
-}
-KNOWN_HEAD = "0028_maintenance_unit_id"
+# ── Ordered chain: (revision_id, sentinel_table_that_this_revision_creates) ──
+# We use one representative table per revision as a proxy for "this migration ran".
+# Revisions that only add columns (no new tables) reuse the previous sentinel.
+REVISION_CHAIN = [
+    ("0001_initial",                  "users"),
+    ("0002_erp_extensions",           "accounts"),
+    ("0003_property_module",          "locations"),
+    ("0004_property_categories",      "property_categories"),
+    ("0005_crm_overhaul",             "communications"),
+    ("0006_crm_upgrade",              "client_attachments"),
+    ("0007_tenant_module",            "tenants"),
+    ("0008_finance_module",           "journals"),
+    ("0009_finance_upgrade",          "expenses"),
+    ("0010_installment_engine",       "installment_payments"),
+    ("0011",                          "installment_payments"),   # column-only
+    ("0012",                          "finance_operations"),
+    ("0013",                          "finance_operations"),     # column-only
+    ("0014_construction_module",      "construction_projects"),
+    ("0015_reminder_module",          "reminders"),
+    ("0016_hr_module",                "employees"),
+    ("0017_mail_module",              "email_accounts"),
+    ("0018_crm_activities",           "lead_activities"),
+    ("0019_rbac_system",              "user_roles"),
+    ("0020_multitenant_saas",         "companies"),
+    ("0021_town_module",              "towns"),
+    ("0022_booking_module",           "bookings"),
+    ("0023_booking_financial_refactor", "bookings"),             # column-only
+    ("0024_reports_module",           "report_templates"),
+    ("0025_currency_settings",        "companies"),              # column-only
+    ("0026_ai_intelligence_module",   "ai_anomalies"),
+    ("0027_maintenance_upgrade",      "maintenance_activity_logs"),
+    ("0028_maintenance_unit_id",      "maintenance_records"),    # column-only
+]
+
+VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}
+KNOWN_HEAD = REVISION_CHAIN[-1][0]
 
 
 def normalise_url(url: str) -> str:
-    """Railway injects postgres://, SQLAlchemy requires postgresql+psycopg2://."""
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+psycopg2://", 1)
     return url
@@ -54,14 +78,12 @@ def get_db_url() -> str:
     return normalise_url(raw)
 
 
-def schema_exists(engine) -> bool:
-    """Return True if the 'users' table exists — proxy for 'schema is built'."""
-    inspector = inspect(engine)
-    return "users" in inspector.get_table_names()
+def get_existing_tables(engine) -> set:
+    with engine.connect() as conn:
+        return set(inspect(conn).get_table_names())
 
 
-def get_alembic_version(engine):
-    """Return current version string, or None if table missing/empty."""
+def get_alembic_version(engine) -> str | None:
     with engine.connect() as conn:
         tbl_exists = conn.execute(text(
             "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
@@ -73,14 +95,25 @@ def get_alembic_version(engine):
         return rows[0][0] if rows else None
 
 
-def clear_alembic_version(engine):
+def clear_alembic_version(engine) -> None:
     with engine.connect() as conn:
         conn.execute(text(
-            "DELETE FROM alembic_version"
-            " WHERE EXISTS (SELECT 1 FROM information_schema.tables"
-            " WHERE table_name = 'alembic_version')"
+            "DELETE FROM alembic_version WHERE EXISTS "
+            "(SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')"
         ))
         conn.commit()
+
+
+def detect_completed_revision(existing_tables: set) -> str | None:
+    """
+    Walk the revision chain in reverse and return the highest revision
+    whose sentinel table exists in the DB.
+    Returns None if not even the first migration's table exists.
+    """
+    for revision, sentinel in reversed(REVISION_CHAIN):
+        if sentinel in existing_tables:
+            return revision
+    return None
 
 
 def make_alembic_cfg(db_url: str) -> AlembicConfig:
@@ -100,20 +133,20 @@ def main():
     engine = create_engine(db_url, pool_pre_ping=True)
 
     try:
-        has_schema = schema_exists(engine)
+        existing_tables = get_existing_tables(engine)
         current_ver = get_alembic_version(engine)
     finally:
         engine.dispose()
 
-    print(f"[migrate] Schema exists (users table): {has_schema}")
+    has_any_schema = bool(existing_tables - {"alembic_version"})
+    print(f"[migrate] Tables in DB: {len(existing_tables)}")
     print(f"[migrate] alembic_version: {current_ver!r}")
 
     cfg = make_alembic_cfg(db_url)
 
-    if not has_schema:
-        # ── Case 1: Empty database — run all migrations from scratch ──────────
-        print("[migrate] Empty database detected. Running full migration from 0001...")
-        # Clear any stale alembic_version row so Alembic starts from None
+    if not has_any_schema:
+        # ── State A: Completely empty database ────────────────────────────────
+        print("[migrate] Empty database — running full migration from 0001...")
         engine2 = create_engine(db_url, pool_pre_ping=True)
         try:
             clear_alembic_version(engine2)
@@ -122,27 +155,33 @@ def main():
         alembic_command.upgrade(cfg, "head")
         print("[migrate] Full migration complete.")
 
-    elif current_ver is None or current_ver not in VALID_REVISIONS:
-        # ── Case 2: Schema exists but version is missing/unknown ──────────────
-        # The schema was built outside Alembic (e.g. direct SQL, old tool).
-        # Stamp at head so Alembic knows the schema is current, then upgrade
-        # to apply any genuinely new migrations.
-        print(f"[migrate] Schema exists but version {current_ver!r} is unknown.")
-        print(f"[migrate] Stamping at {KNOWN_HEAD} and upgrading...")
+    elif current_ver in VALID_REVISIONS:
+        # ── State C: Valid version — normal upgrade ───────────────────────────
+        print(f"[migrate] Version {current_ver!r} is valid — running upgrade head...")
+        alembic_command.upgrade(cfg, "head")
+        print("[migrate] Done — database is up to date.")
+
+    else:
+        # ── State B: Partial schema, missing/unknown version ──────────────────
+        completed = detect_completed_revision(existing_tables)
+        print(f"[migrate] Partial schema detected.")
+        print(f"[migrate] Highest completed revision (by table inspection): {completed!r}")
+
         engine3 = create_engine(db_url, pool_pre_ping=True)
         try:
             clear_alembic_version(engine3)
         finally:
             engine3.dispose()
-        alembic_command.stamp(cfg, KNOWN_HEAD)
-        alembic_command.upgrade(cfg, "head")
-        print("[migrate] Stamp + upgrade complete.")
 
-    else:
-        # ── Case 3: Schema exists and version is valid — normal upgrade ───────
-        print(f"[migrate] Version {current_ver!r} is valid. Running upgrade head...")
+        if completed:
+            print(f"[migrate] Stamping at {completed!r}...")
+            alembic_command.stamp(cfg, completed)
+        else:
+            print("[migrate] No recognisable tables found — running from scratch...")
+
+        print("[migrate] Running upgrade head to apply remaining migrations...")
         alembic_command.upgrade(cfg, "head")
-        print("[migrate] Done — database is up to date.")
+        print("[migrate] Migration complete.")
 
 
 if __name__ == "__main__":
