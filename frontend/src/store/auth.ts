@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, registerLogoutCallback } from "../lib/api";
+import { api, registerLogoutCallback, getAuthToken, setAuthToken } from "../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ const BOOTSTRAP_TTL_MS = 30_000;
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: localStorage.getItem("token"),
+  token: getAuthToken(),
   user: null,
   permissions: [],
   features: {},
@@ -80,9 +80,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("token", data.access_token);
+    setAuthToken(data.access_token);
     if (data.company_id != null) {
-      localStorage.setItem("company_id", String(data.company_id));
+      try {
+        localStorage.setItem("company_id", String(data.company_id));
+        sessionStorage.setItem("company_id", String(data.company_id));
+      } catch {}
     }
     // Invalidate bootstrap cache on login
     _bootstrapCache = null;
@@ -144,8 +147,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("company_id");
+    setAuthToken(null);
+    try {
+      localStorage.removeItem("company_id");
+      sessionStorage.removeItem("company_id");
+    } catch {}
     _bootstrapCache = null;
     _bootstrapCacheAt = 0;
     set({
