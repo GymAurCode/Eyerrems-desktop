@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "electron:dev": "node scripts/electron-dev.mjs",
-    "electron:build": "electron-builder"
+    "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "axios": "^1.9.0",
