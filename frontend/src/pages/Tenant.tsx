@@ -398,7 +398,7 @@ export default function TenantPage() {
   const filtered = tenants.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.tenant_id.toLowerCase().includes(search.toLowerCase()) ||
-    t.phone.includes(search)
+    (t.phone ?? "").includes(search)
   );
 
   const alertIcons: Record<string, React.ElementType> = {

@@ -66,8 +66,8 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
       setTitle(initial.deal_title ?? ""); setClientId(initial.client_id);
       setTrackingId(initial.tracking_id); setPropId(initial.property_id ?? "");
       setUnitId(initial.unit_id ?? ""); setDealerId(initial.dealer_id ?? "");
-      setRole(initial.client_role ?? ""); setValue(initial.deal_value);
-      setDownPay(initial.down_payment ?? ""); setDownPayStatus(initial.down_payment_status);
+      setRole(initial.client_role ?? ""); setValue(String(initial.deal_value));
+      setDownPay(initial.down_payment != null ? String(initial.down_payment) : ""); setDownPayStatus(initial.down_payment_status);
       setStatus(initial.status); setDealDate(initial.deal_date ?? "");
       setDueDate(initial.due_date ?? ""); setDesc(initial.description ?? "");
     } else {
@@ -98,18 +98,18 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
     setSaving(true);
     try {
       const payload = {
-        deal_title: title.trim(), client_id: clientId,
-        property_id: propId || null, unit_id: unitId || null,
-        dealer_id: dealerId || null, client_role: role || null,
+        deal_title: title.trim(), client_id: Number(clientId),
+        property_id: propId ? Number(propId) : null, unit_id: unitId ? Number(unitId) : null,
+        dealer_id: dealerId ? Number(dealerId) : null, client_role: role || null,
         deal_value: Number(value), down_payment: downPay ? Number(downPay) : null,
         down_payment_status: downPayStatus, status,
         deal_date: dealDate || null, due_date: dueDate || null,
         description: desc || null,
-      };
+      } as any;
       const res = editing
         ? await crmApi.updateDeal(initial!.id, payload)
         : await crmApi.createDeal(payload);
-      onSaved(res.data);
+      onSaved(res);
       onClose();
     } catch (err: any) {
       const d = err?.response?.data?.detail;

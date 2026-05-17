@@ -133,7 +133,7 @@ export default function PropertyViewPage() {
       <DetailHeader
         backTo="/property"
         title={prop.name}
-        subtitle={prop.address}
+        subtitle={prop.address || undefined}
         badge={<StatusBadge status={prop.status} />}
         meta={[
           { label: "ID",       value: <span className="font-mono" style={{ color: "#60a5fa" }}>{prop.tid}</span> },

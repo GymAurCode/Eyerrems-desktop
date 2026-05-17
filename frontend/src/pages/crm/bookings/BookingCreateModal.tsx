@@ -271,14 +271,14 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
     if (!unitId) return;
     const allUnits = floors.flatMap(f => f.units);
     const unit = allUnits.find(u => u.id === unitId);
-    if (unit?.sale_price) setPropPrice(unit.sale_price);
+    if (unit?.sale_price) setPropPrice(String(unit.sale_price));
   }, [unitId, floors]);
 
   // Auto-fill price from property if no unit
   useEffect(() => {
     if (unitId || !propertyId) return;
     const prop = properties.find(p => p.id === propertyId);
-    if (prop?.sale_price) setPropPrice(prop.sale_price);
+    if (prop?.sale_price) setPropPrice(String(prop.sale_price));
   }, [propertyId, unitId, properties]);
 
   const checkAllUnits = async (unitIds: number[]) => {
@@ -287,8 +287,8 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
     await Promise.all(
       unitIds.map(async uid => {
         try {
-          const r = await bookingApi.checkAvailability(undefined, undefined, uid);
-          results[uid] = r.data.available;
+          const r = await bookingApi.checkAvailability({ unit_id: uid });
+          results[uid] = r.available;
         } catch {
           results[uid] = true; // assume available on error
         }

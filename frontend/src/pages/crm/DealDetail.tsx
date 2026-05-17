@@ -129,7 +129,8 @@ export default function DealDetail() {
   const toggleDP = async () => {
     if (!deal) return;
     const res = await crmApi.updateDeal(deal.id, { down_payment_status: deal.down_payment_status === "paid" ? "pending" : "paid" });
-    setDeal(res.data);
+    const data = res && 'data' in res ? (res as any).data : res;
+    setDeal(data);
   };
 
   if (loading) return <div className="p-8 text-sm" style={{ color: "var(--text-secondary)" }}>Loading…</div>;

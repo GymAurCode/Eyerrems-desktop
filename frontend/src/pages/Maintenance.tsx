@@ -541,7 +541,7 @@ function DetailPanel({ record, onBack, onRefresh }: {
             <ArrowLeft size={12} /> Back
           </button>
           <div>
-            <h2 className="text-base font-bold text-primary">{m.title || m.description.slice(0, 60)}</h2>
+            <h2 className="text-base font-bold text-primary">{m.title || m.description?.slice(0, 60) || ""}</h2>
             <div className="flex items-center gap-2 mt-0.5">
               <StatusBadge status={m.status} />
               <PriorityBadge priority={m.priority} />
@@ -712,10 +712,10 @@ function AnalyticsTab() {
     <div className="space-y-5">
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Requests" value={data.total_requests} icon={Wrench}       color="#3b82f6" />
-        <StatCard label="Pending"        value={data.pending}        icon={Clock}        color="#f59e0b" />
-        <StatCard label="In Progress"    value={data.in_progress}    icon={Activity}     color="#8b5cf6" />
-        <StatCard label="Completed"      value={data.completed}      icon={CheckCircle}  color="#10b981" />
+        <StatCard label="Total Requests" value={data.total_requests ?? 0} icon={Wrench}       color="#3b82f6" />
+        <StatCard label="Pending"        value={data.pending ?? 0}        icon={Clock}        color="#f59e0b" />
+        <StatCard label="In Progress"    value={data.in_progress ?? 0}    icon={Activity}     color="#8b5cf6" />
+        <StatCard label="Completed"      value={data.completed ?? 0}      icon={CheckCircle}  color="#10b981" />
         <StatCard label="Total Cost"     value={formatCurrency(data.total_cost)} icon={DollarSign} color="#ef4444" />
       </div>
 
@@ -726,8 +726,9 @@ function AnalyticsTab() {
             <p className="text-xs font-semibold text-primary uppercase tracking-wider">By Category</p>
           </div>
           <div className="p-4 space-y-2">
-            {data.by_category.slice(0, 8).map(row => {
-              const pct = data.total_requests > 0 ? (row.count / data.total_requests) * 100 : 0;
+            {data.by_category.slice(0, 8).map((row: any) => {
+              const total = data.total_requests ?? 0;
+              const pct = total > 0 ? (row.count / total) * 100 : 0;
               return (
                 <div key={row.category} className="flex items-center gap-3">
                   <span className="text-xs text-secondary capitalize w-24 shrink-0">{row.category}</span>
@@ -748,7 +749,7 @@ function AnalyticsTab() {
             <p className="text-xs font-semibold text-primary uppercase tracking-wider">Top Properties by Cost</p>
           </div>
           <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-            {data.by_property.slice(0, 8).map(row => (
+            {data.by_property.slice(0, 8).map((row: any) => (
               <div key={row.property_id} className="px-5 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <Building2 size={12} className="text-muted shrink-0" />
@@ -770,8 +771,8 @@ function AnalyticsTab() {
             <p className="text-xs text-muted text-center py-6">No data yet</p>
           ) : (
             <div className="flex items-end gap-2 h-24">
-              {data.monthly_trend.slice(-12).map(row => {
-                const maxCost = Math.max(...data.monthly_trend.map(r => r.total_cost), 1);
+              {data.monthly_trend.slice(-12).map((row: any) => {
+                const maxCost = Math.max(...data.monthly_trend.map((r: any) => r.total_cost), 1);
                 const h = Math.max(4, (row.total_cost / maxCost) * 80);
                 return (
                   <div key={row.month} className="flex-1 flex flex-col items-center gap-1">
@@ -817,7 +818,7 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
 
   const filtered = records.filter(r =>
     !search ||
-    r.description.toLowerCase().includes(search.toLowerCase()) ||
+    (r.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (r.title ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (r.property_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (r.tenant_name ?? "").toLowerCase().includes(search.toLowerCase())
