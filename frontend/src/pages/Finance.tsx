@@ -5,6 +5,8 @@ import {
   Banknote, Receipt, FileText, Plus, RefreshCw, ArrowUpRight,
   ArrowDownRight, Wallet, Activity, Layers,
 } from "lucide-react";
+import { RowActions, QuickRowActions } from "../components/actions";
+import type { ActionConfig } from "../components/actions";
 import { formatCurrency } from "../lib/currency";
 import {
   accountsApi, journalsApi, invoicesApi, paymentsApi,
@@ -451,36 +453,162 @@ function JournalsTab({ journals, onRefresh }: { journals: Journal[]; onRefresh: 
 }
 
 // ── Invoices Tab ──────────────────────────────────────────────────────────────
-function InvoicesTab({ invoices, onPay }: { invoices: Invoice[]; onPay: (inv: Invoice) => void }) {
+// ── Invoices Tab ──────────────────────────────────────────────────────────────
+function InvoicesTab({
+  invoices,
+  onPay,
+}: {
+  invoices: Invoice[];
+  onPay: (inv: Invoice) => void;
+}) {
+  const [viewInv, setViewInv] = useState<Invoice | null>(null);
+
+  // Build per-row actions using the reusable ActionConfig pattern.
+  // Each action is typed to Invoice so handlers receive the correct row data.
+  const getActions = (inv: Invoice): ActionConfig<Invoice>[] => [
+    {
+      type: "view",
+      handler: (r) => setViewInv(r),
+      tooltip: "View invoice details",
+    },
+    {
+      // "Pay" is a custom action — uses the "custom" type with overrides
+      type: "custom",
+      label: "Pay",
+      color: "#60a5fa",
+      icon: DollarSign,
+      tooltip: "Record payment for this invoice",
+      handler: (r) => onPay(r),
+      // Only show Pay button for unpaid invoices
+      visible: (r) => r.status !== "paid",
+      permission: "finance:manage",
+    },
+    {
+      type: "print",
+      handler: (r) => window.print(),
+      tooltip: "Print invoice",
+    },
+    {
+      type: "delete",
+      handler: async (r) => {
+        // Placeholder — wire to invoicesApi.delete(r.id) when endpoint exists
+        console.log("[Finance] Delete invoice", r.id);
+      },
+      permission: "finance:manage",
+      confirmMessage: `Are you sure you want to delete Invoice #${viewInv?.id ?? ""}? This cannot be undone.`,
+    },
+  ];
+
   return (
     <div className="detail-container">
-      <div className="detail-section"><p className="detail-section-title mb-0">Invoices</p></div>
+      <div className="detail-section">
+        <p className="detail-section-title mb-0">Invoices</p>
+      </div>
       <div className="overflow-x-auto">
         <table className="erp-table">
-          <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th className="text-right">Amount</th><th>Status</th><th>Due Date</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tenant</th>
+              <th>Property</th>
+              <th className="text-right">Amount</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              {/* Actions column — no header text, right-aligned */}
+              <th className="text-right" style={{ width: "1%" }}>Actions</th>
+            </tr>
+          </thead>
           <tbody>
-            {invoices.length === 0 && <tr><td colSpan={7} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No invoices</td></tr>}
+            {invoices.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-10" style={{ color: "var(--text-muted)" }}>
+                  No invoices
+                </td>
+              </tr>
+            )}
             {invoices.map(inv => (
               <tr key={inv.id}>
                 <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>#{inv.id}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{inv.tenant_id}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{inv.property_id}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{inv.tenant_id ?? "—"}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{inv.property_id ?? "—"}</td>
                 <td className="text-right font-semibold">{formatCurrency(inv.amount)}</td>
                 <td><StatusBadge status={inv.status} /></td>
-                <td style={{ color: "var(--text-secondary)" }}>{new Date(inv.due_date).toLocaleDateString()}</td>
-                <td>{inv.status !== "paid" && (
-                  <button onClick={() => onPay(inv)} className="text-xs px-2.5 py-1 rounded-lg transition-colors"
-                    style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.2)"}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.12)"}>
-                    Pay
-                  </button>
-                )}</td>
+                <td style={{ color: "var(--text-secondary)" }}>
+                  {new Date(inv.due_date).toLocaleDateString()}
+                </td>
+                <td className="text-right">
+                  {/* ── RowActions example implementation ── */}
+                  <RowActions
+                    row={inv}
+                    actions={getActions(inv)}
+                    variant="icon-buttons"
+                    compact
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Invoice detail view modal */}
+      {viewInv && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}
+          onClick={() => setViewInv(null)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl overflow-hidden"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 32px 64px rgba(0,0,0,0.45)",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <h3 className="text-sm font-semibold text-primary">Invoice #{viewInv.id}</h3>
+              <button onClick={() => setViewInv(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                ✕
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {[
+                { label: "Tenant ID",    value: viewInv.tenant_id ?? "—" },
+                { label: "Property ID",  value: viewInv.property_id ?? "—" },
+                { label: "Amount",       value: formatCurrency(viewInv.amount) },
+                { label: "Status",       value: viewInv.status },
+                { label: "Due Date",     value: new Date(viewInv.due_date).toLocaleDateString() },
+                { label: "Created",      value: new Date(viewInv.created_at).toLocaleDateString() },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between items-center py-2"
+                  style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</span>
+                  <span className="text-xs font-medium text-primary">{String(value)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 flex justify-end gap-2"
+              style={{ borderTop: "1px solid var(--border)" }}>
+              {viewInv.status !== "paid" && (
+                <button onClick={() => { onPay(viewInv); setViewInv(null); }}
+                  className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5">
+                  <DollarSign size={12} /> Pay Now
+                </button>
+              )}
+              <button onClick={() => setViewInv(null)} className="btn-ghost px-4 py-2 text-xs">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
