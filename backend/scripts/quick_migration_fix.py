@@ -52,22 +52,61 @@ def main():
             
             print(f"Found {len(existing_tables)} tables in database")
             
-            # Determine correct version based on existing tables
-            if "import_row_logs" in existing_tables:
-                target_version = "0033_import_module"
-                print("✅ Database appears to be at 0033_import_module")
-            elif "import_batches" in existing_tables:
-                target_version = "0033_import_module"
-                print("✅ Database appears to be at 0033_import_module")
-            elif "town_transactions" in existing_tables:
-                target_version = "0032_town_units_upgrade"
-                print("✅ Database appears to be at 0032_town_units_upgrade")
-            elif "town_units" in existing_tables:
-                target_version = "0032_town_units_upgrade"
-                print("✅ Database appears to be at 0032_town_units_upgrade")
+            # Determine correct version based on existing tables and columns
+            target_version = "0031_force_fix_company_id"  # default
+            
+            # Check for commission table columns to detect 0034
+            if "commissions" in existing_tables:
+                try:
+                    commission_columns = inspector.get_columns("commissions")
+                    commission_col_names = {col["name"] for col in commission_columns}
+                    
+                    if "dealer_id" in commission_col_names:
+                        target_version = "0034_commission_dealer_upgrade"
+                        print("✅ Database appears to be at 0034_commission_dealer_upgrade (has dealer_id column)")
+                    elif "import_row_logs" in existing_tables:
+                        target_version = "0033_import_module"
+                        print("✅ Database appears to be at 0033_import_module")
+                    elif "import_batches" in existing_tables:
+                        target_version = "0033_import_module"
+                        print("✅ Database appears to be at 0033_import_module")
+                    elif "town_transactions" in existing_tables:
+                        target_version = "0032_town_units_upgrade"
+                        print("✅ Database appears to be at 0032_town_units_upgrade")
+                    elif "town_units" in existing_tables:
+                        target_version = "0032_town_units_upgrade"
+                        print("✅ Database appears to be at 0032_town_units_upgrade")
+                except Exception as e:
+                    print(f"Could not check commission columns: {e}")
+                    # Fall back to table-based detection
+                    if "import_row_logs" in existing_tables:
+                        target_version = "0033_import_module"
+                        print("✅ Database appears to be at 0033_import_module")
+                    elif "import_batches" in existing_tables:
+                        target_version = "0033_import_module"
+                        print("✅ Database appears to be at 0033_import_module")
+                    elif "town_transactions" in existing_tables:
+                        target_version = "0032_town_units_upgrade"
+                        print("✅ Database appears to be at 0032_town_units_upgrade")
+                    elif "town_units" in existing_tables:
+                        target_version = "0032_town_units_upgrade"
+                        print("✅ Database appears to be at 0032_town_units_upgrade")
             else:
-                target_version = "0031_force_fix_company_id"
-                print("✅ Database appears to be at 0031_force_fix_company_id")
+                # No commissions table, use table-based detection
+                if "import_row_logs" in existing_tables:
+                    target_version = "0033_import_module"
+                    print("✅ Database appears to be at 0033_import_module")
+                elif "import_batches" in existing_tables:
+                    target_version = "0033_import_module"
+                    print("✅ Database appears to be at 0033_import_module")
+                elif "town_transactions" in existing_tables:
+                    target_version = "0032_town_units_upgrade"
+                    print("✅ Database appears to be at 0032_town_units_upgrade")
+                elif "town_units" in existing_tables:
+                    target_version = "0032_town_units_upgrade"
+                    print("✅ Database appears to be at 0032_town_units_upgrade")
+                else:
+                    print("✅ Database appears to be at 0031_force_fix_company_id")
             
             # Get current alembic version
             try:
