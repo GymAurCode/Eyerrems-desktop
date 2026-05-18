@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Building2, MapPin, Edit2, Trash2, Search } from "lucide-react";
+import { QuickRowActions, printRecord } from "../../components/actions";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
 import { townApi, Town } from "../../lib/townApi";
@@ -214,6 +215,16 @@ export default function TownList() {
   const openEdit   = (t: Town) => { setEditTown(t); setFormOpen(true); };
   const openDelete = (t: Town) => { setDeleteTown(t); setDeleteOpen(true); };
 
+  const handleDeleteTown = async (town: Town) => {
+    try {
+      await townApi.deleteTown(town.id);
+      await load(); // Reload the list
+    } catch (error) {
+      console.error("[TownList] Failed to delete town", error);
+      throw error; // Re-throw so RowActions can handle the error state
+    }
+  };
+
   return (
     <div className="p-6 space-y-5 animate-slide-up">
       {/* Header */}
@@ -269,10 +280,11 @@ export default function TownList() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID", "Name", "Location", "Blocks", "Plots", ""].map((h) => (
+                {["TID", "Name", "Location", "Blocks", "Plots", "Actions"].map((h) => (
                   <th
                     key={h}
-                    className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider"
+                    className={`text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider ${h === "Actions" ? "text-right" : ""}`}
+                    style={h === "Actions" ? { width: "1%" } : {}}
                   >
                     {h}
                   </th>
@@ -305,42 +317,24 @@ export default function TownList() {
                   </td>
                   <td className="px-5 py-3.5 text-secondary">{town.block_count}</td>
                   <td className="px-5 py-3.5 text-secondary">{town.plot_count}</td>
-                  <td className="px-5 py-3.5">
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openEdit(town)}
-                        className="flex items-center gap-1 text-xs text-blue-400 px-2 py-1.5 rounded-lg transition-colors"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "rgba(59,130,246,0.1)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "transparent";
-                        }}
-                      >
-                        <Edit2 size={12} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openDelete(town)}
-                        className="flex items-center gap-1 text-xs text-red-400 px-2 py-1.5 rounded-lg transition-colors"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "rgba(239,68,68,0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "transparent";
-                        }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                  <td className="px-5 py-3.5 text-right">
+                    <QuickRowActions
+                      row={town}
+                      onView={(t) => navigate(`/towns/${t.id}`)}
+                      onEdit={openEdit}
+                      onDelete={handleDeleteTown}
+                      onPrint={(t) => printRecord(`Town ${t.tid}`, [
+                        { label: "Name", value: t.name },
+                        { label: "Location", value: t.location ?? "—" },
+                        { label: "Blocks", value: String(t.block_count) },
+                        { label: "Plots", value: String(t.plot_count) },
+                      ])}
+                      editPermission="towns:manage"
+                      deletePermission="towns:manage"
+                      deleteConfirmMessage={`Are you sure you want to delete "${town.name}"? This will permanently delete all blocks and plots. This action cannot be undone.`}
+                      variant="icon-buttons"
+                      compact
+                    />
                   </td>
                 </tr>
               ))}

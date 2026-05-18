@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BookOpen, Plus, Clock, CheckCircle, XCircle, AlertCircle,
-  TrendingUp, X, ChevronDown, Eye, RefreshCw, Calendar,
+  TrendingUp, X, ChevronDown, RefreshCw, Calendar,
 } from "lucide-react";
 import { bookingApi, BookingListItem, BookingStats } from "../lib/bookingApi";
 import { formatCurrency } from "../lib/currency";
+import { RowActions, ActionsCell, printRecord } from "../components/actions";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -565,39 +566,22 @@ export default function BookingsPage() {
                     <td className="px-4 py-3">
                       <StatusBadge status={b.status} isExpired={b.is_expired} />
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        {canChangeStatus(b) && (
-                          <button
-                            type="button"
-                            onClick={() => setStatusModal(b)}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg transition-colors"
-                            style={{ color: "#60a5fa" }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.1)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                            title="Update status"
-                          >
-                            <Eye size={12} /> Status
-                          </button>
-                        )}
-                        {canExtend(b) && (
-                          <button
-                            type="button"
-                            onClick={() => setExtendModal(b)}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg transition-colors"
-                            style={{ color: "#34d399" }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(52,211,153,0.1)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                            title="Extend booking"
-                          >
-                            <Clock size={12} /> Extend
-                          </button>
-                        )}
-                        {!canChangeStatus(b) && !canExtend(b) && (
-                          <span className="text-xs text-muted px-2">—</span>
-                        )}
-                      </div>
-                    </td>
+                    <ActionsCell className="px-4 py-3">
+                      <RowActions
+                        row={b}
+                        compact
+                        actions={[
+                          ...(canChangeStatus(b) ? [{ type: "edit" as const, label: "Status", handler: () => setStatusModal(b) }] : []),
+                          ...(canExtend(b) ? [{ type: "custom" as const, label: "Extend", icon: Clock, handler: () => setExtendModal(b) }] : []),
+                          { type: "print", handler: () => printRecord(`Booking ${b.booking_id}`, [
+                            { label: "Client", value: b.client_name ?? "—" },
+                            { label: "Amount", value: formatCurrency(b.booking_amount) },
+                            { label: "Status", value: b.status },
+                            { label: "Expiry", value: new Date(b.expiry_date).toLocaleDateString() },
+                          ]) },
+                        ]}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>

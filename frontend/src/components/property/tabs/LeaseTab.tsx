@@ -4,6 +4,7 @@ import Modal from "../../Modal";
 import { propApi, Lease, Property, Unit } from "../../../lib/propertyApi";
 
 import { formatCurrency } from "../../../lib/currency";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -83,6 +84,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
                 {["TID","Tenant","Unit ID","Start","End","Rent/mo","Status"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
                 ))}
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -101,6 +103,13 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                         style={{ background: `${sc}18`, color: sc }}>{l.status}</span>
                     </td>
+                    <ActionsCell>
+                      <QuickRowActions row={l} compact onPrint={(row) => printRecord(`Lease ${row.tid}`, [
+                        { label: "Tenant", value: row.tenant_name || "—" },
+                        { label: "Rent", value: formatCurrency(row.monthly_rent) },
+                        { label: "Status", value: row.status },
+                      ])} hiddenActions={["view", "edit", "delete"]} />
+                    </ActionsCell>
                   </tr>
                 );
               })}

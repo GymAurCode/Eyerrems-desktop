@@ -4,6 +4,7 @@ import Modal from "../../Modal";
 import { propApi, PropertySale, Property, Unit, Buyer, Seller } from "../../../lib/propertyApi";
 
 import { formatCurrency } from "../../../lib/currency";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -114,6 +115,13 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                         style={{ background: `${sc}18`, color: sc }}>{s.status}</span>
                     </td>
+                    <ActionsCell>
+                      <QuickRowActions row={s} compact onPrint={(row) => printRecord(`Sale ${row.tid}`, [
+                        { label: "Price", value: formatCurrency(row.sale_price) },
+                        { label: "Date", value: row.sale_date },
+                        { label: "Status", value: row.status },
+                      ])} hiddenActions={["view", "edit", "delete"]} />
+                    </ActionsCell>
                   </tr>
                 );
               })}

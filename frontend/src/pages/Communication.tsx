@@ -21,8 +21,9 @@ import { loadCallConfig, saveCallConfig, isCallConfigured } from "../services/ca
 import type { WhatsAppConfig } from "../services/whatsapp/WhatsAppService";
 import { useChatStore } from "../store/chat";
 import { useAuthStore } from "../store/auth";
+import { chatApi } from "../lib/chatApi";
 import type { ChatChannel, ChatMessage } from "../services/chat/ChatService";
-import { MessageSquare, Bell, Filter, Hash, Users, Lock } from "lucide-react";
+import { MessageSquare, Bell, Filter, Hash, Users, Lock, Shield } from "lucide-react";
 
 // ── Tab bar ───────────────────────────────────────────────────────────────────
 
@@ -1024,6 +1025,7 @@ function ChannelItem({ channel, active, onClick }: {
 }) {
   const typeIcon =
     channel.type === "system"  ? <Bell size={11} style={{ color: "#f59e0b" }} /> :
+    channel.type === "role"    ? <Shield size={11} style={{ color: "#8b5cf6" }} /> :
     channel.type === "group"   ? <Hash size={11} className="text-muted" /> :
     <Lock size={11} className="text-muted" />;
 
@@ -1039,6 +1041,9 @@ function ChannelItem({ channel, active, onClick }: {
       {channel.type === "system"
         ? <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base"
             style={{ background: "rgba(245,158,11,0.15)" }}>⚙️</div>
+        : channel.type === "role"
+        ? <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-bold"
+            style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>#</div>
         : <ChatAvatar name={channel.name} size={36} />}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
@@ -1133,18 +1138,20 @@ function ChatTab() {
     channels, messages, activeChannelId, search, filter,
     currentUserId, currentUserName, currentUserRole,
     setActiveChannel, setSearch, setFilter, sendMessage,
-    setCurrentUser, triggerSystemEvent,
+    setCurrentUser, triggerSystemEvent, syncFromBootstrap, onlineUsers,
   } = useChatStore();
 
   const user = useAuthStore(s => s.user);
 
-  // Sync auth user into chat store
   useEffect(() => {
     if (user) {
       const role = user.roles?.[0] ?? user.role ?? "Staff";
       setCurrentUser(String(user.id), user.full_name, role);
     }
-  }, [user?.id]);
+    chatApi.bootstrap()
+      .then(syncFromBootstrap)
+      .catch(() => { /* keep seeded demo channels if API unavailable */ });
+  }, [user?.id, syncFromBootstrap, setCurrentUser]);
 
   const [input,       setInput]       = useState("");
   const [showDemo,    setShowDemo]     = useState(false);
@@ -1156,8 +1163,9 @@ function ChatTab() {
   // Filter channels
   const filteredChannels = channels.filter(c => {
     if (filter === "system") return c.type === "system";
-    if (filter === "chats")  return c.type !== "system";
-    return true;
+    if (filter === "roles") return c.type === "role";
+    if (filter === "direct") return c.type === "direct";
+    return c.type !== "system";
   }).filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -1245,15 +1253,20 @@ function ChatTab() {
               style={{ background: "var(--bg-surface2, rgba(255,255,255,0.05))", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
           </div>
           <div className="flex gap-1">
-            {(["all","chats","system"] as const).map(f => (
+            {([
+              ["all", "All"],
+              ["roles", "Roles"],
+              ["direct", "DMs"],
+              ["system", "System"],
+            ] as const).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)}
-                className="flex-1 py-1 text-[10px] font-medium rounded-lg capitalize transition-all"
+                className="flex-1 py-1 text-[10px] font-medium rounded-lg transition-all"
                 style={{
                   background: filter === f ? "rgba(37,211,102,0.12)" : "transparent",
                   color:      filter === f ? "#25D366" : "var(--text-muted)",
                   border:     `1px solid ${filter === f ? "rgba(37,211,102,0.3)" : "var(--border)"}`,
                 }}>
-                {f}
+                {label}
               </button>
             ))}
           </div>
@@ -1288,12 +1301,25 @@ function ChatTab() {
             {activeChannel.type === "system"
               ? <div className="w-8 h-8 rounded-full flex items-center justify-center text-base"
                   style={{ background: "rgba(245,158,11,0.15)" }}>⚙️</div>
+              : activeChannel.type === "role"
+              ? <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                  style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>#</div>
               : <ChatAvatar name={activeChannel.name} size={32} />}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-primary">{activeChannel.name}</p>
+              <p className="text-sm font-semibold text-primary flex items-center gap-2">
+                {activeChannel.name}
+                {activeChannel.roleName && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>
+                    {activeChannel.roleName}
+                  </span>
+                )}
+              </p>
               <p className="text-[10px] text-muted">
                 {activeChannel.type === "system"
                   ? "Auto-generated system events · Read-only"
+                  : activeChannel.type === "role"
+                  ? `Role channel · ${activeChannel.members.length} members`
                   : activeChannel.type === "group"
                   ? `${activeChannel.members.length} members`
                   : "Direct message"}

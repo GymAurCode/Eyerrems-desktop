@@ -95,22 +95,32 @@ class Payment(Base):
 
 
 class Commission(Base):
-    """Agent commissions - earned and paid"""
+    """Dealer/agent commissions — earned accruals and payout records."""
     __tablename__ = "commissions"
 
     id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # legacy
+    dealer_id = Column(Integer, ForeignKey("dealers.id"), nullable=True, index=True)
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+    deal_id = Column(Integer, ForeignKey("deals.id"), nullable=True, index=True)
+    sale_amount = Column(Numeric(14, 2), nullable=True)
+    commission_rate = Column(Numeric(12, 4), nullable=True)
+    calculated_amount = Column(Numeric(14, 2), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     type = Column(String(20), nullable=False, index=True)  # earned, paid
+    payment_status = Column(String(20), nullable=False, default="unpaid")  # unpaid, paid
     date = Column(DateTime, nullable=False)
     reference = Column(String(100), nullable=True)
     description = Column(String(500), nullable=True)
+    journal_id = Column(Integer, ForeignKey("journals.id"), nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     agent = relationship("User")
+    dealer = relationship("Dealer", foreign_keys=[dealer_id])
     property = relationship("Property")
+    deal = relationship("Deal", foreign_keys=[deal_id])
+    journal = relationship("Journal", foreign_keys=[journal_id])
 
 
 class Expense(Base):

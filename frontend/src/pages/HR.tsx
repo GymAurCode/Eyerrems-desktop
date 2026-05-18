@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Modal from "../components/Modal";
 import { formatCurrency } from "../lib/currency";
+import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 import {
   departmentsApi, positionsApi, branchesApi, employeesApi,
   attendanceApi, leaveTypesApi, leavesApi, payrollApi, holidaysApi,
@@ -323,7 +324,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
       <div className="detail-container">
         <div className="overflow-x-auto">
           <table className="erp-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Position</th><th>Type</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Position</th><th>Type</th><th>Status</th><th>Joined</th><ActionsTh /></tr></thead>
             <tbody>
               {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No employees found</td></tr>}
               {filtered.map(emp => (
@@ -335,12 +336,20 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
                   <td style={{ color: "var(--text-secondary)" }}>{emp.employment_type}</td>
                   <td><StatusBadge status={emp.employment_status} /></td>
                   <td style={{ color: "var(--text-secondary)" }}>{new Date(emp.joining_date).toLocaleDateString()}</td>
-                  <td>
-                    <button onClick={() => openEmployee(emp)}
-                      className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
-                      View
-                    </button>
-                  </td>
+                  <ActionsCell>
+                    <QuickRowActions
+                      row={emp}
+                      compact
+                      onView={openEmployee}
+                      onPrint={(row) => printRecord(`Employee ${row.employee_id}`, [
+                        { label: "Name", value: row.full_name },
+                        { label: "Department", value: row.department?.name ?? "—" },
+                        { label: "Position", value: row.position?.title ?? "—" },
+                        { label: "Status", value: row.employment_status },
+                      ])}
+                      hiddenActions={["edit", "delete"]}
+                    />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>
@@ -650,17 +659,19 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
                     <td className="font-semibold text-primary">{l.total_days}</td>
                     <td><StatusBadge status={l.status} /></td>
                     <td className="max-w-xs truncate" style={{ color: "var(--text-secondary)" }}>{l.reason}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        {l.status === "Pending" && (
-                          <>
-                            <button onClick={() => approve(l.id)} disabled={loading} className="p-1 rounded-lg" style={{ color: "#10b981" }} title="Approve"><CheckCircle size={14} /></button>
-                            <button onClick={() => setRejectId(l.id)} className="p-1 rounded-lg" style={{ color: "#ef4444" }} title="Reject"><XCircle size={14} /></button>
-                          </>
-                        )}
-                        <button onClick={() => viewBalance(l.employee_id)} className="p-1 rounded-lg" style={{ color: "#3b82f6" }} title="Balance"><FileText size={14} /></button>
-                      </div>
-                    </td>
+                    <ActionsCell>
+                      <RowActions
+                        row={l}
+                        compact
+                        actions={[
+                          ...(l.status === "Pending" ? [
+                            { type: "approve" as const, handler: () => approve(l.id) },
+                            { type: "reject" as const, handler: () => setRejectId(l.id) },
+                          ] : []),
+                          { type: "view", label: "Balance", handler: () => viewBalance(l.employee_id) },
+                        ]}
+                      />
+                    </ActionsCell>
                   </tr>
                 );
               })}
@@ -837,14 +848,18 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
                     <td style={{ color: Number(p.overtime_hours) > 0 ? "#10b981" : "var(--text-secondary)" }}>{Number(p.overtime_hours).toFixed(1)}</td>
                     <td style={{ color: p.late_days > 0 ? "#f59e0b" : "var(--text-secondary)" }}>{p.late_days}</td>
                     <td><StatusBadge status={p.status} /></td>
-                    <td>
-                      <div className="flex gap-1">
-                        {p.status === "Calculated" && <button onClick={() => approve(p.id)} disabled={loading} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}>Approve</button>}
-                        {p.status === "Approved" && !p.journal_id && <button onClick={() => postAccounting(p.id)} disabled={loading} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(139,92,246,0.12)", color: "#8b5cf6" }}>Post</button>}
-                        {p.status === "Approved" && <button onClick={() => setMarkPaidId(p.id)} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>Pay</button>}
-                        <button onClick={() => viewPayslip(p.id)} className="p-1 rounded-lg" style={{ color: "var(--text-muted)" }} title="Payslip"><Printer size={13} /></button>
-                      </div>
-                    </td>
+                    <ActionsCell>
+                      <RowActions
+                        row={p}
+                        compact
+                        actions={[
+                          ...(p.status === "Calculated" ? [{ type: "approve" as const, handler: () => approve(p.id) }] : []),
+                          ...(p.status === "Approved" && !p.journal_id ? [{ type: "custom" as const, label: "Post", handler: () => postAccounting(p.id) }] : []),
+                          ...(p.status === "Approved" ? [{ type: "custom" as const, label: "Pay", handler: () => setMarkPaidId(p.id) }] : []),
+                          { type: "print", label: "Payslip", handler: () => viewPayslip(p.id) },
+                        ]}
+                      />
+                    </ActionsCell>
                   </tr>
                 );
               })}
@@ -1091,12 +1106,9 @@ function SetupTab({
                     <td style={{ color: "var(--text-secondary)" }}>{d.code}</td>
                     <td style={{ color: "var(--text-muted)" }}>{d.description ?? "—"}</td>
                     <td><StatusBadge status={d.is_active ? "Active" : "Inactive"} /></td>
-                    <td>
-                      <div className="flex gap-1">
-                        <button onClick={() => openDept(d)} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>Edit</button>
-                        <button onClick={() => deleteDept(d.id)} disabled={loading} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>Delete</button>
-                      </div>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions row={d} compact onEdit={openDept} onDelete={() => deleteDept(d.id)} hiddenActions={["view", "print"]} />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -1125,9 +1137,9 @@ function SetupTab({
                     <td style={{ color: "var(--text-secondary)" }}>{p.min_salary ? formatCurrency(p.min_salary) : "—"}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{p.max_salary ? formatCurrency(p.max_salary) : "—"}</td>
                     <td><StatusBadge status={p.is_active ? "Active" : "Inactive"} /></td>
-                    <td>
-                      <button onClick={() => openPos(p)} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>Edit</button>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions row={p} compact onEdit={openPos} hiddenActions={["view", "delete", "print"]} />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -1156,9 +1168,9 @@ function SetupTab({
                     <td style={{ color: "var(--text-muted)" }}>{b.country ?? "—"}</td>
                     <td style={{ color: "var(--text-muted)" }}>{b.phone ?? "—"}</td>
                     <td><StatusBadge status={b.is_active ? "Active" : "Inactive"} /></td>
-                    <td>
-                      <button onClick={() => openBranch(b)} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>Edit</button>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions row={b} compact onEdit={openBranch} hiddenActions={["view", "delete", "print"]} />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -1213,9 +1225,9 @@ function SetupTab({
                     <td style={{ color: "var(--text-secondary)" }}>{h.holiday_date}</td>
                     <td style={{ color: "var(--text-muted)" }}>{h.description ?? "—"}</td>
                     <td className="text-center">{h.is_recurring ? "Yes" : "No"}</td>
-                    <td>
-                      <button onClick={() => deleteHol(h.id)} disabled={loading} className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>Delete</button>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions row={h} compact onDelete={() => deleteHol(h.id)} hiddenActions={["view", "edit", "print"]} />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>

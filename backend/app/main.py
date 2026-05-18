@@ -30,6 +30,8 @@ from app.api.routes.bootstrap import router as bootstrap_router
 from app.api.routes.booking import router as booking_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.ai_intelligence import router as ai_router
+from app.api.routes.import_routes import router as import_router
+from app.api.routes.chat_routes import router as chat_router
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.default_coa import seed_default_coa
@@ -98,6 +100,8 @@ app.include_router(booking_router, prefix="/crm/bookings", tags=["bookings"])
 app.include_router(reports_router, prefix="/reports", tags=["reports"])
 # AI Intelligence Center
 app.include_router(ai_router, tags=["ai-intelligence"])
+app.include_router(import_router, prefix="/import", tags=["import"])
+app.include_router(chat_router, prefix="/chat", tags=["chat"])
 
 
 @app.on_event("startup")

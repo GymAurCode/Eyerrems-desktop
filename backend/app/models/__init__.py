@@ -32,10 +32,11 @@ from app.models.hr import (
     Payroll, LeaveBalance, Holiday
 )
 from app.models.mail import EmailAccount, EmailThread, Email, EmailAttachment
-from app.models.town import Town, Block, Plot
+from app.models.town import Town, Block, Plot, TownUnit, TownTransaction
 from app.models.ledger import ClientLedgerEntry, DealerLedgerEntry, PropertyLedgerEntry
 from app.models.booking import Booking, BookingLog, BookingAttachment
 from app.models.reports import ReportTemplate, SavedReport, ReportSchedule, ReportLog
 from app.models.ai_intelligence import (
     AIAnomaly, AIRiskScore, AIAlert, AIDuplicateMatch, AIQuery, AIInsight,
 )
+from app.models.import_batch import ImportBatch, ImportRowLog

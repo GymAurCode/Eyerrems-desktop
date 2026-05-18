@@ -1,8 +1,9 @@
 import { useState, useEffect, FormEvent } from "react";
 import {
   TrendingUp, TrendingDown, RotateCcw, ArrowLeftRight,
-  SlidersHorizontal, GitMerge, Eye, AlertTriangle, X,
+  SlidersHorizontal, GitMerge, AlertTriangle, X,
 } from "lucide-react";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../actions";
 import Modal from "../Modal";
 import { formatCurrency } from "../../lib/currency";
 import {
@@ -794,7 +795,7 @@ export default function OperationsTab() {
                 <th>To / Credit</th>
                 <th>Reference</th>
                 <th>Reason</th>
-                <th></th>
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -819,15 +820,21 @@ export default function OperationsTab() {
                   <td className="max-w-[140px] truncate text-xs" style={{ color: "var(--text-muted)" }}>
                     {op.reason ?? "—"}
                   </td>
-                  <td>
-                    <button onClick={() => setDetailOp(op)}
-                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors"
-                      style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(59,130,246,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(59,130,246,0.1)")}>
-                      <Eye size={11} /> View
-                    </button>
-                  </td>
+                  <ActionsCell>
+                    <QuickRowActions
+                      row={op}
+                      compact
+                      onView={(row) => setDetailOp(row)}
+                      onPrint={(row) => printRecord(`Finance Operation #${row.id}`, [
+                        { label: "Type", value: row.type },
+                        { label: "Amount", value: formatCurrency(row.amount) },
+                        { label: "From", value: row.from_account_name ?? "—" },
+                        { label: "To", value: row.to_account_name ?? "—" },
+                        { label: "Reason", value: row.reason ?? "—" },
+                      ])}
+                      hiddenActions={["edit", "delete"]}
+                    />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>

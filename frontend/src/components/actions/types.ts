@@ -135,4 +135,6 @@ export interface QuickRowActionsProps<T = unknown> {
   className?: string;
   /** Custom delete confirmation message */
   deleteConfirmMessage?: string;
+  /** Built-in action types to hide even when handlers are provided */
+  hiddenActions?: ActionType[];
 }

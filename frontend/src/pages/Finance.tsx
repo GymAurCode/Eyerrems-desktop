@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   BarChart3, BookOpen, DollarSign, TrendingUp, Zap, CreditCard,
   Banknote, Receipt, FileText, Plus, RefreshCw, ArrowUpRight,
@@ -17,10 +17,12 @@ import {
 } from "../lib/financeApi";
 import {
   CreateAccountDialog, CreateInvoiceDialog, MakePaymentDialog,
-  CreateCommissionDialog, AddExpenseDialog, ManualJournalDialog, BankCashDialog,
+  AddExpenseDialog, ManualJournalDialog, BankCashDialog,
 } from "../components/finance/FinanceDialogs";
+import CommissionWorkflow from "../components/finance/CommissionWorkflow";
+import { crmApi } from "../lib/crmApi";
 import ChartOfAccounts from "../components/finance/ChartOfAccounts";
-import GeneralLedger from "../components/finance/GeneralLedger";
+import UnifiedLedgersTab from "../components/finance/UnifiedLedgersTab";
 import OperationsTab from "../components/finance/OperationsTab";
 
 type Tab = "dashboard" | "accounts" | "journals" | "invoices" | "payments"
@@ -84,7 +86,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function FinancePage() {
-  const navigate = useNavigate();
+  const location = useLocation();
   const [tab, setTab] = useState<Tab>("dashboard");
   const [accounts,     setAccounts]     = useState<Account[]>([]);
   const [journals,     setJournals]     = useState<Journal[]>([]);
@@ -98,6 +100,11 @@ export default function FinancePage() {
   const [cashBalance,  setCashBalance]  = useState(0);
   const [dlg, setDlg]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fromState = (location.state as { financeTab?: Tab } | null)?.financeTab;
+    if (fromState) setTab(fromState);
+  }, [location.state]);
 
   const load = useCallback(async () => {
     try {
@@ -201,17 +208,21 @@ export default function FinancePage() {
       {/* ── Tab Content ── */}
       <div>
         {tab === "dashboard"   && <DashboardTab trialBalance={trialBalance} profitLoss={profitLoss} invoices={invoices} payments={payments} bankBalance={bankBalance} cashBalance={cashBalance} expenses={expenses} />}
-        {tab === "accounts"    && <ChartOfAccounts onSelectAccount={(id) => { navigate("/ledger"); }} />}
+        {tab === "accounts"    && <ChartOfAccounts />}
         {tab === "journals"    && <JournalsTab journals={journals} onRefresh={loadJournals} />}
         {tab === "invoices"    && <InvoicesTab invoices={invoices} onPay={(inv) => setDlg(`pay:${inv.id}`)} />}
         {tab === "payments"    && <PaymentsTab payments={payments} />}
         {tab === "bank"        && <BankCashTab instrument="bank"  balance={bankBalance} accounts={accounts} setDlg={setDlg} />}
         {tab === "cash"        && <BankCashTab instrument="cash"  balance={cashBalance} accounts={accounts} setDlg={setDlg} />}
-        {tab === "commissions" && <CommissionsTab commissions={commissions} onAdd={() => setDlg("commission")} />}
-        {tab === "expenses"    && <ExpensesTab expenses={expenses} onAdd={() => setDlg("expense")} />}
-        {tab === "ledger"      && (
-          <LedgerRedirectPanel onNavigate={() => navigate("/ledger")} />
+        {tab === "commissions" && (
+          <CommissionsTab
+            commissions={commissions}
+            onAdd={() => setDlg("commission")}
+            onReload={load}
+          />
         )}
+        {tab === "expenses"    && <ExpensesTab expenses={expenses} onAdd={() => setDlg("expense")} />}
+        {tab === "ledger"      && <UnifiedLedgersTab />}
         {tab === "reports"     && <ReportsTab trialBalance={trialBalance} profitLoss={profitLoss} />}
         {tab === "operations"  && <OperationsTab />}
       </div>
@@ -227,7 +238,11 @@ export default function FinancePage() {
         preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined}
         isLoading={loading} />
       <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { await expensesApi.create(d as any); await load(); }} accounts={accounts.filter(a => a.account_type === "Expense")} isLoading={loading} />
-      <CreateCommissionDialog isOpen={dlg === "commission"} onClose={() => setDlg(null)} onSubmit={async (d) => { await commissionsApi.create(d as any); await load(); }} isLoading={loading} />
+      <CommissionWorkflow
+        isOpen={dlg === "commission"}
+        onClose={() => setDlg(null)}
+        onSuccess={load}
+      />
       <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { await journalsApi.create(d); await load(); if (tab === "journals") await loadJournals(); }} accounts={accounts} isLoading={loading} />
       <BankCashDialog
         isOpen={["bank_payment","bank_receipt","cash_payment","cash_receipt"].includes(dlg ?? "")}
@@ -615,14 +630,26 @@ function InvoicesTab({
 
 // ── Payments Tab ──────────────────────────────────────────────────────────────
 function PaymentsTab({ payments }: { payments: Payment[] }) {
+  const getActions = (payment: Payment): ActionConfig<Payment>[] => [
+    {
+      type: "print",
+      handler: (r) => {
+        console.log("[Finance] Print payment receipt", r.id);
+        // TODO: Implement payment receipt printing
+        window.print();
+      },
+      tooltip: "Print payment receipt",
+    },
+  ];
+
   return (
     <div className="detail-container">
       <div className="detail-section"><p className="detail-section-title mb-0">Payment History</p></div>
       <div className="overflow-x-auto">
         <table className="erp-table">
-          <thead><tr><th>#</th><th>Invoice</th><th className="text-right">Amount</th><th>Method</th><th>Reference</th><th>Date</th></tr></thead>
+          <thead><tr><th>#</th><th>Invoice</th><th className="text-right">Amount</th><th>Method</th><th>Reference</th><th>Date</th><th className="text-right" style={{ width: "1%" }}>Actions</th></tr></thead>
           <tbody>
-            {payments.length === 0 && <tr><td colSpan={6} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No payments</td></tr>}
+            {payments.length === 0 && <tr><td colSpan={7} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No payments</td></tr>}
             {payments.map(p => (
               <tr key={p.id}>
                 <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>#{p.id}</td>
@@ -631,6 +658,14 @@ function PaymentsTab({ payments }: { payments: Payment[] }) {
                 <td><StatusBadge status={p.method} /></td>
                 <td style={{ color: "var(--text-muted)" }}>{p.reference_number || "—"}</td>
                 <td style={{ color: "var(--text-secondary)" }}>{new Date(p.date).toLocaleDateString()}</td>
+                <td className="text-right">
+                  <RowActions
+                    row={p}
+                    actions={getActions(p)}
+                    variant="icon-buttons"
+                    compact
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -682,26 +717,200 @@ function BankCashTab({ instrument, balance, accounts, setDlg }: any) {
 }
 
 // ── Commissions Tab ───────────────────────────────────────────────────────────
-function CommissionsTab({ commissions, onAdd }: { commissions: Commission[]; onAdd: () => void }) {
+function CommissionsTab({
+  commissions,
+  onAdd,
+  onReload,
+}: {
+  commissions: Commission[];
+  onAdd: () => void;
+  onReload: () => Promise<void>;
+}) {
+  const [rows, setRows] = useState<Commission[]>(commissions);
+  const [dealers, setDealers] = useState<{ id: number; name: string }[]>([]);
+  const [dealerId, setDealerId] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setRows(commissions); }, [commissions]);
+
+  useEffect(() => {
+    crmApi.getDealers().then((d) => setDealers(d.map((x) => ({ id: x.id, name: x.name })))).catch(() => {});
+  }, []);
+
+  const applyFilters = useCallback(async () => {
+    setBusy(true);
+    try {
+      const params: Record<string, unknown> = {};
+      if (dealerId) params.dealer_id = Number(dealerId);
+      if (paymentStatus) params.payment_status = paymentStatus;
+      if (typeFilter) params.type = typeFilter;
+      const data = await commissionsApi.list(params);
+      let filtered = data;
+      if (dateFrom) {
+        const from = new Date(dateFrom).getTime();
+        filtered = filtered.filter((c) => new Date(c.date).getTime() >= from);
+      }
+      if (dateTo) {
+        const to = new Date(dateTo).getTime() + 86_400_000;
+        filtered = filtered.filter((c) => new Date(c.date).getTime() < to);
+      }
+      setRows(filtered);
+    } finally {
+      setBusy(false);
+    }
+  }, [dealerId, paymentStatus, typeFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    void applyFilters();
+  }, [applyFilters]);
+
+  const handleMarkPaid = async (c: Commission) => {
+    setBusy(true);
+    try {
+      await commissionsApi.markPaid(c.id);
+      await onReload();
+      await applyFilters();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unpaidTotal = rows
+    .filter((c) => c.type === "earned" && c.payment_status !== "paid")
+    .reduce((s, c) => s + c.amount, 0);
+
+  const getActions = (commission: Commission): ActionConfig<Commission>[] => {
+    const actions: ActionConfig<Commission>[] = [];
+    if (commission.type === "earned" && commission.payment_status !== "paid") {
+      actions.push({
+        type: "custom",
+        label: "Mark paid",
+        handler: (r) => void handleMarkPaid(r),
+        tooltip: "Record payout and post to ledger",
+      });
+    }
+    return actions;
+  };
+
   return (
-    <div className="detail-container">
-      <div className="detail-section flex items-center justify-between">
-        <p className="detail-section-title mb-0">Commissions</p>
-        <button onClick={onAdd} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={12}/> Add</button>
+    <div className="detail-container space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="stat-card glow-blue glow-blue-hover p-4">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Total records</p>
+          <p className="text-xl font-bold text-primary">{rows.length}</p>
+        </div>
+        <div className="stat-card glow-yellow glow-yellow-hover p-4">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Unpaid earned</p>
+          <p className="text-xl font-bold text-primary">{formatCurrency(unpaidTotal)}</p>
+        </div>
+        <div className="stat-card glow-green glow-green-hover p-4 col-span-2">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Smart workflow</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+            Dealer rate → property → auto-calc → ledger posting
+          </p>
+        </div>
       </div>
+
+      <div className="detail-section flex flex-wrap items-end justify-between gap-3">
+        <p className="detail-section-title mb-0">Commission history</p>
+        <button onClick={onAdd} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs">
+          <Plus size={12} /> Record commission
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end px-1">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "var(--text-muted)" }}>Dealer</label>
+          <select className="select-dark text-xs py-1.5 min-w-[140px]" value={dealerId} onChange={(e) => setDealerId(e.target.value)}>
+            <option value="">All dealers</option>
+            {dealers.map((d) => (
+              <option key={d.id} value={String(d.id)}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "var(--text-muted)" }}>Payout</label>
+          <select className="select-dark text-xs py-1.5" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+            <option value="">All</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "var(--text-muted)" }}>Type</label>
+          <select className="select-dark text-xs py-1.5" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+            <option value="">All</option>
+            <option value="earned">Earned</option>
+            <option value="paid">Paid (payout)</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "var(--text-muted)" }}>From</label>
+          <input type="date" className="input-dark text-xs py-1.5" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "var(--text-muted)" }}>To</label>
+          <input type="date" className="input-dark text-xs py-1.5" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        {busy && <span className="text-[10px] pb-2" style={{ color: "var(--text-muted)" }}>Updating…</span>}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="erp-table">
-          <thead><tr><th>#</th><th>Agent</th><th>Property</th><th className="text-right">Amount</th><th>Type</th><th>Date</th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Dealer</th>
+              <th>Property</th>
+              <th className="text-right">Sale</th>
+              <th className="text-right">Rate</th>
+              <th className="text-right">Amount</th>
+              <th>Type</th>
+              <th>Payout</th>
+              <th>Date</th>
+              <th className="text-right" style={{ width: "1%" }}>Actions</th>
+            </tr>
+          </thead>
           <tbody>
-            {commissions.length === 0 && <tr><td colSpan={6} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No commissions</td></tr>}
-            {commissions.map(c => (
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={10} className="text-center py-10" style={{ color: "var(--text-muted)" }}>
+                  No commissions match filters
+                </td>
+              </tr>
+            )}
+            {rows.map((c) => (
               <tr key={c.id}>
                 <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>#{c.id}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.agent_id}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.property_id}</td>
+                <td>
+                  <p className="text-xs font-medium text-primary">{c.dealer_name ?? (c.agent_id ? `Agent #${c.agent_id}` : "—")}</p>
+                  {c.dealer_code && <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{c.dealer_code}</p>}
+                </td>
+                <td>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{c.property_name ?? `Property #${c.property_id}`}</p>
+                  {c.property_code && <p className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{c.property_code}</p>}
+                </td>
+                <td className="text-right text-xs" style={{ color: "var(--text-muted)" }}>
+                  {c.sale_amount != null ? formatCurrency(c.sale_amount) : "—"}
+                </td>
+                <td className="text-right text-xs" style={{ color: "var(--text-muted)" }}>
+                  {c.commission_rate != null ? `${c.commission_rate}%` : "—"}
+                </td>
                 <td className="text-right font-semibold">{formatCurrency(c.amount)}</td>
                 <td><StatusBadge status={c.type} /></td>
+                <td>
+                  <StatusBadge status={c.payment_status === "paid" ? "paid" : "pending"} />
+                </td>
                 <td style={{ color: "var(--text-secondary)" }}>{new Date(c.date).toLocaleDateString()}</td>
+                <td className="text-right">
+                  <RowActions row={c} actions={getActions(c)} variant="icon-buttons" compact />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -713,6 +922,22 @@ function CommissionsTab({ commissions, onAdd }: { commissions: Commission[]; onA
 
 // ── Expenses Tab ──────────────────────────────────────────────────────────────
 function ExpensesTab({ expenses, onAdd }: { expenses: Expense[]; onAdd: () => void }) {
+  const handleEditExpense = (expense: Expense) => {
+    console.log("[Finance] Edit expense", expense.id);
+    // TODO: Implement expense editing - open AddExpenseDialog in edit mode
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    try {
+      await expensesApi.delete(expense.id);
+      console.log("[Finance] Expense deleted successfully", expense.id);
+      // The parent component will handle reloading the data
+    } catch (error) {
+      console.error("[Finance] Failed to delete expense", error);
+      throw error; // Re-throw so RowActions can handle the error state
+    }
+  };
+
   return (
     <div className="detail-container">
       <div className="detail-section flex items-center justify-between">
@@ -721,48 +946,34 @@ function ExpensesTab({ expenses, onAdd }: { expenses: Expense[]; onAdd: () => vo
       </div>
       <div className="overflow-x-auto">
         <table className="erp-table">
-          <thead><tr><th>#</th><th>Account</th><th>Description</th><th className="text-right">Amount</th><th>Paid From</th><th>Date</th></tr></thead>
+          <thead><tr><th>#</th><th>Account</th><th>Description</th><th className="text-right">Amount</th><th>Paid From</th><th>Date</th><th className="text-right" style={{ width: "1%" }}>Actions</th></tr></thead>
           <tbody>
-            {expenses.length === 0 && <tr><td colSpan={6} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No expenses</td></tr>}
+            {expenses.length === 0 && <tr><td colSpan={7} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No expenses</td></tr>}
             {expenses.map(e => (
               <tr key={e.id}>
                 <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>#{e.id}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{e.account_code} — {e.account_name}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{e.account_id ? `Account ${e.account_id}` : "—"}</td>
                 <td style={{ color: "var(--text-muted)" }}>{e.description}</td>
                 <td className="text-right font-semibold text-red-400">{formatCurrency(e.amount)}</td>
                 <td><StatusBadge status={e.paid_from} /></td>
                 <td style={{ color: "var(--text-secondary)" }}>{new Date(e.date).toLocaleDateString()}</td>
+                <td className="text-right">
+                  <QuickRowActions
+                    row={e}
+                    onEdit={handleEditExpense}
+                    onDelete={handleDeleteExpense}
+                    editPermission="finance:manage"
+                    deletePermission="finance:manage"
+                    deleteConfirmMessage={`Are you sure you want to delete this expense "${e.description}"? This action cannot be undone.`}
+                    variant="icon-buttons"
+                    compact
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-// ── Ledger Redirect Panel ─────────────────────────────────────────────────────
-function LedgerRedirectPanel({ onNavigate }: { onNavigate: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 gap-5">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-        style={{ background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.2)" }}>
-        <BookOpen size={28} style={{ color: "#3b82f6" }} />
-      </div>
-      <div className="text-center space-y-1">
-        <p className="text-base font-bold text-primary">Ledger Management</p>
-        <p className="text-xs max-w-sm" style={{ color: "var(--text-muted)" }}>
-          All ledger types — Accounts, Clients, Dealers, and Properties — are now unified
-          in the dedicated Ledger module.
-        </p>
-      </div>
-      <button
-        onClick={onNavigate}
-        className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
-      >
-        <BookOpen size={14} />
-        Open Ledger Management
-      </button>
     </div>
   );
 }

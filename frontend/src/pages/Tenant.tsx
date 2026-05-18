@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, TrendingUp, AlertCircle, Clock,
-  X, ChevronRight, ChevronLeft, CheckCircle, Bell, DollarSign, Eye,
+  X, ChevronRight, ChevronLeft, CheckCircle, Bell, DollarSign,
 } from "lucide-react";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 import { tenantApi, Tenant, TenantDashboard, TenantAlert, WizardPayload } from "../lib/tenantApi";
 import { propApi, Property, Unit, FloorWithUnits } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
@@ -507,14 +508,21 @@ export default function TenantPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-secondary">{new Date(t.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">
-                      <button type="button" onClick={() => navigate(`/tenants/${t.id}`)}
-                        className="flex items-center gap-1 text-xs text-blue-400 px-2 py-1.5 rounded-lg transition-colors"
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.1)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                        <Eye size={12} /> View
-                      </button>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions
+                        row={t}
+                        compact
+                        onView={(row) => navigate(`/tenants/${row.id}`)}
+                        onPrint={(row) => printRecord(`Tenant ${row.tenant_id}`, [
+                          { label: "Tenant ID", value: row.tenant_id },
+                          { label: "Name", value: row.name },
+                          { label: "Phone", value: row.phone },
+                          { label: "Email", value: row.email ?? "—" },
+                          { label: "Status", value: row.is_active ? "Active" : "Ended" },
+                          { label: "Joined", value: new Date(row.created_at).toLocaleDateString() },
+                        ])}
+                      />
+                    </ActionsCell>
                   </tr>
                 );
               })}

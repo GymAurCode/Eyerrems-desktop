@@ -11,6 +11,8 @@ export { default as RowActions, QuickRowActions } from "./RowActions";
 export { default as ConfirmDialog } from "./ConfirmDialog";
 export { default as ActionButton } from "./ActionButton";
 export { default as ActionDropdown } from "./ActionDropdown";
+export { ActionsTh, ActionsCell } from "./ActionsCell";
+export { printRecord } from "./printRecord";
 
 // Types
 export type {

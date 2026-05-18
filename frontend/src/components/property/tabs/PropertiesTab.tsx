@@ -2,9 +2,10 @@
 import { useEffect, useState, FormEvent, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Plus, Eye, Building2, ChevronDown, ChevronRight,
+  Plus, Building2, ChevronDown, ChevronRight,
   ImagePlus, Paperclip, X, Trash2, Hash, Edit2, AlertTriangle,
 } from "lucide-react";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 import Modal from "../../Modal";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
@@ -51,9 +52,6 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const [open, setOpen]               = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState("");
-  const [deleteId, setDeleteId]       = useState<number | null>(null);
-  const [deleting, setDeleting]       = useState(false);
-
   // TID
   const [tid, setTid]                 = useState("");
   const [tidError, setTidError]       = useState("");
@@ -219,11 +217,9 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     } finally { setSubmitting(false); }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-    setDeleting(true);
-    try { await propApi.deleteProperty(deleteId); setDeleteId(null); onRefresh(); }
-    finally { setDeleting(false); }
+  const handleDeleteProperty = async (p: Property) => {
+    await propApi.deleteProperty(p.id);
+    onRefresh();
   };
 
   return (
@@ -246,9 +242,10 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID","Address","Status","Category","Size","For Sale","Actions"].map((h) => (
+                {["TID","Address","Status","Category","Size","For Sale"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
                 ))}
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -268,22 +265,23 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
                     <td className="px-4 py-3 text-secondary">
                       {p.for_sale ? formatCurrency(p.sale_price) : "No"}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => navigate(`/property/${p.id}`)}
-                          className="flex items-center gap-1 text-xs text-blue-400 px-2 py-1.5 rounded-lg transition-colors"
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.1)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                          <Eye size={12} /> View
-                        </button>
-                        <button type="button" onClick={() => setDeleteId(p.id)}
-                          className="flex items-center gap-1 text-xs text-red-400 px-2 py-1.5 rounded-lg transition-colors"
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
+                    <ActionsCell>
+                      <QuickRowActions
+                        row={p}
+                        compact
+                        onView={(row) => navigate(`/property/${row.id}`)}
+                        onEdit={(row) => navigate(`/property/${row.id}`)}
+                        onDelete={handleDeleteProperty}
+                        onPrint={(row) => printRecord(`Property ${row.tid}`, [
+                          { label: "TID", value: row.tid },
+                          { label: "Address", value: row.address || "—" },
+                          { label: "Status", value: row.status },
+                          { label: "Category", value: row.category_name || "—" },
+                          { label: "Size", value: row.size || "—" },
+                          { label: "For Sale", value: row.for_sale ? formatCurrency(row.sale_price) : "No" },
+                        ])}
+                      />
+                    </ActionsCell>
                   </tr>
                 );
               })}
@@ -540,30 +538,6 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
         </form>
       </Modal>
 
-      {/* Delete confirm */}
-      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Delete Property">
-        <div className="space-y-4">
-          <p className="text-sm text-secondary">
-            This will permanently delete the property and all its floors, units, images, and attachments.
-            This action cannot be undone.
-          </p>
-          <div className="flex gap-3">
-            <button type="button" onClick={() => setDeleteId(null)}
-              className="flex-1 py-2.5 text-sm rounded-xl transition-colors text-secondary"
-              style={{ border: "1px solid var(--border)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-              Cancel
-            </button>
-            <button type="button" onClick={() => void confirmDelete()} disabled={deleting}
-              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white flex items-center justify-center gap-2"
-              style={{ background: deleting ? "#6b7280" : "#ef4444" }}>
-              {deleting && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              Delete
-            </button>
-          </div>
-        </div>
-      </Modal>
     </>
   );
 }

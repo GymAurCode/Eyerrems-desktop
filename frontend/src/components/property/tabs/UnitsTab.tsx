@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { propApi, Property, Unit } from "../../../lib/propertyApi";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 
 type Props = { refresh: number };
 
@@ -50,6 +51,7 @@ export default function UnitsTab({ refresh }: Props) {
                 {["TID","Unit #","Status","Size","Rent/mo","Sale Price"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
                 ))}
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -71,6 +73,18 @@ export default function UnitsTab({ refresh }: Props) {
                     <td className="px-4 py-3 text-secondary">
                       {u.sale_price ? `AED ${Number(u.sale_price).toLocaleString()}` : "—"}
                     </td>
+                    <ActionsCell>
+                      <QuickRowActions
+                        row={u}
+                        compact
+                        onPrint={(row) => printRecord(`Unit ${row.tid}`, [
+                          { label: "Unit #", value: row.unit_number },
+                          { label: "Status", value: row.status },
+                          { label: "Size", value: row.size || "—" },
+                        ])}
+                        hiddenActions={["view", "edit", "delete"]}
+                      />
+                    </ActionsCell>
                   </tr>
                 );
               })}

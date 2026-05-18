@@ -8,6 +8,7 @@ import { remindersApi, type ReminderDashboard, type Template, type NotifLog, typ
 import type { Reminder } from "../store/notifications";
 import { useNotifStore } from "../store/notifications";
 import ReminderForm from "../components/reminders/ReminderForm";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 
 // ── Priority badge ────────────────────────────────────────────────────────────
 const PRIORITY_BADGE: Record<string, string> = {
@@ -286,11 +287,12 @@ export default function RemindersPage() {
                 {["ID","Reminder","User","Triggered","Delivered","Read","Status"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-muted font-medium">{h}</th>
                 ))}
+                <ActionsTh className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No logs yet.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No logs yet.</td></tr>
               )}
               {logs.map((l) => (
                 <tr key={l.id} className="border-b border-theme hover:bg-hover transition-colors">
@@ -305,6 +307,19 @@ export default function RemindersPage() {
                       {l.status}
                     </span>
                   </td>
+                  <ActionsCell className="px-4 py-2.5">
+                    <QuickRowActions
+                      row={l}
+                      compact
+                      onPrint={(row) => printRecord(`Reminder Log #${row.id}`, [
+                        { label: "Reminder ID", value: String(row.reminder_id ?? "—") },
+                        { label: "User", value: String(row.user_id) },
+                        { label: "Status", value: row.status },
+                        { label: "Triggered", value: new Date(row.triggered_at).toLocaleString() },
+                      ])}
+                      hiddenActions={["view", "edit", "delete"]}
+                    />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>

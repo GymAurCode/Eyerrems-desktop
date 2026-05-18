@@ -9,6 +9,7 @@ import { tenantApi, type Maintenance, type MaintenanceAnalytics, type UnitTenant
 import { propApi, type Property, type Unit } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
 import PortalModal from "../components/Modal";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -871,9 +872,10 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
             <table className="w-full text-xs">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Date","Property","Unit","Title / Description","Category","Priority","Status","Cost","Tenant",""].map(h => (
+                  {["Date","Property","Unit","Title / Description","Category","Priority","Status","Cost","Tenant"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -899,9 +901,24 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
                       {formatCurrency(r.actual_cost ?? r.cost ?? 0)}
                     </td>
                     <td className="px-4 py-3 text-secondary">{r.tenant_name ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <ChevronRight size={13} className="text-muted" />
-                    </td>
+                    <ActionsCell className="px-4 py-3">
+                      <QuickRowActions
+                        row={r}
+                        compact
+                        onView={(row) => onSelect(row)}
+                        onDelete={async (row) => {
+                          await tenantApi.deleteMaintenance(row.id);
+                          void load();
+                        }}
+                        onPrint={(row) => printRecord(`Maintenance #${row.id}`, [
+                          { label: "Title", value: row.title ?? row.description?.slice(0, 80) ?? "—" },
+                          { label: "Property", value: row.property_name ?? String(row.property_id) },
+                          { label: "Status", value: row.status },
+                          { label: "Priority", value: row.priority },
+                          { label: "Cost", value: formatCurrency(row.actual_cost ?? row.cost ?? 0) },
+                        ])}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>

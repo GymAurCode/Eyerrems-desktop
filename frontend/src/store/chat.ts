@@ -105,7 +105,7 @@ const SEED_MESSAGES: Record<string, ChatMessage[]> = {
 
 // ── Store types ───────────────────────────────────────────────────────────────
 
-type ChatFilter = "all" | "chats" | "system";
+type ChatFilter = "all" | "roles" | "direct" | "system";
 
 type ChatState = {
   channels:          ChatChannel[];
@@ -126,6 +126,8 @@ type ChatState = {
   receiveWsEvent:    (eventType: SystemEventType, payload: Record<string, string>) => void;
   markChannelRead:   (id: string) => void;
   triggerSystemEvent:(eventType: SystemEventType, payload: Record<string, string>) => void;
+  syncFromBootstrap: (payload: import("../lib/chatApi").ChatBootstrap) => void;
+  onlineUsers: Record<string, boolean>;
 };
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -235,6 +237,53 @@ export const useChatStore = create<ChatState>()(
         set(s => ({
           channels: s.channels.map(c => c.id === id ? { ...c, unread: 0 } : c),
         }));
+      },
+
+      onlineUsers: {},
+
+      syncFromBootstrap: (payload) => {
+        const { channels: existing, messages } = get();
+        const byId = new Map(existing.map((c) => [c.id, c]));
+
+        const merged: ChatChannel[] = payload.channels.map((ch) => {
+          const prev = byId.get(ch.id);
+          return {
+            id: ch.id,
+            name: ch.name,
+            type: ch.type as ChatChannel["type"],
+            roleId: ch.role_id,
+            roleName: ch.role_name,
+            members: ch.members,
+            unread: prev?.unread ?? 0,
+            lastMessage: prev?.lastMessage ?? "",
+            lastTime: prev?.lastTime ? new Date(prev.lastTime) : new Date(),
+            pinned: ch.pinned ?? false,
+            icon: ch.icon,
+          };
+        });
+
+        const bootstrapIds = new Set(merged.map((c) => c.id));
+        const preserved = existing.filter(
+          (c) => !bootstrapIds.has(c.id) && c.type !== "role" && c.type !== "group",
+        );
+        const channels = [...merged, ...preserved];
+
+        const nextMessages = { ...messages };
+        for (const ch of channels) {
+          if (!nextMessages[ch.id]) nextMessages[ch.id] = [];
+        }
+
+        const onlineUsers: Record<string, boolean> = {};
+        for (const u of payload.users) {
+          onlineUsers[u.id] = u.online;
+        }
+
+        set({
+          channels: channels.length ? channels : existing,
+          currentUserId: payload.current_user_id,
+          onlineUsers,
+          messages: nextMessages,
+        });
       },
     }),
     {

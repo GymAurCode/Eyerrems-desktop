@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Trash2, Eye, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Plus, Search, AlertTriangle, ArrowLeft } from "lucide-react";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../components/actions";
 import { constructionApi, Project, ProjectStatus } from "../../lib/constructionApi";
 import { formatCurrency } from "../../lib/currency";
 
@@ -225,9 +226,10 @@ export default function ProjectList() {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Project", "Location", "Status", "Budget", "Spent", "Progress", "Phases", ""].map(h => (
+                {["Project", "Location", "Status", "Budget", "Spent", "Progress", "Phases"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
                 ))}
+                <ActionsTh className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -252,18 +254,21 @@ export default function ProjectList() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted">{p.phase_count ?? 0}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => navigate(`/construction/projects/${p.id}`)}
-                        className="text-blue-400 hover:text-blue-300 transition-colors">
-                        <Eye size={14} />
-                      </button>
-                      <button onClick={() => handleDelete(p.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+                  <ActionsCell className="px-4 py-3">
+                    <QuickRowActions
+                      row={p}
+                      compact
+                      onView={(row) => navigate(`/construction/projects/${row.id}`)}
+                      onDelete={() => handleDelete(p.id)}
+                      onPrint={(row) => printRecord(`Project ${row.name}`, [
+                        { label: "Name", value: row.name },
+                        { label: "Location", value: row.location ?? "—" },
+                        { label: "Status", value: row.status },
+                        { label: "Budget", value: formatCurrency(Number(row.total_budget)) },
+                        { label: "Spent", value: formatCurrency(Number(row.actual_cost ?? 0)) },
+                      ])}
+                    />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>

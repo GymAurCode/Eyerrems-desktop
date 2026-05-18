@@ -201,20 +201,22 @@ export function QuickRowActions<T>({
   stopPropagation = true,
   className,
   deleteConfirmMessage,
+  hiddenActions = [],
 }: QuickRowActionsProps<T>) {
+  const hidden = new Set(hiddenActions);
   const actions: ActionConfig<T>[] = [];
 
-  if (onView) {
+  if (onView && !hidden.has("view")) {
     actions.push({ type: "view", handler: onView });
   }
-  if (onEdit) {
+  if (onEdit && !hidden.has("edit")) {
     actions.push({
       type: "edit",
       handler: onEdit,
       permission: editPermission,
     });
   }
-  if (onDelete) {
+  if (onDelete && !hidden.has("delete")) {
     actions.push({
       type: "delete",
       handler: onDelete,
@@ -223,7 +225,7 @@ export function QuickRowActions<T>({
       confirmMessage: deleteConfirmMessage,
     });
   }
-  if (onPrint) {
+  if (onPrint && !hidden.has("print")) {
     actions.push({ type: "print", handler: onPrint });
   }
 

@@ -45,7 +45,6 @@ import MailPage from "./pages/Mail";
 import CommunicationPage from "./pages/Communication";
 import TownListPage from "./pages/towns/TownList";
 import TownDetailPage from "./pages/towns/TownDetail";
-import LedgersPage from "./pages/ledger/LedgersPage";
 import BookingsPage from "./pages/Bookings";
 import BookingDetailPage from "./pages/crm/bookings/BookingDetail";
 // ── Reports Center ────────────────────────────────────────────────────────────
@@ -55,6 +54,7 @@ import InstallmentPlanReport from "./pages/reports/InstallmentPlanReport";
 import BookingFormReport from "./pages/reports/BookingFormReport";
 // ── AI Intelligence Center ────────────────────────────────────────────────────
 import AIIntelligencePage from "./pages/AIIntelligence";
+import ImportCenter from "./pages/ImportCenter";
 
 // ── Super Admin pages ─────────────────────────────────────────────────────────
 import SADashboard     from "./pages/superadmin/SADashboard";
@@ -75,6 +75,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/tenants":      "Tenants",
   "/maintenance":  "Maintenance",
   "/admin":        "Administration",
+  "/import":       "Bulk Import",
   "/admin-panel":  "Admin Panel - RBAC",
   "/construction": "Construction",
   "/hr":           "Human Resources",
@@ -326,14 +327,10 @@ export default function App() {
           </ProtectedRoute>
         } />
 
-        {/* ── Ledger module ─────────────────────────────────────────────────── */}
+        {/* ── Ledger → Finance (unified workspace) ─────────────────────────── */}
         <Route path="/ledger" element={
           <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="finance_module" fallback={<DisabledModule />}>
-                <LedgersPage />
-              </FeatureGuard>
-            </CompanyLayout>
+            <Navigate to="/finance" replace state={{ financeTab: "ledger" }} />
           </ProtectedRoute>
         } />
 
@@ -370,6 +367,11 @@ export default function App() {
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={["Admin"]}>
             <CompanyLayout><AdminPage /></CompanyLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/import" element={
+          <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+            <CompanyLayout><ImportCenter /></CompanyLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin-panel" element={

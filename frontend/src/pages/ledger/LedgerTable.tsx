@@ -5,6 +5,7 @@
  */
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { formatCurrency } from "../../lib/currency";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../components/actions";
 
 export interface LedgerRow {
   id:              number;
@@ -150,6 +151,7 @@ export default function LedgerTable({ rows, onRowClick, showEntity, sortKey, sor
             <SortTh col="credit"          label="Credit"  right />
             <SortTh col="running_balance" label="Balance" right />
             <th className={thClass} style={thStyle}>Status</th>
+            <ActionsTh className={thClass} />
           </tr>
         </thead>
         <tbody>
@@ -250,6 +252,21 @@ export default function LedgerTable({ rows, onRowClick, showEntity, sortKey, sor
                 <td style={{ padding: "0.65rem 0.75rem" }}>
                   <StatusBadge status={row.status} />
                 </td>
+                <ActionsCell className="!px-3 !py-2">
+                  <QuickRowActions
+                    row={row}
+                    compact
+                    onView={onRowClick}
+                    onPrint={(r) => printRecord(`Ledger ${r.tid}`, [
+                      { label: "Date", value: r.entry_date },
+                      { label: "Description", value: r.description },
+                      { label: "Debit", value: r.debit > 0 ? formatCurrency(r.debit) : "—" },
+                      { label: "Credit", value: r.credit > 0 ? formatCurrency(r.credit) : "—" },
+                      { label: "Balance", value: formatCurrency(Math.abs(r.running_balance)) },
+                    ])}
+                    hiddenActions={["edit", "delete"]}
+                  />
+                </ActionsCell>
               </tr>
             );
           })}

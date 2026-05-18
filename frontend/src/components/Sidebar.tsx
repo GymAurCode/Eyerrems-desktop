@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useUIStore } from "../store/ui";
 import { useMailStore } from "../store/mail";
-import { LayoutDashboard, Building2, Users, Wallet, ShieldCheck, Zap, Home, Wrench, HardHat, Bell, UserCog, Mail, MapPin, BarChart2, BookOpen, Brain, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Wallet, ShieldCheck, Zap, Home, Wrench, HardHat, Bell, UserCog, Mail, MapPin, BarChart2, BookOpen, Brain, MessageSquare, Upload } from "lucide-react";
 import logo from "../../assets/logo.png";
 
 // ── Per-route color palette ───────────────────────────────────────────────────
@@ -29,6 +29,7 @@ const NAV_COLORS: Record<string, {
   "/communication":{ icon: "#64748b", iconHover: "#25D366", activeBg: "rgba(37,211,102,0.12)", hoverBg: "rgba(37,211,102,0.07)"  }, // WhatsApp Green — Communication
   "/reminders":    { icon: "#64748b", iconHover: "#8b5cf6", activeBg: "rgba(139,92,246,0.12)", hoverBg: "rgba(139,92,246,0.07)"  }, // Violet — Reminders
   "/admin":        { icon: "#64748b", iconHover: "#ef4444", activeBg: "rgba(239,68,68,0.12)",   hoverBg: "rgba(239,68,68,0.07)"   }, // Red — Admin
+  "/import":       { icon: "#64748b", iconHover: "#22c55e", activeBg: "rgba(34,197,94,0.12)",  hoverBg: "rgba(34,197,94,0.07)"  }, // Green — Import
 };
 
 // Fallback for any path not in the map
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
   { path: "/communication",label: "Communication", icon: MessageSquare,   roles: ["Admin","Accountant","Dealer","Staff","Manager"], feature: "mail_module" },
   { path: "/reminders",    label: "Reminders",    icon: Bell,            roles: ["Admin","Accountant","Dealer","Staff","Manager"], feature: "reminders_module" },
   { path: "/admin",        label: "Admin",        icon: ShieldCheck,     roles: ["Admin"],                                         feature: null },
+  { path: "/import",       label: "Bulk Import",  icon: Upload,          roles: ["Admin", "Manager"],                              feature: null },
 ];
 
 export default function Sidebar() {

@@ -11,6 +11,7 @@ import {
   type AIRiskScore, type AIDuplicateMatch, type AIInsight,
   type AIQueryLog, type NLQueryResult, type AuditMonitorResult,
 } from "../lib/aiApi";
+import { RowActions, QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#f59e0b", LOW: "#10b981",
@@ -256,9 +257,10 @@ function AnomaliesTab() {
             <table className="w-full text-xs">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Type","Severity","Module","Description","Risk","User","Time","Action"].map((h) => (
+                  {["Type","Severity","Module","Description","Risk","User","Time"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
                   ))}
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -271,11 +273,32 @@ function AnomaliesTab() {
                     <td className="px-4 py-3"><span className="font-mono font-semibold" style={{ color: SEV_COLOR[a.severity] }}>{a.risk_score.toFixed(0)}</span></td>
                     <td className="px-4 py-3 text-secondary">{a.user_id ? `#${a.user_id}` : "—"}</td>
                     <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(a.created_at).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      {!a.is_resolved
-                        ? <button onClick={() => void resolve(a.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"><CheckCircle size={10} /> Resolve</button>
-                        : <span className="text-[10px] text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> Resolved</span>}
-                    </td>
+                    <ActionsCell>
+                      {!a.is_resolved ? (
+                        <RowActions
+                          row={a}
+                          compact
+                          actions={[
+                            { type: "approve", label: "Resolve", handler: () => void resolve(a.id) },
+                            { type: "print", handler: () => printRecord(`Anomaly #${a.id}`, [
+                              { label: "Type", value: a.anomaly_type },
+                              { label: "Severity", value: a.severity },
+                              { label: "Description", value: a.description },
+                            ]) },
+                          ]}
+                        />
+                      ) : (
+                        <QuickRowActions
+                          row={a}
+                          compact
+                          onPrint={() => printRecord(`Anomaly #${a.id}`, [
+                            { label: "Type", value: a.anomaly_type },
+                            { label: "Status", value: "Resolved" },
+                          ])}
+                          hiddenActions={["view", "edit", "delete"]}
+                        />
+                      )}
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -411,6 +434,7 @@ function RiskTab() {
                   {["Subject","Type","Risk Level","Score","Last Computed"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
                   ))}
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -421,6 +445,18 @@ function RiskTab() {
                     <td className="px-4 py-3"><SeverityBadge level={r.risk_level} /></td>
                     <td className="px-4 py-3 w-48"><RiskBar score={r.score} /></td>
                     <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(r.last_computed).toLocaleString()}</td>
+                    <ActionsCell>
+                      <QuickRowActions
+                        row={r}
+                        compact
+                        onPrint={(row) => printRecord(`Risk #${row.subject_id}`, [
+                          { label: "Type", value: row.subject_type },
+                          { label: "Level", value: row.risk_level },
+                          { label: "Score", value: String(row.score) },
+                        ])}
+                        hiddenActions={["view", "edit", "delete"]}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -506,12 +542,22 @@ function DuplicatesTab() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(d.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1.5">
-                          <button onClick={() => void review(d.id, "confirmed")} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"><CheckCircle size={10} /> Confirm</button>
-                          <button onClick={() => void review(d.id, "dismissed")} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-muted hover:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"><XCircle size={10} /> Dismiss</button>
-                        </div>
-                      </td>
+                      <ActionsCell>
+                        <RowActions
+                          row={d}
+                          compact
+                          actions={[
+                            { type: "approve", label: "Confirm", handler: () => void review(d.id, "confirmed") },
+                            { type: "reject", label: "Dismiss", handler: () => void review(d.id, "dismissed") },
+                            { type: "print", handler: () => printRecord(`Duplicate #${d.id}`, [
+                              { label: "Type", value: d.entity_type },
+                              { label: "Record A", value: `#${d.entity_id_a}` },
+                              { label: "Record B", value: `#${d.entity_id_b}` },
+                              { label: "Confidence", value: `${Math.round(d.confidence * 100)}%` },
+                            ]) },
+                          ]}
+                        />
+                      </ActionsCell>
                     </tr>
                   );
                 })}
@@ -584,6 +630,7 @@ function AuditMonitorTab() {
                   {["Time","Action","Module","Entity","User","Description","IP"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
                   ))}
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -601,6 +648,18 @@ function AuditMonitorTab() {
                     <td className="px-4 py-3 text-secondary">{l.user_id ? `#${l.user_id}` : "—"}</td>
                     <td className="px-4 py-3 text-muted max-w-xs"><p className="truncate" title={l.description ?? ""}>{l.description ?? "—"}</p></td>
                     <td className="px-4 py-3 text-muted font-mono text-[10px]">{l.ip_address ?? "—"}</td>
+                    <ActionsCell>
+                      <QuickRowActions
+                        row={l}
+                        compact
+                        onPrint={(r) => printRecord(`Audit ${r.action}`, [
+                          { label: "Module", value: r.module ?? "—" },
+                          { label: "Description", value: r.description ?? "—" },
+                          { label: "Time", value: new Date(r.created_at).toLocaleString() },
+                        ])}
+                        hiddenActions={["view", "edit", "delete"]}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>

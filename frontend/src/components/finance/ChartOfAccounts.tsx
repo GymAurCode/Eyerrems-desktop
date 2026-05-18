@@ -4,12 +4,14 @@ import {
   Search, ToggleLeft, ToggleRight, BookOpen,
   AlertCircle, CheckCircle2, RefreshCw
 } from "lucide-react";
-import { accountsApi, journalsApi, type AccountTreeNode, type LedgerResponse } from "../../lib/financeApi";
+import { RowActions } from "../../components/actions";
+import type { ActionConfig } from "../../components/actions";
+import { accountsApi, type AccountTreeNode, type AccountUpdate } from "../../lib/financeApi";
 import { formatCurrency } from "../../lib/currency";
 import { AccountDialog, ConfirmDeleteDialog } from "./AccountDialogs";
-import GeneralLedger from "../finance/GeneralLedger";
+import AccountDetailPanel, { type AccountPanelView } from "./AccountDetailPanel";
 
-// ── Type colours ──────────────────────────────────────────────────────────────
+// â”€â”€ Type colours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TYPE_COLOR: Record<string, [string, string]> = {
   Asset:     ["rgba(59,130,246,0.12)",  "#3b82f6"],
   Liability: ["rgba(239,68,68,0.12)",   "#ef4444"],
@@ -28,7 +30,7 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-// ── Tree Node ─────────────────────────────────────────────────────────────────
+// â”€â”€ Tree Node â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TreeNode({
   node, level, selectedId, onSelect, onAdd, onEdit, onDelete, showInactive,
 }: {
@@ -45,6 +47,30 @@ function TreeNode({
   const [, color] = TYPE_COLOR[node.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
 
   if (!showInactive && !node.is_active) return null;
+
+  // Build actions for this account node
+  const getActions = (account: AccountTreeNode): ActionConfig<AccountTreeNode>[] => [
+    {
+      type: "custom",
+      label: "Add Child",
+      icon: Plus,
+      color: "#60a5fa",
+      tooltip: "Add child account",
+      handler: (r) => onAdd(r),
+      permission: "finance:manage",
+    },
+    {
+      type: "edit",
+      handler: (r) => onEdit(r),
+      permission: "finance:manage",
+    },
+    {
+      type: "delete",
+      handler: (r) => onDelete(r),
+      permission: "finance:manage",
+      confirmMessage: `Are you sure you want to delete account "${account.name}"? This action cannot be undone.`,
+    },
+  ];
 
   return (
     <div>
@@ -91,29 +117,14 @@ function TreeNode({
           </span>
         )}
 
-        {/* Actions (hover) */}
-        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
-          <button type="button" title="Add child" onClick={e => { e.stopPropagation(); onAdd(node); }}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#60a5fa")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
-            <Plus size={11} />
-          </button>
-          <button type="button" title="Edit" onClick={e => { e.stopPropagation(); onEdit(node); }}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#60a5fa")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
-            <Edit2 size={11} />
-          </button>
-          <button type="button" title="Delete" onClick={e => { e.stopPropagation(); onDelete(node); }}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#f87171")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
-            <Trash2 size={11} />
-          </button>
+        {/* Actions - Replace legacy hover buttons with RowActions */}
+        <div className="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+          <RowActions
+            row={node}
+            actions={getActions(node)}
+            variant="icon-only"
+            compact
+          />
         </div>
       </div>
 
@@ -126,178 +137,17 @@ function TreeNode({
   );
 }
 
-// ── Detail Panel ──────────────────────────────────────────────────────────────
-function DetailPanel({
-  account, onEdit, onDelete, onToggleActive,
-}: {
-  account: AccountTreeNode | null;
-  onEdit: (a: AccountTreeNode) => void;
-  onDelete: (a: AccountTreeNode) => void;
-  onToggleActive: (a: AccountTreeNode) => void;
-}) {
-  const [tab, setTab] = useState<"overview" | "ledger">("overview");
-  const [ledger, setLedger] = useState<LedgerResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (account) {
-      setLoading(true);
-      journalsApi.ledger(account.id)
-        .then(data => setLedger(data as any))
-        .catch(() => setLedger(null))
-        .finally(() => setLoading(false));
-    } else {
-      setLedger(null);
-    }
-  }, [account]);
-
-  if (!account) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3"
-        style={{ color: "var(--text-muted)" }}>
-        <BookOpen size={32} style={{ opacity: 0.3 }} />
-        <p className="text-xs">Select an account to view details</p>
-      </div>
-    );
-  }
-
-  const [, color] = TYPE_COLOR[account.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
-
-  const rows = [
-    {
-      label: "Account Code",
-      value: (
-        <span className="font-mono text-xs px-2 py-0.5 rounded"
-          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-          {account.code}
-        </span>
-      ),
-    },
-    { label: "Account Type",    value: <TypeBadge type={account.account_type} /> },
-    {
-      label: "Status",
-      value: account.is_active
-        ? <span className="flex items-center gap-1 text-xs" style={{ color: "#10b981" }}><CheckCircle2 size={12} /> Active</span>
-        : <span className="flex items-center gap-1 text-xs" style={{ color: "#94a3b8" }}><AlertCircle size={12} /> Inactive</span>,
-    },
-    {
-      label: "Current Balance",
-      value: <span className="text-sm font-bold" style={{ color }}>{formatCurrency(account.balance)}</span>,
-    },
-    {
-      label: "Description",
-      value: account.description || <span style={{ color: "var(--text-muted)" }}>—</span>,
-    },
-  ];
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="text-base font-bold text-primary">{account.name}</h3>
-            <p className="text-[11px] mt-0.5 font-mono" style={{ color: "var(--text-muted)" }}>{account.code}</p>
-          </div>
-          <TypeBadge type={account.account_type} />
-        </div>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-        {(["overview", "ledger"] as const).map(t => (
-          <button key={t}
-            className="px-4 py-2 text-xs capitalize transition-colors"
-            style={{
-              color: tab === t ? "var(--text-primary)" : "var(--text-muted)",
-              borderBottom: tab === t ? "2px solid #60a5fa" : "2px solid transparent",
-            }}
-            onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === "overview" && (
-        <>
-          {/* Info rows */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0">
-            {rows.map((r, i) => (
-              <div key={i} className="flex items-start justify-between py-2.5"
-                style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <span className="text-xs shrink-0 w-32" style={{ color: "var(--text-muted)" }}>{r.label}</span>
-                <span className="text-xs font-medium text-right flex-1">{r.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Actions */}
-          <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-            <button onClick={() => onEdit(account)}
-              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-              style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(59,130,246,0.2)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(59,130,246,0.1)")}>
-              <Edit2 size={12} /> Edit Account
-            </button>
-            <button onClick={() => onToggleActive(account)}
-              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-              style={{ background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "var(--bg-surface2)")}>
-              {account.is_active
-                ? <><ToggleRight size={12} /> Deactivate</>
-                : <><ToggleLeft size={12} /> Activate</>}
-            </button>
-            <button onClick={() => onDelete(account)}
-              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-              style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.15)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(239,68,68,0.08)")}>
-              <Trash2 size={12} /> Delete Account
-            </button>
-          </div>
-        </>
-      )}
-
-      {tab === "ledger" && (
-        <div className="flex-1 overflow-y-auto p-4">
-          {loading ? (
-            <div className="text-center text-xs" style={{ color: "var(--text-muted)" }}>Loading ledger...</div>
-          ) : ledger ? (
-            <GeneralLedger
-              accountId={account.id}
-              accountCode={account.code}
-              accountName={account.name}
-              entries={ledger.entries}
-              openingBalance={ledger.opening_balance}
-              closingBalance={ledger.closing_balance}
-              onRefresh={async () => {
-                setLoading(true);
-                const data = await journalsApi.ledger(account.id);
-                setLedger(data as any);
-                setLoading(false);
-              }}
-            />
-          ) : (
-            <div className="text-center text-xs" style={{ color: "var(--text-muted)" }}>No ledger data.</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
+// â”€â”€ Main Component (detail panel in AccountDetailPanel.tsx) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface ChartOfAccountsProps {
-  onSelectAccount?: (id: number) => void;
   readOnly?: boolean;
 }
 
-export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: ChartOfAccountsProps) {
+
+export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsProps) {
   const [tree, setTree]       = useState<AccountTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AccountTreeNode | null>(null);
+  const [panelView, setPanelView] = useState<AccountPanelView>("summary");
   const [search, setSearch]   = useState("");
   const [filterType, setFilterType] = useState<string>("All");
   const [showInactive, setShowInactive] = useState(false);
@@ -317,10 +167,10 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
       const detail  = e?.response?.data?.detail;
       const message = e?.message ?? "";
       let errMsg = "Failed to load accounts";
-      if (status === 401)                                    errMsg = "Session expired — please log in again";
+      if (status === 401)                                    errMsg = "Session expired â€” please log in again";
       else if (status === 403)                               errMsg = `Access denied: ${detail ?? "insufficient permissions"}`;
       else if (status === 500)                               errMsg = `Server error: ${detail ?? "internal server error"}`;
-      else if (!status && message.toLowerCase().includes("network")) errMsg = "Cannot reach server — check your connection";
+      else if (!status && message.toLowerCase().includes("network")) errMsg = "Cannot reach server â€” check your connection";
       else if (detail)                                       errMsg = detail;
       console.error("[ChartOfAccounts] Load failed:", { status, detail, message });
       setErr(errMsg);
@@ -330,6 +180,10 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
   };
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    setPanelView("summary");
+  }, [selected?.id]);
 
   // Flatten tree for search
   const flat = useMemo(() => {
@@ -359,7 +213,7 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
 
   const handleSelect = (node: AccountTreeNode) => {
     setSelected(node);
-    onSelectAccount?.(node.id);
+    setPanelView("summary");
   };
 
   const handleAdd = (parent: AccountTreeNode | null) => {
@@ -380,7 +234,8 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
 
   const handleToggleActive = async (node: AccountTreeNode) => {
     try {
-      await accountsApi.update(node.id, { is_active: !node.is_active });
+      const patch: AccountUpdate = { is_active: !node.is_active };
+      await accountsApi.update(node.id, patch);
       await load();
       setSelected(null);
     } catch (e: any) {
@@ -439,7 +294,7 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
       )}
 
       <div className="flex h-full">
-        {/* ── LEFT: Tree Panel ── */}
+        {/* â”€â”€ LEFT: Tree Panel â”€â”€ */}
         <div className="flex flex-col" style={{ width: "60%", borderRight: "1px solid var(--border)" }}>
           {/* Toolbar */}
           <div className="px-4 py-3 space-y-2" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
@@ -531,10 +386,12 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
           </div>
         </div>
 
-        {/* ── RIGHT: Detail Panel ── */}
-        <div className="flex flex-col" style={{ width: "40%" }}>
-          <DetailPanel
+        {/* â”€â”€ RIGHT: Detail Panel â”€â”€ */}
+        <div className="flex flex-col min-h-0" style={{ width: "40%", borderLeft: "1px solid var(--border-subtle)" }}>
+          <AccountDetailPanel
             account={selected}
+            panelView={panelView}
+            onViewChange={setPanelView}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onToggleActive={handleToggleActive}

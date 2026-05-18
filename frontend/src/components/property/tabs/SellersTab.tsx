@@ -2,6 +2,7 @@ import { useEffect, useState, FormEvent } from "react";
 import { Plus, Users } from "lucide-react";
 import Modal from "../../Modal";
 import { propApi, Seller } from "../../../lib/propertyApi";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -61,6 +62,13 @@ export default function SellersTab({ refresh, onRefresh }: Props) {
                   <td className="px-4 py-3 text-secondary">{s.email || "—"}</td>
                   <td className="px-4 py-3 text-secondary">{s.phone || "—"}</td>
                   <td className="px-4 py-3 text-secondary">{s.address || "—"}</td>
+                  <ActionsCell>
+                    <QuickRowActions row={s} compact onPrint={(row) => printRecord(`Seller ${row.tid}`, [
+                      { label: "Name", value: row.name },
+                      { label: "Email", value: row.email || "—" },
+                      { label: "Phone", value: row.phone || "—" },
+                    ])} hiddenActions={["view", "edit", "delete"]} />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, Search, Circle, Edit2 } from "lucide-react";
+import { QuickRowActions, printRecord } from "../components/actions";
 import { crmApi, Lead, Client, Dealer, Deal } from "../lib/crmApi";
 import ClientForm from "../components/crm/ClientForm";
 import DealerForm from "../components/crm/DealerForm";
@@ -155,7 +156,7 @@ export default function CRMPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <Th>Lead ID</Th><Th>Name</Th><Th>Phone</Th><Th>Source</Th><Th>Status</Th>
+                  <Th>Lead ID</Th><Th>Name</Th><Th>Phone</Th><Th>Source</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -168,6 +169,19 @@ export default function CRMPage() {
                     <Td>{l.phone ?? "—"}</Td>
                     <Td>{l.source ?? "—"}</Td>
                     <td className="px-5 py-3.5"><Badge status={l.status} /></td>
+                    <td className="px-5 py-3.5 text-right">
+                      <QuickRowActions
+                        row={l}
+                        onView={(lead) => navigate(`/crm/leads/${lead.id}`)}
+                        onPrint={(lead) => printRecord(`Lead ${lead.lead_id}`, [
+                          { label: "Name", value: lead.name },
+                          { label: "Phone", value: lead.phone ?? "—" },
+                          { label: "Status", value: lead.status },
+                        ])}
+                        variant="icon-buttons"
+                        compact
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -183,7 +197,7 @@ export default function CRMPage() {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   <Th>Tracking ID</Th><Th>Client ID</Th><Th>Name</Th>
-                  <Th>Phone</Th><Th>Status</Th>
+                  <Th>Phone</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -196,6 +210,19 @@ export default function CRMPage() {
                     <Td bold>{c.name}</Td>
                     <Td>{c.phone ?? "—"}</Td>
                     <td className="px-5 py-3.5"><Badge status={c.status} /></td>
+                    <td className="px-5 py-3.5 text-right">
+                      <QuickRowActions
+                        row={c}
+                        onView={(client) => navigate(`/crm/clients/${client.id}`)}
+                        onPrint={(client) => printRecord(`Client ${client.client_id}`, [
+                          { label: "Name", value: client.name },
+                          { label: "Phone", value: client.phone ?? "—" },
+                          { label: "Status", value: client.status },
+                        ])}
+                        variant="icon-buttons"
+                        compact
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -211,7 +238,7 @@ export default function CRMPage() {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   <Th>Dealer ID</Th><Th>Name</Th><Th>Phone</Th>
-                  <Th>Company</Th><Th>Commission</Th><Th>{""}</Th>
+                  <Th>Company</Th><Th>Commission</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -227,11 +254,18 @@ export default function CRMPage() {
                         ? `${d.commission_rate}${d.commission_type === "percentage" ? "%" : " (fixed)"}`
                         : "—"}
                     </Td>
-                    <td className="px-5 py-3.5">
-                      <button onClick={() => setEditDealer(d)}
-                        className="p-1.5 rounded text-muted hover:text-primary transition-colors">
-                        <Edit2 size={13} />
-                      </button>
+                    <td className="px-5 py-3.5 text-right">
+                      <QuickRowActions
+                        row={d}
+                        onEdit={setEditDealer}
+                        onPrint={(dealer) => printRecord(`Dealer ${dealer.dealer_id}`, [
+                          { label: "Name", value: dealer.name },
+                          { label: "Company", value: dealer.company ?? "—" },
+                        ])}
+                        editPermission="crm:manage"
+                        variant="icon-buttons"
+                        compact
+                      />
                     </td>
                   </tr>
                 ))}
@@ -248,7 +282,7 @@ export default function CRMPage() {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   <Th>Tracking ID</Th><Th>Deal ID</Th><Th>Title</Th>
-                  <Th>Client</Th><Th>Value</Th><Th>Status</Th>
+                  <Th>Client</Th><Th>Value</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -262,6 +296,20 @@ export default function CRMPage() {
                     <Td>{d.client_name ?? "—"}</Td>
                     <Td bold>{Number(d.deal_value).toLocaleString()}</Td>
                     <td className="px-5 py-3.5"><Badge status={d.status} /></td>
+                    <td className="px-5 py-3.5 text-right">
+                      <QuickRowActions
+                        row={d}
+                        onView={(deal) => navigate(`/crm/deals/${deal.id}`)}
+                        onPrint={(deal) => printRecord(`Deal ${deal.deal_id}`, [
+                          { label: "Title", value: deal.deal_title ?? "—" },
+                          { label: "Client", value: deal.client_name ?? "—" },
+                          { label: "Value", value: String(deal.deal_value) },
+                          { label: "Status", value: deal.status },
+                        ])}
+                        variant="icon-buttons"
+                        compact
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

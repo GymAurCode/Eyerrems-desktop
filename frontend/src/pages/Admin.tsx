@@ -5,6 +5,7 @@ import {
   Plus, Pencil, Trash2, Key, Save, UserCheck, AlertCircle, Settings, DollarSign
 } from "lucide-react";
 import PortalModal from "../components/Modal";
+import { RowActions, QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/currency";
 
 interface Permission { id: number; name: string; module: string; description: string; }
@@ -180,38 +181,31 @@ function UsersTab({ roles }: { roles: Role[] }) {
                     </td>
                     <td className="px-5 py-3"><Badge status={u.status} /></td>
                     <td className="px-5 py-3 text-secondary">{u.roles.join(", ") || "—"}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {u.status === "pending" && (
-                          <>
-                            <button onClick={() => void approve(u.id, true)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors">
-                              <CheckCircle size={10} /> Approve
-                            </button>
-                            <button onClick={() => void approve(u.id, false)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors">
-                              <XCircle size={10} /> Reject
-                            </button>
-                          </>
-                        )}
-                        {u.status === "active" && (
-                          <button onClick={() => void suspend(u.id, "suspended")}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-yellow-400 hover:bg-yellow-500/10 border border-yellow-500/20 transition-colors">
-                            <XCircle size={10} /> Suspend
-                          </button>
-                        )}
-                        {u.status === "suspended" && (
-                          <button onClick={() => void suspend(u.id, "active")}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors">
-                            <CheckCircle size={10} /> Activate
-                          </button>
-                        )}
-                        <button onClick={() => { setAssignUser(u); setSelectedRoleId(""); setErr(""); }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors">
-                          <UserCheck size={10} /> Role
-                        </button>
-                      </div>
-                    </td>
+                    <ActionsCell className="px-5 py-3">
+                      <RowActions
+                        row={u}
+                        compact
+                        actions={[
+                          ...(u.status === "pending" ? [
+                            { type: "approve" as const, handler: () => void approve(u.id, true) },
+                            { type: "reject" as const, handler: () => void approve(u.id, false) },
+                          ] : []),
+                          ...(u.status === "active" ? [
+                            { type: "custom" as const, label: "Suspend", icon: XCircle, handler: () => void suspend(u.id, "suspended") },
+                          ] : []),
+                          ...(u.status === "suspended" ? [
+                            { type: "approve" as const, label: "Activate", handler: () => void suspend(u.id, "active") },
+                          ] : []),
+                          { type: "custom", label: "Role", icon: UserCheck, handler: () => { setAssignUser(u); setSelectedRoleId(""); setErr(""); } },
+                          { type: "print", handler: () => printRecord(`User ${u.email}`, [
+                            { label: "Name", value: u.full_name },
+                            { label: "Email", value: u.email },
+                            { label: "Status", value: u.status },
+                            { label: "Roles", value: u.roles.join(", ") || "—" },
+                          ]) },
+                        ]}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -428,22 +422,17 @@ function RolesTab({ roles, permissions, onReload }: {
                         {r.permissions.length} permissions
                       </span>
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => openPerms(r)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors">
-                          <Key size={10} /> Permissions
-                        </button>
-                        <button onClick={() => openEdit(r)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-yellow-400 hover:bg-yellow-500/10 border border-yellow-500/20 transition-colors">
-                          <Pencil size={10} /> Edit
-                        </button>
-                        <button onClick={() => openDelete(r)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors">
-                          <Trash2 size={10} /> Delete
-                        </button>
-                      </div>
-                    </td>
+                    <ActionsCell className="px-5 py-3">
+                      <RowActions
+                        row={r}
+                        compact
+                        actions={[
+                          { type: "custom", label: "Permissions", icon: Key, handler: () => openPerms(r) },
+                          { type: "edit", handler: () => openEdit(r) },
+                          { type: "delete", handler: () => openDelete(r) },
+                        ]}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>
@@ -1028,6 +1017,7 @@ function AuditTab() {
               {["Time", "Action", "Module", "Entity", "Description"].map((h) => (
                 <th key={h} className="text-left px-5 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
               ))}
+              <ActionsTh className="px-5 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -1043,11 +1033,25 @@ function AuditTab() {
                   {row.entity_type ?? "—"}{row.entity_id != null ? ` #${row.entity_id}` : ""}
                 </td>
                 <td className="px-5 py-3 text-muted max-w-xs truncate">{row.description ?? "—"}</td>
+                <ActionsCell className="px-5 py-3">
+                  <QuickRowActions
+                    row={row}
+                    compact
+                    onPrint={(r) => printRecord(`Audit #${r.id}`, [
+                      { label: "Action", value: r.action },
+                      { label: "Module", value: r.module ?? "—" },
+                      { label: "Entity", value: `${r.entity_type ?? "—"}${r.entity_id != null ? ` #${r.entity_id}` : ""}` },
+                      { label: "Description", value: r.description ?? "—" },
+                      { label: "Time", value: new Date(r.created_at).toLocaleString() },
+                    ])}
+                    hiddenActions={["view", "edit", "delete"]}
+                  />
+                </ActionsCell>
               </tr>
             ))}
             {audit.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-muted">No audit logs found.</td>
+                <td colSpan={6} className="px-5 py-10 text-center text-muted">No audit logs found.</td>
               </tr>
             )}
           </tbody>

@@ -5,6 +5,8 @@ import {
   ArrowLeft, Plus, Edit2, Trash2, ChevronDown, ChevronRight,
   MapPin, Building2,
 } from "lucide-react";
+import { RowActions, QuickRowActions } from "../../components/actions";
+import type { ActionConfig } from "../../components/actions";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
 import { townApi, TownFull, Block, Plot, BlockWithPlots } from "../../lib/townApi";
@@ -458,51 +460,33 @@ function BlockRow({
           <span style={{ color: "#ef4444" }}>{block.sold_plots}</span>
         </td>
         <td className="px-5 py-3.5">
-          <div
-            className="flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => onAddPlot(block.id)}
-              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg transition-colors"
-              style={{ color: "#10b981" }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(16,185,129,0.1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-              }}
-            >
-              <Plus size={11} /> Plot
-            </button>
-            <button
-              type="button"
-              onClick={() => onEditBlock(block)}
-              className="flex items-center gap-1 text-xs text-blue-400 px-2 py-1.5 rounded-lg transition-colors"
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-              }}
-            >
-              <Edit2 size={11} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDeleteBlock(block)}
-              className="flex items-center gap-1 text-xs text-red-400 px-2 py-1.5 rounded-lg transition-colors"
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-              }}
-            >
-              <Trash2 size={11} />
-            </button>
-          </div>
+          <RowActions
+            row={block}
+            actions={[
+              {
+                type: "custom",
+                label: "Add Plot",
+                icon: Plus,
+                color: "#10b981",
+                tooltip: "Add new plot to this block",
+                handler: (r) => onAddPlot(r.id),
+                permission: "towns:manage",
+              },
+              {
+                type: "edit",
+                handler: (r) => onEditBlock(r),
+                permission: "towns:manage",
+              },
+              {
+                type: "delete",
+                handler: (r) => onDeleteBlock(r),
+                permission: "towns:manage",
+                confirmMessage: `Are you sure you want to delete block "${block.name}"? All plots inside will also be deleted. This action cannot be undone.`,
+              },
+            ]}
+            variant="icon-buttons"
+            compact
+          />
         </td>
       </tr>
 
@@ -526,11 +510,14 @@ function BlockRow({
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                      {["Plot #", "Size", "Type", "Status", "Price", "Owner", ""].map((h) => (
+                      {["Plot #", "Size", "Type", "Status", "Price", "Owner", "Actions"].map((h) => (
                         <th
                           key={h}
-                          className="text-left px-5 py-2 text-xs font-semibold text-muted uppercase tracking-wider"
-                          style={{ paddingLeft: h === "Plot #" ? "2.5rem" : undefined }}
+                          className={`text-left px-5 py-2 text-xs font-semibold text-muted uppercase tracking-wider ${h === "Actions" ? "text-right" : ""}`}
+                          style={{ 
+                            paddingLeft: h === "Plot #" ? "2.5rem" : undefined,
+                            width: h === "Actions" ? "1%" : undefined
+                          }}
                         >
                           {h}
                         </th>
@@ -560,37 +547,17 @@ function BlockRow({
                         <td className="px-5 py-2.5 text-secondary">
                           {plot.owner_name ?? "—"}
                         </td>
-                        <td className="px-5 py-2.5">
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => onEditPlot(plot)}
-                              className="flex items-center gap-1 text-xs text-blue-400 px-2 py-1.5 rounded-lg transition-colors"
-                              onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLElement).style.background =
-                                  "rgba(59,130,246,0.1)";
-                              }}
-                              onMouseLeave={(e) => {
-                                (e.currentTarget as HTMLElement).style.background = "transparent";
-                              }}
-                            >
-                              <Edit2 size={11} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeletePlot(plot)}
-                              className="flex items-center gap-1 text-xs text-red-400 px-2 py-1.5 rounded-lg transition-colors"
-                              onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLElement).style.background =
-                                  "rgba(239,68,68,0.08)";
-                              }}
-                              onMouseLeave={(e) => {
-                                (e.currentTarget as HTMLElement).style.background = "transparent";
-                              }}
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
+                        <td className="px-5 py-2.5 text-right">
+                          <QuickRowActions
+                            row={plot}
+                            onEdit={onEditPlot}
+                            onDelete={onDeletePlot}
+                            editPermission="towns:manage"
+                            deletePermission="towns:manage"
+                            deleteConfirmMessage={`Are you sure you want to delete plot #${plot.plot_number}? This action cannot be undone.`}
+                            variant="icon-buttons"
+                            compact
+                          />
                         </td>
                       </tr>
                     ))}

@@ -279,7 +279,7 @@
     margin-bottom: 0.875rem;
   }
 
-  /* ── ERP Table ── */
+  /* ── ERP Table (Legacy - will be replaced by DataTable) ── */
   .erp-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
   .erp-table thead tr {
     border-bottom: 1px solid var(--border);
@@ -305,6 +305,201 @@
     padding: 0.75rem 1rem;
     color: var(--text-primary);
     vertical-align: middle;
+  }
+
+  /* ── DataTable Container System ── */
+  .data-table-container {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+  }
+
+  .data-table-toolbar {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+  }
+
+  .data-table-content {
+    overflow-x: auto;
+    min-height: 200px;
+  }
+
+  .data-table-footer {
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface2);
+  }
+
+  /* DataTable specific styles */
+  .data-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table thead th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-surface2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .data-table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s;
+  }
+
+  .data-table thead th.sortable:hover {
+    background: var(--hover-bg-sm);
+  }
+
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background-color 0.15s;
+  }
+
+  .data-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .data-table tbody tr:hover {
+    background: var(--hover-bg-sm);
+  }
+
+  .data-table tbody tr.selected {
+    background: rgba(59,130,246,0.08);
+    border-color: rgba(59,130,246,0.2);
+  }
+
+  .data-table tbody td {
+    padding: 0.75rem 1rem;
+    color: var(--text-primary);
+    vertical-align: middle;
+    font-size: 0.875rem;
+  }
+
+  .data-table tbody tr.striped:nth-child(even) {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .data-table tbody tr.striped:nth-child(even):hover {
+    background: var(--hover-bg-sm);
+  }
+
+  /* Empty state */
+  .data-table-empty {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  /* Loading skeleton */
+  .data-table-skeleton {
+    padding: 0.75rem 1rem;
+  }
+
+  .data-table-skeleton .skeleton-line {
+    height: 1rem;
+    background: linear-gradient(90deg, var(--bg-surface2) 25%, var(--hover-bg) 50%, var(--bg-surface2) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 4px;
+  }
+
+  @keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Pagination */
+  .data-table-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface2);
+    font-size: 0.75rem;
+  }
+
+  .data-table-pagination button {
+    padding: 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .data-table-pagination button:hover:not(:disabled) {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+  }
+
+  .data-table-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .data-table-pagination .page-button {
+    padding: 0.5rem 0.75rem;
+    margin: 0 0.125rem;
+    font-size: 0.75rem;
+  }
+
+  .data-table-pagination .page-button.active {
+    background: #3b82f6;
+    color: white;
+  }
+
+  /* Filter panel */
+  .data-table-filters {
+    padding: 1rem;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .data-table-filters .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .data-table-container {
+      border-radius: 8px;
+    }
+    
+    .data-table-toolbar {
+      padding: 0.75rem;
+    }
+    
+    .data-table thead th,
+    .data-table tbody td {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+    }
+    
+    .data-table-pagination {
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    
+    .data-table-filters .filter-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   /* ── Stat card (Finance / Dashboard) ── */

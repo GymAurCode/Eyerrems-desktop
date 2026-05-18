@@ -215,30 +215,61 @@ class PaymentResponse(BaseModel):
 # ==================== COMMISSION SCHEMAS ====================
 
 class CommissionCreate(BaseModel):
-    """Record commission"""
-    agent_id: int
+    """Record commission (smart workflow)"""
+    dealer_id: int
     property_id: int
-    amount: Decimal
-    type: str  # earned, paid
+    deal_id: int | None = None
+    sale_amount: Decimal | None = None
+    commission_rate: Decimal | None = None
+    amount: Decimal | None = None  # manual override when permitted
+    type: str = "earned"  # earned, paid
     date: datetime | None = None
     reference: str | None = None
     description: str | None = None
+    allow_override: bool = False
 
 
 class CommissionResponse(BaseModel):
     """Commission response"""
     id: int
-    agent_id: int
+    agent_id: int | None = None
+    dealer_id: int | None = None
+    dealer_name: str | None = None
+    dealer_code: str | None = None
     property_id: int
+    property_code: str | None = None
+    property_name: str | None = None
+    deal_id: int | None = None
+    deal_code: str | None = None
+    sale_amount: Decimal | None = None
+    commission_rate: Decimal | None = None
+    calculated_amount: Decimal | None = None
     amount: Decimal
     type: str
+    payment_status: str = "unpaid"
     date: datetime
     reference: str | None
     description: str | None
+    journal_id: int | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class CommissionCalculateRequest(BaseModel):
+    dealer_id: int
+    property_id: int
+    deal_id: int | None = None
+    sale_amount: Decimal | None = None
+    commission_rate: Decimal | None = None
+
+
+class CommissionCalculateResponse(BaseModel):
+    sale_amount: Decimal
+    commission_rate: Decimal
+    commission_type: str
+    calculated_amount: Decimal
 
 
 # ==================== REPORT SCHEMAS ====================

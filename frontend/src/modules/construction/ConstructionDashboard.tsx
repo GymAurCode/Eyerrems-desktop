@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { constructionApi, DashboardStats, Project } from "../../lib/constructionApi";
 import { formatCurrency } from "../../lib/currency";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../components/actions";
 
 function StatCard({
   label, value, sub, icon: Icon, color,
@@ -154,7 +155,7 @@ export default function ConstructionDashboard() {
                     {h}
                   </th>
                 ))}
-                <th className="px-4 py-2.5" />
+                <ActionsTh className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -186,12 +187,18 @@ export default function ConstructionDashboard() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => navigate(`/construction/projects/${p.id}`)}
-                      className="text-blue-400 hover:text-blue-300 transition-colors">
-                      <ArrowRight size={14} />
-                    </button>
-                  </td>
+                  <ActionsCell className="px-4 py-3">
+                    <QuickRowActions
+                      row={p}
+                      compact
+                      onView={(row) => navigate(`/construction/projects/${row.id}`)}
+                      onPrint={(row) => printRecord(`Project ${row.name}`, [
+                        { label: "Location", value: row.location ?? "—" },
+                        { label: "Budget", value: formatCurrency(Number(row.total_budget)) },
+                      ])}
+                      hiddenActions={["edit", "delete"]}
+                    />
+                  </ActionsCell>
                 </tr>
               ))}
             </tbody>

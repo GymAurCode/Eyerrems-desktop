@@ -8,6 +8,7 @@ import {
 import { bookingApi, BookingListItem, BookingStats } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
 import BookingCreateModal from "./BookingCreateModal";
+import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../../components/actions";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -323,7 +324,7 @@ export default function BookingList() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface2)" }}>
-                  {["Booking ID", "Client", "Property / Unit", "Assigned To", "Amount", "Expiry", "Status", ""].map(h => (
+                  {["Booking ID", "Client", "Property / Unit", "Assigned To", "Amount", "Expiry", "Status"].map(h => (
                     <th
                       key={h}
                       className="text-left px-4 py-3 text-[10px] font-bold text-muted uppercase tracking-wider whitespace-nowrap"
@@ -331,6 +332,7 @@ export default function BookingList() {
                       {h}
                     </th>
                   ))}
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -398,19 +400,20 @@ export default function BookingList() {
                       <BookingStatusBadge status={b.status} isExpired={b.is_expired} />
                     </td>
 
-                    {/* Action */}
-                    <td className="px-4 py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/crm/bookings/${b.id}`)}
-                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all"
-                        style={{ color: "#60a5fa" }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.1)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                      >
-                        View <ArrowRight size={11} />
-                      </button>
-                    </td>
+                    <ActionsCell className="px-4 py-3.5">
+                      <QuickRowActions
+                        row={b}
+                        compact
+                        onView={(row) => navigate(`/crm/bookings/${row.id}`)}
+                        onPrint={(row) => printRecord(`Booking ${row.booking_id}`, [
+                          { label: "Client", value: row.client_name ?? "—" },
+                          { label: "Property", value: row.property_name ?? "—" },
+                          { label: "Amount", value: formatCurrency(row.booking_amount) },
+                          { label: "Status", value: row.status },
+                          { label: "Expiry", value: new Date(row.expiry_date).toLocaleDateString() },
+                        ])}
+                      />
+                    </ActionsCell>
                   </tr>
                 ))}
               </tbody>

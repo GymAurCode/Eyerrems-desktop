@@ -43,7 +43,9 @@ export interface ChatMessage {
 export interface ChatChannel {
   id:          string;
   name:        string;
-  type:        "direct" | "group" | "system";
+  type:        "direct" | "group" | "system" | "role";
+  roleId?:     number | null;
+  roleName?:   string | null;
   members:     string[];   // user IDs
   unread:      number;
   lastMessage: string;
