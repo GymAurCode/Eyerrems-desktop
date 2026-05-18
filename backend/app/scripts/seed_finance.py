@@ -10,6 +10,11 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+# Adjust import path when running script directly
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from app.core.database import SessionLocal
 from app.models.finance import Account
 
