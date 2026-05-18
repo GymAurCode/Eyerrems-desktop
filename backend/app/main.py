@@ -137,3 +137,11 @@ def on_shutdown():
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/health/db")
+def health_db() -> dict:
+    """Check database connectivity — useful for Railway deployment diagnostics."""
+    from app.core.database import check_db_connection
+    ok = check_db_connection()
+    return {"status": "ok" if ok else "error", "database": "connected" if ok else "unreachable"}

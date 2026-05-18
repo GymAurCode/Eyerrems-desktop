@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   ChevronRight, ChevronDown, Plus, Edit2, Trash2,
-  Search, ToggleLeft, ToggleRight, BookOpen, TrendingUp,
-  AlertCircle, CheckCircle2, RefreshCw,
+  Search, ToggleLeft, ToggleRight, BookOpen,
+  AlertCircle, CheckCircle2, RefreshCw
 } from "lucide-react";
-import { accountsApi, type AccountTreeNode, type Account } from "../../lib/financeApi";
+import { accountsApi, journalsApi, type AccountTreeNode, type LedgerResponse } from "../../lib/financeApi";
 import { formatCurrency } from "../../lib/currency";
 import { AccountDialog, ConfirmDeleteDialog } from "./AccountDialogs";
+import GeneralLedger from "../finance/GeneralLedger";
 
 // ── Type colours ──────────────────────────────────────────────────────────────
 const TYPE_COLOR: Record<string, [string, string]> = {
@@ -21,7 +22,9 @@ function TypeBadge({ type }: { type: string }) {
   const [bg, color] = TYPE_COLOR[type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
   return (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-      style={{ background: bg, color }}>{type}</span>
+      style={{ background: bg, color }}>
+      {type}
+    </span>
   );
 }
 
@@ -39,7 +42,7 @@ function TreeNode({
   const [open, setOpen] = useState(level < 1);
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.id;
-  const [bg, color] = TYPE_COLOR[node.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
+  const [, color] = TYPE_COLOR[node.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
 
   if (!showInactive && !node.is_active) return null;
 
@@ -69,11 +72,13 @@ function TreeNode({
         {/* Code + Name */}
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className="font-mono text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{node.code}</span>
-          <span className="text-xs font-medium truncate" style={{ color: node.is_active ? "var(--text-primary)" : "var(--text-muted)" }}>
+          <span className="text-xs font-medium truncate"
+            style={{ color: node.is_active ? "var(--text-primary)" : "var(--text-muted)" }}>
             {node.name}
           </span>
           {!node.is_active && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(148,163,184,0.1)", color: "#94a3b8" }}>
+            <span className="text-[9px] px-1.5 py-0.5 rounded"
+              style={{ background: "rgba(148,163,184,0.1)", color: "#94a3b8" }}>
               Inactive
             </span>
           )}
@@ -130,6 +135,22 @@ function DetailPanel({
   onDelete: (a: AccountTreeNode) => void;
   onToggleActive: (a: AccountTreeNode) => void;
 }) {
+  const [tab, setTab] = useState<"overview" | "ledger">("overview");
+  const [ledger, setLedger] = useState<LedgerResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (account) {
+      setLoading(true);
+      journalsApi.ledger(account.id)
+        .then(data => setLedger(data as any))
+        .catch(() => setLedger(null))
+        .finally(() => setLoading(false));
+    } else {
+      setLedger(null);
+    }
+  }, [account]);
+
   if (!account) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3"
@@ -140,16 +161,33 @@ function DetailPanel({
     );
   }
 
-  const [bg, color] = TYPE_COLOR[account.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
+  const [, color] = TYPE_COLOR[account.account_type] ?? ["rgba(148,163,184,0.1)", "#94a3b8"];
 
   const rows = [
-    { label: "Account Code",   value: <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>{account.code}</span> },
-    { label: "Account Type",   value: <TypeBadge type={account.account_type} /> },
-    { label: "Status",         value: account.is_active
+    {
+      label: "Account Code",
+      value: (
+        <span className="font-mono text-xs px-2 py-0.5 rounded"
+          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
+          {account.code}
+        </span>
+      ),
+    },
+    { label: "Account Type",    value: <TypeBadge type={account.account_type} /> },
+    {
+      label: "Status",
+      value: account.is_active
         ? <span className="flex items-center gap-1 text-xs" style={{ color: "#10b981" }}><CheckCircle2 size={12} /> Active</span>
-        : <span className="flex items-center gap-1 text-xs" style={{ color: "#94a3b8" }}><AlertCircle size={12} /> Inactive</span> },
-    { label: "Current Balance", value: <span className="text-sm font-bold" style={{ color }}>{formatCurrency(account.balance)}</span> },
-    { label: "Description",    value: account.description || <span style={{ color: "var(--text-muted)" }}>—</span> },
+        : <span className="flex items-center gap-1 text-xs" style={{ color: "#94a3b8" }}><AlertCircle size={12} /> Inactive</span>,
+    },
+    {
+      label: "Current Balance",
+      value: <span className="text-sm font-bold" style={{ color }}>{formatCurrency(account.balance)}</span>,
+    },
+    {
+      label: "Description",
+      value: account.description || <span style={{ color: "var(--text-muted)" }}>—</span>,
+    },
   ];
 
   return (
@@ -165,41 +203,87 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Info rows */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0">
-        {rows.map((r, i) => (
-          <div key={i} className="flex items-start justify-between py-2.5"
-            style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-            <span className="text-xs shrink-0 w-32" style={{ color: "var(--text-muted)" }}>{r.label}</span>
-            <span className="text-xs font-medium text-right flex-1">{r.value}</span>
-          </div>
+      {/* Sub-tabs */}
+      <div className="flex" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+        {(["overview", "ledger"] as const).map(t => (
+          <button key={t}
+            className="px-4 py-2 text-xs capitalize transition-colors"
+            style={{
+              color: tab === t ? "var(--text-primary)" : "var(--text-muted)",
+              borderBottom: tab === t ? "2px solid #60a5fa" : "2px solid transparent",
+            }}
+            onClick={() => setTab(t)}>
+            {t}
+          </button>
         ))}
       </div>
 
-      {/* Actions */}
-      <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-        <button onClick={() => onEdit(account)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(59,130,246,0.2)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(59,130,246,0.1)")}>
-          <Edit2 size={12} /> Edit Account
-        </button>
-        <button onClick={() => onToggleActive(account)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-          style={{ background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "var(--bg-surface2)")}>
-          {account.is_active ? <><ToggleRight size={12} /> Deactivate</> : <><ToggleLeft size={12} /> Activate</>}
-        </button>
-        <button onClick={() => onDelete(account)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
-          style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.15)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(239,68,68,0.08)")}>
-          <Trash2 size={12} /> Delete Account
-        </button>
-      </div>
+      {tab === "overview" && (
+        <>
+          {/* Info rows */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0">
+            {rows.map((r, i) => (
+              <div key={i} className="flex items-start justify-between py-2.5"
+                style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <span className="text-xs shrink-0 w-32" style={{ color: "var(--text-muted)" }}>{r.label}</span>
+                <span className="text-xs font-medium text-right flex-1">{r.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <button onClick={() => onEdit(account)}
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
+              style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(59,130,246,0.2)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(59,130,246,0.1)")}>
+              <Edit2 size={12} /> Edit Account
+            </button>
+            <button onClick={() => onToggleActive(account)}
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
+              style={{ background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "var(--bg-surface2)")}>
+              {account.is_active
+                ? <><ToggleRight size={12} /> Deactivate</>
+                : <><ToggleLeft size={12} /> Activate</>}
+            </button>
+            <button onClick={() => onDelete(account)}
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors"
+              style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.15)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(239,68,68,0.08)")}>
+              <Trash2 size={12} /> Delete Account
+            </button>
+          </div>
+        </>
+      )}
+
+      {tab === "ledger" && (
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="text-center text-xs" style={{ color: "var(--text-muted)" }}>Loading ledger...</div>
+          ) : ledger ? (
+            <GeneralLedger
+              accountId={account.id}
+              accountCode={account.code}
+              accountName={account.name}
+              entries={ledger.entries}
+              openingBalance={ledger.opening_balance}
+              closingBalance={ledger.closing_balance}
+              onRefresh={async () => {
+                setLoading(true);
+                const data = await journalsApi.ledger(account.id);
+                setLedger(data as any);
+                setLoading(false);
+              }}
+            />
+          ) : (
+            <div className="text-center text-xs" style={{ color: "var(--text-muted)" }}>No ledger data.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -211,21 +295,38 @@ export interface ChartOfAccountsProps {
 }
 
 export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: ChartOfAccountsProps) {
-  const [tree, setTree] = useState<AccountTreeNode[]>([]);
+  const [tree, setTree]       = useState<AccountTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AccountTreeNode | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch]   = useState("");
   const [filterType, setFilterType] = useState<string>("All");
   const [showInactive, setShowInactive] = useState(false);
-  const [dlg, setDlg] = useState<"create" | "edit" | "delete" | null>(null);
+  const [dlg, setDlg]         = useState<"create" | "edit" | "delete" | null>(null);
   const [dlgParent, setDlgParent] = useState<AccountTreeNode | null>(null);
-  const [err, setErr] = useState("");
+  const [err, setErr]         = useState("");
 
   const load = async () => {
     setLoading(true);
-    try { setTree(await accountsApi.tree()); }
-    catch { setErr("Failed to load accounts"); }
-    finally { setLoading(false); }
+    setErr("");
+    try {
+      const data = await accountsApi.tree();
+      setTree(data);
+      console.log(`[ChartOfAccounts] Loaded ${data.length} root accounts successfully`);
+    } catch (e: any) {
+      const status  = e?.response?.status;
+      const detail  = e?.response?.data?.detail;
+      const message = e?.message ?? "";
+      let errMsg = "Failed to load accounts";
+      if (status === 401)                                    errMsg = "Session expired — please log in again";
+      else if (status === 403)                               errMsg = `Access denied: ${detail ?? "insufficient permissions"}`;
+      else if (status === 500)                               errMsg = `Server error: ${detail ?? "internal server error"}`;
+      else if (!status && message.toLowerCase().includes("network")) errMsg = "Cannot reach server — check your connection";
+      else if (detail)                                       errMsg = detail;
+      console.error("[ChartOfAccounts] Load failed:", { status, detail, message });
+      setErr(errMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { void load(); }, []);
@@ -249,7 +350,6 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
         (!q || n.name.toLowerCase().includes(q) || n.code.toLowerCase().includes(q))
       ).map(n => n.id)
     );
-    // Return only root nodes that have matching descendants
     const filterTree = (nodes: AccountTreeNode[]): AccountTreeNode[] =>
       nodes
         .filter(n => matchIds.has(n.id) || filterTree(n.children).length > 0)
@@ -317,21 +417,24 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
   };
 
   // Summary stats
-  const stats = useMemo(() => {
-    const total = flat.length;
-    const active = flat.filter(n => n.is_active).length;
-    const withBalance = flat.filter(n => n.balance !== 0).length;
-    return { total, active, withBalance };
-  }, [flat]);
+  const stats = useMemo(() => ({
+    total:       flat.length,
+    active:      flat.filter(n => n.is_active).length,
+    withBalance: flat.filter(n => n.balance !== 0).length,
+  }), [flat]);
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", height: "calc(100vh - 280px)", minHeight: "500px" }}>
+    <div className="rounded-xl overflow-hidden"
+      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", height: "calc(100vh - 280px)", minHeight: "500px" }}>
+
       {/* Error banner */}
       {err && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs"
           style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", borderBottom: "1px solid rgba(239,68,68,0.2)" }}>
-          <AlertCircle size={12} /> {err}
-          <button onClick={() => setErr("")} className="ml-auto text-xs underline">Dismiss</button>
+          <AlertCircle size={12} />
+          <span className="flex-1">{err}</span>
+          <button onClick={load} className="text-xs underline mr-2">Retry</button>
+          <button onClick={() => setErr("")} className="text-xs underline">Dismiss</button>
         </div>
       )}
 
@@ -343,10 +446,12 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookOpen size={13} style={{ color: "var(--text-muted)" }} />
-                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                <span className="text-[11px] font-bold uppercase tracking-widest"
+                  style={{ color: "var(--text-muted)" }}>
                   Chart of Accounts
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
                   {stats.active}/{stats.total}
                 </span>
               </div>
@@ -380,7 +485,8 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
             {/* Search + Filter */}
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2"
+                  style={{ color: "var(--text-muted)" }} />
                 <input
                   className="input-dark w-full pl-7 pr-3 py-1.5 text-xs"
                   placeholder="Search accounts..."
@@ -403,11 +509,13 @@ export default function ChartOfAccounts({ onSelectAccount, readOnly = false }: C
           {/* Tree */}
           <div className="flex-1 overflow-y-auto p-2">
             {loading ? (
-              <div className="flex items-center justify-center h-32 text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="flex items-center justify-center h-32 text-xs"
+                style={{ color: "var(--text-muted)" }}>
                 Loading...
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="flex flex-col items-center justify-center h-32 gap-2 text-xs"
+                style={{ color: "var(--text-muted)" }}>
                 <BookOpen size={24} style={{ opacity: 0.3 }} />
                 {search ? "No accounts match your search" : "No accounts yet"}
               </div>
