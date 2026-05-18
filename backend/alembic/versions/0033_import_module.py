@@ -15,7 +15,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    # Check if tables already exist
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    if "import_batches" not in existing_tables:
+        op.create_table(
         "import_batches",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("module_key", sa.String(64), nullable=False),
@@ -34,10 +40,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("completed_at", sa.DateTime(), nullable=True),
     )
-    op.create_index("ix_import_batches_module_key", "import_batches", ["module_key"])
-    op.create_index("ix_import_batches_company_id", "import_batches", ["company_id"])
+        op.create_index("ix_import_batches_module_key", "import_batches", ["module_key"])
+        op.create_index("ix_import_batches_company_id", "import_batches", ["company_id"])
+    else:
+        print("import_batches table already exists, skipping creation")
 
-    op.create_table(
+    if "import_row_logs" not in existing_tables:
+        op.create_table(
         "import_row_logs",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("batch_id", sa.Integer(), sa.ForeignKey("import_batches.id"), nullable=False),
@@ -48,7 +57,9 @@ def upgrade() -> None:
         sa.Column("entity_type", sa.String(64), nullable=True),
         sa.Column("entity_id", sa.Integer(), nullable=True),
     )
-    op.create_index("ix_import_row_logs_batch_id", "import_row_logs", ["batch_id"])
+        op.create_index("ix_import_row_logs_batch_id", "import_row_logs", ["batch_id"])
+    else:
+        print("import_row_logs table already exists, skipping creation")
 
 
 def downgrade() -> None:

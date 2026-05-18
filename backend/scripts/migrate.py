@@ -62,6 +62,9 @@ REVISION_CHAIN = [
     ("0030_dummy",                    ("invoices", "company_id")),                 # column-only
     ("0030_dummy_alt",                ("invoices", "company_id")),                 # column-only
     ("0031_force_fix_company_id",     ("invoices", "description")),                # column-only
+    ("0032_town_units_upgrade",       "town_units"),                               # new town management
+    ("0033_import_module",            "import_batches"),                           # import system
+    ("0034_commission_dealer_upgrade", ("commissions", "dealer_id")),              # commission upgrade
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}

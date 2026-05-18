@@ -30,8 +30,13 @@ def _safe(conn, sql: str) -> None:
 def upgrade():
     conn = op.get_bind()
 
+    # Check if town_units table already exists
+    inspector = sa.inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
     # ── 1. town_units — replaces plot-only model with full property unit system ──
-    op.create_table(
+    if "town_units" not in existing_tables:
+        op.create_table(
         "town_units",
         # Identity
         sa.Column("id",           sa.Integer(),     primary_key=True),
@@ -89,14 +94,17 @@ def upgrade():
         sa.Column("updated_at",   sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_block_id   ON town_units(block_id)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_town_id    ON town_units(town_id)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_status     ON town_units(status)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_unit_type  ON town_units(unit_type)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_company_id ON town_units(company_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_block_id   ON town_units(block_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_town_id    ON town_units(town_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_status     ON town_units(status)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_unit_type  ON town_units(unit_type)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_units_company_id ON town_units(company_id)"))
+    else:
+        print("town_units table already exists, skipping creation")
 
     # ── 2. town_transactions — finance ledger for town/unit operations ─────────
-    op.create_table(
+    if "town_transactions" not in existing_tables:
+        op.create_table(
         "town_transactions",
         sa.Column("id",              sa.Integer(),     primary_key=True),
         sa.Column("tid",             sa.String(20),    nullable=False, unique=True),
@@ -119,10 +127,12 @@ def upgrade():
         sa.Column("created_at",      sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_unit_id    ON town_transactions(town_unit_id)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_town_id    ON town_transactions(town_id)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_type       ON town_transactions(transaction_type)"))
-    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_company_id ON town_transactions(company_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_unit_id    ON town_transactions(town_unit_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_town_id    ON town_transactions(town_id)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_type       ON town_transactions(transaction_type)"))
+        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_town_txn_company_id ON town_transactions(company_id)"))
+    else:
+        print("town_transactions table already exists, skipping creation")
 
     # ── 3. Seed new finance accounts for town operations ──────────────────────
     _safe(conn, """
