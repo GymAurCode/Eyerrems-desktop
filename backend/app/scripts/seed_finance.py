@@ -72,15 +72,20 @@ CHART_OF_ACCOUNTS = [
 
 
 def seed_chart_of_accounts(db: Session) -> None:
-    """Initialize chart of accounts"""
-    existing = db.query(Account).count()
-    if existing > 0:
-        print("Chart of accounts already exists. Skipping seed.")
-        return
-
+    """Initialize chart of accounts, only adding missing ones"""
     accounts_by_code: dict[str, int] = {}
+    
+    # Load all existing accounts to avoid duplicate keys and preserve mapping
+    existing_accounts = db.query(Account).all()
+    for acc in existing_accounts:
+        accounts_by_code[acc.code] = acc.id
 
+    created_count = 0
     for acc_data in CHART_OF_ACCOUNTS:
+        # If account code is already present, skip seeding it
+        if acc_data["code"] in accounts_by_code:
+            continue
+
         parent_id = None
         if acc_data["parent_code"]:
             parent_id = accounts_by_code.get(acc_data["parent_code"])
@@ -97,9 +102,10 @@ def seed_chart_of_accounts(db: Session) -> None:
         db.add(account)
         db.flush()
         accounts_by_code[acc_data["code"]] = account.id
+        created_count += 1
 
     db.commit()
-    print(f"✓ Initialized {len(CHART_OF_ACCOUNTS)} accounts")
+    print(f"✓ Initialized {created_count} new accounts (total database accounts: {db.query(Account).count()})")
 
 
 if __name__ == "__main__":
