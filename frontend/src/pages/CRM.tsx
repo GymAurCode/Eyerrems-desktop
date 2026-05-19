@@ -141,9 +141,9 @@ export default function CRMPage() {
         startDate: params.startDate,
         endDate: params.endDate,
       });
-      const res = await api.get<Lead[]>("/crm/leads", { params: sanitized });
-      setLeads(res.data);
-      setLeadsTotal(Number(res.headers["x-total-count"] || res.data.length));
+      const res = await api.get<any>("/crm/leads", { params: sanitized });
+      setLeads(res.data.items || []);
+      setLeadsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
       console.error(e);
       setLeadsErr(e.message || "Failed to load leads");
@@ -168,9 +168,9 @@ export default function CRMPage() {
         startDate: params.startDate,
         endDate: params.endDate,
       });
-      const res = await api.get<Client[]>("/crm/clients", { params: sanitized });
-      setClients(res.data);
-      setClientsTotal(Number(res.headers["x-total-count"] || res.data.length));
+      const res = await api.get<any>("/crm/clients", { params: sanitized });
+      setClients(res.data.items || []);
+      setClientsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
       console.error(e);
       setClientsErr(e.message || "Failed to load clients");
@@ -195,9 +195,9 @@ export default function CRMPage() {
         startDate: params.startDate,
         endDate: params.endDate,
       });
-      const res = await api.get<Dealer[]>("/crm/dealers", { params: sanitized });
-      setDealers(res.data);
-      setDealersTotal(Number(res.headers["x-total-count"] || res.data.length));
+      const res = await api.get<any>("/crm/dealers", { params: sanitized });
+      setDealers(res.data.items || []);
+      setDealersTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
       console.error(e);
       setDealersErr(e.message || "Failed to load dealers");
@@ -222,9 +222,9 @@ export default function CRMPage() {
         startDate: params.startDate,
         endDate: params.endDate,
       });
-      const res = await api.get<Deal[]>("/crm/deals", { params: sanitized });
-      setDeals(res.data);
-      setDealsTotal(Number(res.headers["x-total-count"] || res.data.length));
+      const res = await api.get<any>("/crm/deals", { params: sanitized });
+      setDeals(res.data.items || []);
+      setDealsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
       console.error(e);
       setDealsErr(e.message || "Failed to load deals");

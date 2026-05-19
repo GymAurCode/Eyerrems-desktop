@@ -3,7 +3,7 @@
 Hierarchy: Town → Block → Plot
 All routes are tenant-isolated via company_id.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_any_permission
@@ -18,6 +18,7 @@ from app.schemas.town import (
 )
 
 router = APIRouter()
+town_units_router = APIRouter()
 
 PERM_VIEW   = ("towns:view",   "towns:manage", "properties:view",   "properties:manage")
 PERM_MANAGE = ("towns:manage", "properties:manage")
@@ -491,6 +492,12 @@ def list_units(
     status:    str | None = Query(None),
     unit_type: str | None = Query(None),
     category:  str | None = Query(None),
+    is_corner: bool | None = Query(None),
+    is_facing_park: bool | None = Query(None),
+    is_main_boulevard: bool | None = Query(None),
+    is_possession_ready: bool | None = Query(None),
+    min_price: Decimal | None = Query(None),
+    max_price: Decimal | None = Query(None),
     search:    str | None = Query(None),
     skip:      int = Query(0, ge=0),
     limit:     int = Query(100, ge=1, le=500),
@@ -515,6 +522,137 @@ def list_units(
         q = q.filter(TownUnit.unit_type == unit_type.lower())
     if category:
         q = q.filter(TownUnit.category == category.lower())
+    if is_corner is not None:
+        q = q.filter(TownUnit.is_corner == is_corner)
+    if is_facing_park is not None:
+        q = q.filter(TownUnit.is_facing_park == is_facing_park)
+    if is_main_boulevard is not None:
+        q = q.filter(TownUnit.is_main_boulevard == is_main_boulevard)
+    if is_possession_ready is not None:
+        q = q.filter(TownUnit.is_possession_ready == is_possession_ready)
+    if min_price is not None:
+        q = q.filter(TownUnit.total_price >= min_price)
+    if max_price is not None:
+        q = q.filter(TownUnit.total_price <= max_price)
+    if search:
+        s = f"%{search}%"
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            TownUnit.unit_number.ilike(s),
+            TownUnit.title.ilike(s),
+            TownUnit.owner_name.ilike(s),
+            TownUnit.buyer_name.ilike(s),
+        ))
+    units = q.order_by(TownUnit.unit_number).offset(skip).limit(limit).all()
+    return [_enrich_unit(u) for u in units]
+
+
+@router.get("/{town_id}/units", response_model=list[TownUnitOut])
+def list_town_units(
+    town_id: int,
+    block_id:  int | None = Query(None),
+    status:    str | None = Query(None),
+    unit_type: str | None = Query(None),
+    category:  str | None = Query(None),
+    is_corner: bool | None = Query(None),
+    is_facing_park: bool | None = Query(None),
+    is_main_boulevard: bool | None = Query(None),
+    is_possession_ready: bool | None = Query(None),
+    min_price: Decimal | None = Query(None),
+    max_price: Decimal | None = Query(None),
+    search:    str | None = Query(None),
+    skip:      int = Query(0, ge=0),
+    limit:     int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_VIEW)),
+):
+    company_id = _get_company_id(current_user)
+    q = (
+        _unit_query(db, company_id)
+        .options(
+            joinedload(TownUnit.block),
+            joinedload(TownUnit.town),
+        )
+        .filter(TownUnit.town_id == town_id)
+    )
+    if block_id:
+        q = q.filter(TownUnit.block_id == block_id)
+    if status:
+        q = q.filter(TownUnit.status == status.lower())
+    if unit_type:
+        q = q.filter(TownUnit.unit_type == unit_type.lower())
+    if category:
+        q = q.filter(TownUnit.category == category.lower())
+    if is_corner is not None:
+        q = q.filter(TownUnit.is_corner == is_corner)
+    if is_facing_park is not None:
+        q = q.filter(TownUnit.is_facing_park == is_facing_park)
+    if is_main_boulevard is not None:
+        q = q.filter(TownUnit.is_main_boulevard == is_main_boulevard)
+    if is_possession_ready is not None:
+        q = q.filter(TownUnit.is_possession_ready == is_possession_ready)
+    if min_price is not None:
+        q = q.filter(TownUnit.total_price >= min_price)
+    if max_price is not None:
+        q = q.filter(TownUnit.total_price <= max_price)
+    if search:
+        s = f"%{search}%"
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            TownUnit.unit_number.ilike(s),
+            TownUnit.title.ilike(s),
+            TownUnit.owner_name.ilike(s),
+            TownUnit.buyer_name.ilike(s),
+        ))
+    units = q.order_by(TownUnit.unit_number).offset(skip).limit(limit).all()
+    return [_enrich_unit(u) for u in units]
+
+
+@router.get("/blocks/{block_id}/units", response_model=list[TownUnitOut])
+def list_block_units(
+    block_id: int,
+    status:    str | None = Query(None),
+    unit_type: str | None = Query(None),
+    category:  str | None = Query(None),
+    is_corner: bool | None = Query(None),
+    is_facing_park: bool | None = Query(None),
+    is_main_boulevard: bool | None = Query(None),
+    is_possession_ready: bool | None = Query(None),
+    min_price: Decimal | None = Query(None),
+    max_price: Decimal | None = Query(None),
+    search:    str | None = Query(None),
+    skip:      int = Query(0, ge=0),
+    limit:     int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_VIEW)),
+):
+    company_id = _get_company_id(current_user)
+    q = (
+        _unit_query(db, company_id)
+        .options(
+            joinedload(TownUnit.block),
+            joinedload(TownUnit.town),
+        )
+        .filter(TownUnit.block_id == block_id)
+    )
+    if status:
+        q = q.filter(TownUnit.status == status.lower())
+    if unit_type:
+        q = q.filter(TownUnit.unit_type == unit_type.lower())
+    if category:
+        q = q.filter(TownUnit.category == category.lower())
+    if is_corner is not None:
+        q = q.filter(TownUnit.is_corner == is_corner)
+    if is_facing_park is not None:
+        q = q.filter(TownUnit.is_facing_park == is_facing_park)
+    if is_main_boulevard is not None:
+        q = q.filter(TownUnit.is_main_boulevard == is_main_boulevard)
+    if is_possession_ready is not None:
+        q = q.filter(TownUnit.is_possession_ready == is_possession_ready)
+    if min_price is not None:
+        q = q.filter(TownUnit.total_price >= min_price)
+    if max_price is not None:
+        q = q.filter(TownUnit.total_price <= max_price)
     if search:
         s = f"%{search}%"
         from sqlalchemy import or_
@@ -645,6 +783,148 @@ def delete_unit(
         raise HTTPException(404, "Unit not found")
     db.delete(unit)
     db.commit()
+    return Response(status_code=204)
+
+
+# ── Standalone Router /town-units CRUD endpoints with strict validations ──────
+
+@town_units_router.post("", response_model=TownUnitOut)
+def root_create_unit(
+    payload: TownUnitCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
+):
+    company_id = _get_company_id(current_user)
+
+    # ── VALIDATION: Unique unit number within the block ────────────────────────
+    existing = db.query(TownUnit).filter(
+        TownUnit.block_id == payload.block_id,
+        TownUnit.unit_number.ilike(payload.unit_number.strip())
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Unit / Plot number '{payload.unit_number}' already exists in this block.")
+
+    # ── VALIDATION: Selected block belongs to selected town ────────────────────
+    block = _block_query(db, company_id).filter(Block.id == payload.block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Selected Block not found.")
+    if block.town_id != payload.town_id:
+        raise HTTPException(status_code=400, detail="The selected block does not belong to the selected town.")
+
+    town = _town_query(db, company_id).filter(Town.id == payload.town_id).first()
+    if not town:
+        raise HTTPException(status_code=404, detail="Selected Town not found.")
+
+    # ── VALIDATION: Business pricing & size rules ──────────────────────────────
+    if payload.total_price is not None and payload.total_price < 0:
+        raise HTTPException(status_code=400, detail="Total Price must be non-negative.")
+    if payload.cost_price is not None and payload.cost_price < 0:
+        raise HTTPException(status_code=400, detail="Cost Price must be non-negative.")
+    if payload.size_sqft is not None and payload.size_sqft <= 0:
+        raise HTTPException(status_code=400, detail="Size in Sqft must be greater than 0.")
+
+    # Auto-compute remaining_balance if not provided
+    data = payload.model_dump()
+    if data.get("remaining_balance") is None and data.get("total_price") is not None:
+        data["remaining_balance"] = (
+            Decimal(str(data["total_price"])) - Decimal(str(data.get("received_amount") or 0))
+        )
+
+    tid  = next_tid(db, TownUnit, "TUN")
+    # Track which user created it
+    data["created_by"] = current_user.id
+    unit = TownUnit(tid=tid, company_id=company_id, **data)
+    db.add(unit)
+    db.commit()
+    db.refresh(unit)
+    unit = (
+        db.query(TownUnit)
+        .options(joinedload(TownUnit.block), joinedload(TownUnit.town))
+        .filter(TownUnit.id == unit.id)
+        .first()
+    )
+    return _enrich_unit(unit)
+
+
+@town_units_router.put("/{unit_id}", response_model=TownUnitOut)
+def root_update_unit(
+    unit_id: int,
+    payload: TownUnitUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
+):
+    company_id = _get_company_id(current_user)
+    unit = (
+        _unit_query(db, company_id)
+        .options(joinedload(TownUnit.block), joinedload(TownUnit.town))
+        .filter(TownUnit.id == unit_id)
+        .first()
+    )
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    data = payload.model_dump(exclude_none=True)
+
+    # ── VALIDATION: Unique unit number within the block ────────────────────────
+    new_number = data.get("unit_number")
+    block_id = data.get("block_id") or unit.block_id
+    if new_number:
+        existing = db.query(TownUnit).filter(
+            TownUnit.block_id == block_id,
+            TownUnit.unit_number.ilike(new_number.strip()),
+            TownUnit.id != unit_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Unit / Plot number '{new_number}' already exists in this block.")
+
+    # ── VALIDATION: Block belongs to Town ──────────────────────────────────────
+    town_id = data.get("town_id") or unit.town_id
+    if data.get("block_id") or data.get("town_id"):
+        block = _block_query(db, company_id).filter(Block.id == block_id).first()
+        if not block:
+            raise HTTPException(status_code=404, detail="Block not found.")
+        if block.town_id != town_id:
+            raise HTTPException(status_code=400, detail="The selected block does not belong to the selected town.")
+
+    # ── VALIDATION: Pricing rules ─────────────────────────────────────────────
+    if "total_price" in data and data["total_price"] is not None and data["total_price"] < 0:
+        raise HTTPException(status_code=400, detail="Total price must be positive.")
+    if "cost_price" in data and data["cost_price"] is not None and data["cost_price"] < 0:
+        raise HTTPException(status_code=400, detail="Cost price must be positive.")
+    if "size_sqft" in data and data["size_sqft"] is not None and data["size_sqft"] <= 0:
+        raise HTTPException(status_code=400, detail="Size in Sqft must be greater than 0.")
+
+    for k, v in data.items():
+        setattr(unit, k, v)
+
+    # Recompute remaining balance if financial fields changed
+    if unit.total_price is not None:
+        unit.remaining_balance = unit.total_price - (unit.received_amount or Decimal("0"))
+
+    db.commit()
+    db.refresh(unit)
+    unit = (
+        db.query(TownUnit)
+        .options(joinedload(TownUnit.block), joinedload(TownUnit.town))
+        .filter(TownUnit.id == unit.id)
+        .first()
+    )
+    return _enrich_unit(unit)
+
+
+@town_units_router.delete("/{unit_id}", status_code=204)
+def root_delete_unit(
+    unit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
+):
+    company_id = _get_company_id(current_user)
+    unit = _unit_query(db, company_id).filter(TownUnit.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    db.delete(unit)
+    db.commit()
+    return Response(status_code=204)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

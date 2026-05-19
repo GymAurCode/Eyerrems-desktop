@@ -276,6 +276,55 @@ def import_town_unit(row, ctx: ImportContext) -> RowImportResult:
     return RowImportResult(True, "created", "Unit created", "town_unit", unit.id)
 
 
+# ── Custom Importers for Shops and Houses ─────────────────────────────────────
+
+SHOP_COLUMNS = [
+    ColumnDef("town_name", "Town Name", required=True, sample="Green Valley"),
+    ColumnDef("block_name", "Block Name", required=True, sample="Block A"),
+    ColumnDef("unit_number", "Unit Number", required=True, sample="S-101"),
+    ColumnDef("size_label", "Size", sample="5 Marla"),
+    ColumnDef("total_price", "Total Price", sample="5000000"),
+    ColumnDef("status", "Status", sample="available", enum_values=sorted(UNIT_STATUSES)),
+]
+
+HOUSE_COLUMNS = [
+    ColumnDef("town_name", "Town Name", required=True, sample="Green Valley"),
+    ColumnDef("block_name", "Block Name", required=True, sample="Block A"),
+    ColumnDef("unit_number", "Unit Number", required=True, sample="H-101"),
+    ColumnDef("size_label", "Size", sample="10 Marla"),
+    ColumnDef("total_price", "Total Price", sample="12000000"),
+    ColumnDef("status", "Status", sample="available", enum_values=sorted(UNIT_STATUSES)),
+]
+
+
+def validate_shop(row, ctx, row_number: int) -> RowValidationResult:
+    r = dict(row)
+    r["unit_type"] = "shop"
+    r["category"] = "commercial"
+    return validate_town_unit(r, ctx, row_number)
+
+
+def import_shop(row, ctx: ImportContext) -> RowImportResult:
+    r = dict(row)
+    r["unit_type"] = "shop"
+    r["category"] = "commercial"
+    return import_town_unit(r, ctx)
+
+
+def validate_house(row, ctx, row_number: int) -> RowValidationResult:
+    r = dict(row)
+    r["unit_type"] = "house"
+    r["category"] = "residential"
+    return validate_town_unit(r, ctx, row_number)
+
+
+def import_house(row, ctx: ImportContext) -> RowImportResult:
+    r = dict(row)
+    r["unit_type"] = "house"
+    r["category"] = "residential"
+    return import_town_unit(r, ctx)
+
+
 def get_property_handlers() -> list[ImportModuleHandler]:
     return [
         ImportModuleHandler("properties", "Properties", "Import properties", "Property", "properties:manage",
@@ -291,5 +340,11 @@ def get_property_handlers() -> list[ImportModuleHandler]:
                             lambda r: f"{(v.opt_str(r,'town_name') or '').lower()}:{(v.opt_str(r,'block_name') or '').lower()}"),
         ImportModuleHandler("units", "Units / Plots", "Import town units and plots", "Towns", "properties:manage",
                             UNIT_COLUMNS, validate_town_unit, import_town_unit,
+                            lambda r: f"{v.opt_str(r,'unit_number')}"),
+        ImportModuleHandler("shops", "Shops", "Import town commercial shops", "Towns", "properties:manage",
+                            SHOP_COLUMNS, validate_shop, import_shop,
+                            lambda r: f"{v.opt_str(r,'unit_number')}"),
+        ImportModuleHandler("houses", "Houses", "Import town residential houses", "Towns", "properties:manage",
+                            HOUSE_COLUMNS, validate_house, import_house,
                             lambda r: f"{v.opt_str(r,'unit_number')}"),
     ]

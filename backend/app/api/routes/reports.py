@@ -37,6 +37,9 @@ from app.services.reports.property_reports import (
     CategoryWiseReportService,
     FloorWiseReportService,
     InventoryReportService,
+    TownInventoryReportService,
+    BlockInventoryReportService,
+    UnitStatusReportService,
 )
 from app.services.reports.finance_reports import (
     CashFlowReportService,
@@ -129,6 +132,9 @@ REPORT_REGISTRY = {
     "available_units":        AvailableUnitsReportService,
     "floor_wise_report":      FloorWiseReportService,
     "category_wise_report":   CategoryWiseReportService,
+    "town_inventory":         TownInventoryReportService,
+    "block_inventory":        BlockInventoryReportService,
+    "unit_status":            UnitStatusReportService,
 
     # Finance Reports
     "daily_collection":       DailyCollectionReportService,

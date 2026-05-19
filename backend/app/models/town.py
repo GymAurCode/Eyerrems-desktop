@@ -155,14 +155,17 @@ class TownUnit(Base):
     sector       = Column(String(100), nullable=True)
     floor_number = Column(Integer, nullable=True)    # for apartments/flats
     size_label   = Column(String(80), nullable=True)  # "5 Marla", "10 Marla"
+    size_unit    = Column(String(20), nullable=True)   # "Marla", "Kanal", "Sqft", "Sqyd"
     size_sqft    = Column(Numeric(12, 2), nullable=True)
     dimensions   = Column(String(100), nullable=True)  # "30x60 ft"
 
     # ── Financial ─────────────────────────────────────────────────────────────
     total_price         = Column(Numeric(16, 2), nullable=True)
+    cost_price          = Column(Numeric(16, 2), nullable=True)
     booking_amount      = Column(Numeric(16, 2), nullable=True)
     monthly_installment = Column(Numeric(16, 2), nullable=True)
     installment_months  = Column(Integer, nullable=True)
+    installment_available = Column(Boolean, nullable=False, default=True)
     received_amount     = Column(Numeric(16, 2), nullable=False, default=Decimal("0"))
     remaining_balance   = Column(Numeric(16, 2), nullable=True)
 
@@ -175,6 +178,12 @@ class TownUnit(Base):
     tenant_name  = Column(String(200), nullable=True)
     tenant_phone = Column(String(50),  nullable=True)
 
+    # ── Structural modifiers / optional flags ─────────────────────────────────
+    is_corner           = Column(Boolean, nullable=False, default=False)
+    is_facing_park      = Column(Boolean, nullable=False, default=False)
+    is_main_boulevard   = Column(Boolean, nullable=False, default=False)
+    is_possession_ready = Column(Boolean, nullable=False, default=False)
+
     # ── Links to existing modules ─────────────────────────────────────────────
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
     plot_id     = Column(Integer, ForeignKey("plots.id"),      nullable=True, index=True)
@@ -182,6 +191,7 @@ class TownUnit(Base):
     # ── Meta ──────────────────────────────────────────────────────────────────
     notes      = Column(Text, nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    created_by = Column(Integer, ForeignKey("users.id"),     nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -247,3 +257,31 @@ class TownTransaction(Base):
         Index("ix_town_txn_type",       "transaction_type"),
         Index("ix_town_txn_company_id", "company_id"),
     )
+
+
+def sync_town_unit_columns(db) -> None:
+    """Startup schema sync - automatically creates extended metadata columns on PostgreSQL if missing."""
+    import sqlalchemy as sa
+    engine = db.get_bind()
+    inspector = sa.inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns("town_units")]
+
+    alterations = [
+        ("size_unit", "VARCHAR(20)"),
+        ("cost_price", "NUMERIC(16, 2)"),
+        ("installment_available", "BOOLEAN DEFAULT TRUE"),
+        ("is_corner", "BOOLEAN DEFAULT FALSE"),
+        ("is_facing_park", "BOOLEAN DEFAULT FALSE"),
+        ("is_main_boulevard", "BOOLEAN DEFAULT FALSE"),
+        ("is_possession_ready", "BOOLEAN DEFAULT FALSE"),
+        ("created_by", "INTEGER"),
+    ]
+
+    with engine.begin() as conn:
+        for col_name, col_type in alterations:
+            if col_name not in columns:
+                try:
+                    conn.execute(sa.text(f"ALTER TABLE town_units ADD COLUMN {col_name} {col_type};"))
+                    print(f"[REMS Migration] Added column '{col_name}' to 'town_units' table successfully.")
+                except Exception as exc:
+                    print(f"[REMS Migration] Error adding column '{col_name}': {exc}")

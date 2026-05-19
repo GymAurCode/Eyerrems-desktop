@@ -24,7 +24,7 @@ from app.api.routes.mail import router as mail_router
 # Multi-tenant routes
 from app.api.routes.companies import router as companies_router
 from app.api.routes.company_settings import router as company_settings_router
-from app.api.routes.towns import router as towns_router
+from app.api.routes.towns import router as towns_router, town_units_router
 from app.api.routes.ledger import router as ledger_router
 from app.api.routes.bootstrap import router as bootstrap_router
 from app.api.routes.booking import router as booking_router
@@ -93,6 +93,7 @@ app.include_router(companies_router,        prefix="/super-admin",  tags=["super
 app.include_router(company_settings_router,                         tags=["company-settings"])
 # Town / Block / Plot hierarchy
 app.include_router(towns_router, prefix="/towns", tags=["towns"])
+app.include_router(town_units_router, prefix="/town-units", tags=["town-units"])
 app.include_router(ledger_router,  prefix="/finance/ledger", tags=["ledger"])
 app.include_router(bootstrap_router, tags=["bootstrap"])
 # Booking system
@@ -123,6 +124,17 @@ def on_startup():
             print("[REMS] Default Chart of Accounts created.")
     except Exception as e:
         print(f"[REMS] COA seed skipped: {e}")
+    finally:
+        db.close()
+
+    # ── Sync TownUnit columns for the enhanced Town Management module ─────────
+    db = next(get_db())
+    try:
+        from app.models.town import sync_town_unit_columns
+        sync_town_unit_columns(db)
+        print("[REMS] TownUnit columns checked and synced.")
+    except Exception as e:
+        print(f"[REMS] TownUnit columns sync failed: {e}")
     finally:
         db.close()
 

@@ -380,7 +380,7 @@ export default function BookingsPage() {
         bookingApi.list(params),
         bookingApi.stats(),
       ]);
-      setBookings(Array.isArray(bRes.data) ? bRes.data : []);
+      setBookings(bRes && Array.isArray(bRes.items) ? bRes.items : (Array.isArray(bRes) ? bRes : []));
       setStats(sRes.data ?? null);
     } catch {
       setBookings([]);

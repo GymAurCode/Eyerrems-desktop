@@ -404,3 +404,11 @@ class BookingStats(BaseModel):
     expiring_soon:      int
     total_booking_amount: Decimal
     total_property_value: Decimal
+
+
+class PaginatedBookings(BaseModel):
+    items: list[BookingListOut]
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+

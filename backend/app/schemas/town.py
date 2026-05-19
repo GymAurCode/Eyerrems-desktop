@@ -227,14 +227,17 @@ class TownUnitCreate(BaseModel):
     sector:       str | None = None
     floor_number: int | None = None
     size_label:   str | None = None
+    size_unit:    str | None = None
     size_sqft:    Decimal | None = None
     dimensions:   str | None = None
 
     # Financial
     total_price:         Decimal | None = None
+    cost_price:          Decimal | None = None
     booking_amount:      Decimal | None = None
     monthly_installment: Decimal | None = None
     installment_months:  int | None = None
+    installment_available: bool = True
     received_amount:     Decimal = Decimal("0")
     remaining_balance:   Decimal | None = None
 
@@ -246,6 +249,12 @@ class TownUnitCreate(BaseModel):
     buyer_phone:  str | None = None
     tenant_name:  str | None = None
     tenant_phone: str | None = None
+
+    # Structural / optional flags
+    is_corner:           bool = False
+    is_facing_park:      bool = False
+    is_main_boulevard:   bool = False
+    is_possession_ready: bool = False
 
     # Links
     property_id: int | None = None
@@ -273,6 +282,20 @@ class TownUnitCreate(BaseModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(VALID_STATUSES))}")
         return v.lower()
 
+    @field_validator("total_price", "cost_price")
+    @classmethod
+    def validate_prices(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and v < 0:
+            raise ValueError("Price must be positive (>= 0)")
+        return v
+
+    @field_validator("size_sqft")
+    @classmethod
+    def validate_size_sqft(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and v <= 0:
+            raise ValueError("Size in Sqft must be greater than 0")
+        return v
+
 
 class TownUnitUpdate(BaseModel):
     unit_number: str | None = None
@@ -286,13 +309,16 @@ class TownUnitUpdate(BaseModel):
     sector:       str | None = None
     floor_number: int | None = None
     size_label:   str | None = None
+    size_unit:    str | None = None
     size_sqft:    Decimal | None = None
     dimensions:   str | None = None
 
     total_price:         Decimal | None = None
+    cost_price:          Decimal | None = None
     booking_amount:      Decimal | None = None
     monthly_installment: Decimal | None = None
     installment_months:  int | None = None
+    installment_available: bool | None = None
     received_amount:     Decimal | None = None
     remaining_balance:   Decimal | None = None
 
@@ -303,6 +329,11 @@ class TownUnitUpdate(BaseModel):
     buyer_phone:  str | None = None
     tenant_name:  str | None = None
     tenant_phone: str | None = None
+
+    is_corner:           bool | None = None
+    is_facing_park:      bool | None = None
+    is_main_boulevard:   bool | None = None
+    is_possession_ready: bool | None = None
 
     property_id: int | None = None
     plot_id:     int | None = None
@@ -329,6 +360,20 @@ class TownUnitUpdate(BaseModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(VALID_STATUSES))}")
         return v.lower() if v else v
 
+    @field_validator("total_price", "cost_price")
+    @classmethod
+    def validate_prices(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and v < 0:
+            raise ValueError("Price must be positive (>= 0)")
+        return v
+
+    @field_validator("size_sqft")
+    @classmethod
+    def validate_size_sqft(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and v <= 0:
+            raise ValueError("Size in Sqft must be greater than 0")
+        return v
+
 
 class TownUnitOut(BaseModel):
     id:          int
@@ -346,13 +391,16 @@ class TownUnitOut(BaseModel):
     sector:       str | None
     floor_number: int | None
     size_label:   str | None
+    size_unit:    str | None
     size_sqft:    Decimal | None
     dimensions:   str | None
 
     total_price:         Decimal | None
+    cost_price:          Decimal | None
     booking_amount:      Decimal | None
     monthly_installment: Decimal | None
     installment_months:  int | None
+    installment_available: bool
     received_amount:     Decimal
     remaining_balance:   Decimal | None
 
@@ -364,9 +412,15 @@ class TownUnitOut(BaseModel):
     tenant_name:  str | None
     tenant_phone: str | None
 
+    is_corner:           bool
+    is_facing_park:      bool
+    is_main_boulevard:   bool
+    is_possession_ready: bool
+
     property_id: int | None
     plot_id:     int | None
     notes:       str | None
+    created_by:  int | None
     created_at:  datetime
     updated_at:  datetime
 

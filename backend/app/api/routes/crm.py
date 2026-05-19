@@ -6,7 +6,7 @@ from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -36,6 +36,7 @@ from app.schemas.crm import (
     InstallmentTypeCreate, InstallmentTypeOut,
     InstallmentUpdate,
     LeadCreate, LeadOut, LeadUpdate,
+    PaginatedLeads, PaginatedClients, PaginatedDealers, PaginatedDeals,
 )
 
 router = APIRouter()
@@ -102,8 +103,9 @@ def _deal_out(deal: Deal) -> dict:
 
 # ── Leads ─────────────────────────────────────────────────────────────────────
 
-@router.get("/leads", response_model=list[LeadOut])
+@router.get("/leads", response_model=PaginatedLeads)
 def list_leads(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     limit: int | None = None,
@@ -114,6 +116,7 @@ def list_leads(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
+    print("CRM Query Params:", request.query_params)
     query = db.query(Lead).options(joinedload(Lead.client)).order_by(Lead.id.desc())
     query, total = apply_table_filters(
         query=query,
@@ -134,7 +137,7 @@ def list_leads(
         d = LeadOut.model_validate(lead).model_dump()
         d["is_converted"] = lead.client is not None
         result.append(d)
-    return result
+    return {"items": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/leads", response_model=LeadOut)
@@ -205,8 +208,9 @@ def _load_client(db: Session, client_id: int) -> Client:
     return c
 
 
-@router.get("/clients", response_model=list[ClientOut])
+@router.get("/clients", response_model=PaginatedClients)
 def list_clients(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     limit: int | None = None,
@@ -217,6 +221,7 @@ def list_clients(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
+    print("CRM Query Params:", request.query_params)
     query = (
         db.query(Client)
         .options(joinedload(Client.lead), joinedload(Client.assigned_dealer),
@@ -237,7 +242,8 @@ def list_clients(
     )
     response.headers["X-Total-Count"] = str(total)
     clients = query.all()
-    return [_client_out(c) for c in clients]
+    result = [_client_out(c) for c in clients]
+    return {"items": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/clients", response_model=ClientOut)
@@ -320,8 +326,9 @@ def _load_dealer(db: Session, dealer_id: int) -> Dealer:
     return d
 
 
-@router.get("/dealers", response_model=list[DealerOut])
+@router.get("/dealers", response_model=PaginatedDealers)
 def list_dealers(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     limit: int | None = None,
@@ -332,6 +339,7 @@ def list_dealers(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
+    print("CRM Query Params:", request.query_params)
     query = db.query(Dealer).options(joinedload(Dealer.attachments)).order_by(Dealer.id.desc())
     query, total = apply_table_filters(
         query=query,
@@ -347,7 +355,7 @@ def list_dealers(
     )
     response.headers["X-Total-Count"] = str(total)
     dealers = query.all()
-    return dealers
+    return {"items": dealers, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/dealers", response_model=DealerOut)
@@ -442,8 +450,9 @@ def _load_deal(db: Session, deal_id: int) -> Deal:
     return deal
 
 
-@router.get("/deals", response_model=list[DealOut])
+@router.get("/deals", response_model=PaginatedDeals)
 def list_deals(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     limit: int | None = None,
@@ -454,6 +463,7 @@ def list_deals(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
+    print("CRM Query Params:", request.query_params)
     query = (
         db.query(Deal)
         .options(joinedload(Deal.client), joinedload(Deal.dealer),
@@ -474,7 +484,8 @@ def list_deals(
     )
     response.headers["X-Total-Count"] = str(total)
     deals = query.all()
-    return [_deal_out(d) for d in deals]
+    result = [_deal_out(d) for d in deals]
+    return {"items": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/deals", response_model=DealOut)

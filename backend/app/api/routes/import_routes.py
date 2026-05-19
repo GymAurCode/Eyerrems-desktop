@@ -124,6 +124,32 @@ def download_combined_template(
             ("Department", "Sales (Optional)", "purple"),
             ("Position", "Sales Executive (Optional)", "purple"),
             ("Salary", "75000 (Optional)", "purple"),
+        ],
+        "Town Units": [
+            ("Town Name", "Green Valley (Required)", "emerald"),
+            ("Block Name", "Block A (Required)", "emerald"),
+            ("Unit Number", "P-101 (Required)", "emerald"),
+            ("Unit Type", "plot (Required - plot, house, apartment, flat, shop, office, warehouse, farmhouse, etc.)", "emerald"),
+            ("Category", "residential (Required - residential, commercial, mixed_use, industrial)", "emerald"),
+            ("Size", "5 Marla (Optional)", "emerald"),
+            ("Total Price", "5000000 (Optional)", "emerald"),
+            ("Status", "available (Optional - available, booked, sold, rented, under_construction, inactive)", "emerald"),
+        ],
+        "Shops": [
+            ("Town Name", "Green Valley (Required)", "emerald"),
+            ("Block Name", "Block A (Required)", "emerald"),
+            ("Unit Number", "S-101 (Required)", "emerald"),
+            ("Size", "5 Marla (Optional)", "emerald"),
+            ("Total Price", "5000000 (Optional)", "emerald"),
+            ("Status", "available (Optional - available, booked, sold, rented, under_construction, inactive)", "emerald"),
+        ],
+        "Houses": [
+            ("Town Name", "Green Valley (Required)", "emerald"),
+            ("Block Name", "Block A (Required)", "emerald"),
+            ("Unit Number", "H-101 (Required)", "emerald"),
+            ("Size", "10 Marla (Optional)", "emerald"),
+            ("Total Price", "12000000 (Optional)", "emerald"),
+            ("Status", "available (Optional - available, booked, sold, rented, under_construction, inactive)", "emerald"),
         ]
     }
 

@@ -8,16 +8,17 @@ Architecture:
 import json
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Request, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_any_permission
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.table_query import apply_table_filters
 from app.models.auth import User
 from app.models.booking import Booking, BookingAttachment, BookingLog
 from app.models.crm import Client, Installment, InstallmentPlan, InstallmentPayment
@@ -37,6 +38,7 @@ from app.schemas.booking import (
     InstallmentPaymentCreate,
     InstallmentPlanCreate,
     InstallmentPlanOut,
+    PaginatedBookings,
 )
 from app.services.booking_service import (
     BookingService,
@@ -165,8 +167,10 @@ def _enrich_list(booking: Booking) -> dict:
 
 # ── Booking CRUD ──────────────────────────────────────────────────────────────
 
-@router.get("", response_model=list[BookingListOut])
+@router.get("", response_model=PaginatedBookings)
 def list_bookings(
+    request:       Request,
+    response:      Response,
     status:        str | None = Query(None),
     client_id:     int | None = Query(None),
     property_id:   int | None = Query(None),
@@ -174,11 +178,25 @@ def list_bookings(
     dealer_id:     int | None = Query(None),
     deal_id:       int | None = Query(None),
     expiring_soon: bool       = Query(False),
+    limit:         int | None = Query(None),
+    offset:        int | None = Query(None),
+    search:        str | None = Query(None),
+    filter:        str | None = Query(None),
+    startDate:     date | None = Query(None),
+    endDate:       date | None = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
+    print("CRM Query Params:", request.query_params)
+    
+    if expiring_soon:
+        bookings = BookingService.get_expiring_soon(db, hours=24)
+        result = [_enrich_list(b) for b in bookings]
+        return {"items": result, "total": len(result), "limit": limit, "offset": offset}
+
     query = (
         db.query(Booking)
+        .join(Client, Booking.client_id == Client.id)
         .options(
             joinedload(Booking.client),
             joinedload(Booking.property),
@@ -187,7 +205,6 @@ def list_bookings(
             joinedload(Booking.assigned_staff),
             joinedload(Booking.installment_plan),
         )
-        .order_by(Booking.created_at.desc())
     )
     if status:      query = query.filter(Booking.status == status)
     if client_id:   query = query.filter(Booking.client_id == client_id)
@@ -196,11 +213,33 @@ def list_bookings(
     if dealer_id:   query = query.filter(Booking.assigned_dealer_id == dealer_id)
     if deal_id:     query = query.filter(Booking.deal_id == deal_id)
 
-    bookings = query.all()
-    if expiring_soon:
-        bookings = BookingService.get_expiring_soon(db, hours=24)
+    query = query.order_by(Booking.created_at.desc())
 
-    return [_enrich_list(b) for b in bookings]
+    search_fields = [
+        Booking.booking_id,
+        Booking.nominee_name,
+        Booking.nominee_phone,
+        Booking.nominee_cnic,
+        Client.name
+    ]
+
+    query, total = apply_table_filters(
+        query=query,
+        model=Booking,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=search_fields,
+        date_filter=filter,
+        date_field=Booking.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+
+    response.headers["X-Total-Count"] = str(total)
+    bookings = query.all()
+    result = [_enrich_list(b) for b in bookings]
+    return {"items": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("", response_model=BookingOut, status_code=201)

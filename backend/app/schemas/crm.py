@@ -637,3 +637,32 @@ class ActivityOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaginatedLeads(BaseModel):
+    items: list[LeadOut]
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+
+
+class PaginatedClients(BaseModel):
+    items: list[ClientOut]
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+
+
+class PaginatedDealers(BaseModel):
+    items: list[DealerOut]
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+
+
+class PaginatedDeals(BaseModel):
+    items: list[DealOut]
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+

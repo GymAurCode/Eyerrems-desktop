@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   BookOpen, Plus, Clock, CheckCircle2, AlertCircle,
   TrendingUp, RefreshCw, Calendar, Search, Filter,
-  ArrowRight, User, Building2, Timer,
+  ArrowRight, User, Building2, Timer, Eye, Printer,
 } from "lucide-react";
 import { bookingApi, BookingListItem, BookingStats } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
 import BookingCreateModal from "./BookingCreateModal";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../../components/actions";
+import AppTable from "../../../components/data-table/AppTable";
+import { api } from "../../../lib/api";
+import { printRecord } from "../../../components/actions";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -113,7 +115,7 @@ function ExpiryChip({ b }: { b: BookingListItem }) {
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] text-muted flex items-center gap-1">
         <Calendar size={9} />
-        {new Date(b.expiry_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })}
+        {new Date(b.expiry_date || b.created_at).toLocaleDateString("en-PK", { day: "numeric", month: "short" })}
       </span>
       <span className="text-[10px] font-semibold" style={{ color }}>
         {b.days_remaining === 0 ? "< 1 day" : `${b.days_remaining}d left`}
@@ -139,80 +141,192 @@ function AssignChip({ name, role }: { name: string; role: string }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const STATUS_FILTERS = [
-  "all", "pending", "reserved", "confirmed", "cancelled", "expired", "converted_to_sale",
-] as const;
-
 export default function BookingList() {
   const navigate = useNavigate();
   const [bookings, setBookings]       = useState<BookingListItem[]>([]);
   const [stats, setStats]             = useState<BookingStats | null>(null);
   const [loading, setLoading]         = useState(true);
-  const [search, setSearch]           = useState("");
+  const [error, setError]             = useState<string | null>(null);
   const [statusFilter, setStatus]     = useState("all");
   const [showCreate, setShowCreate]   = useState(false);
 
-  const load = async () => {
+  // AppTable State
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [total, setTotal] = useState(0);
+
+  const load = async (p: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
-      const params = statusFilter !== "all" ? { status: statusFilter } : undefined;
+      const sanitized = {
+        limit: p.pageSize,
+        offset: (p.page - 1) * p.pageSize,
+        search: p.search,
+        filter: p.filter,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+      };
+      
       const [bRes, sRes] = await Promise.all([
-        bookingApi.list(params),
+        api.get<any>("/crm/bookings", { params: sanitized }),
         bookingApi.stats(),
       ]);
-      setBookings(Array.isArray(bRes.data) ? bRes.data : []);
+      setBookings(bRes.data.items || []);
+      setTotal(bRes.data.total ?? 0);
       setStats(sRes.data ?? null);
-    } catch {
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to load bookings");
       setBookings([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => {
+    void load(params);
+  }, [params, statusFilter]);
 
-  const filtered = bookings.filter(b => {
-    const q = search.toLowerCase();
-    return (
-      b.booking_id.toLowerCase().includes(q) ||
-      (b.client_name ?? "").toLowerCase().includes(q) ||
-      (b.property_name ?? "").toLowerCase().includes(q) ||
-      (b.unit_number ?? "").toLowerCase().includes(q) ||
-      (b.dealer_name ?? "").toLowerCase().includes(q)
-    );
-  });
+  const handlePageChange = (config: { page: number; pageSize: number }) => {
+    setParams((prev) => ({ ...prev, ...config }));
+  };
+
+  const handleFilterChange = (filters: {
+    search: string;
+    filter: string;
+    startDate: string;
+    endDate: string;
+  }) => {
+    setParams((prev) => ({ ...prev, ...filters, page: 1 }));
+  };
+
+  const refresh = () => {
+    void load(params);
+  };
+
+  const bookingColumns = [
+    { key: "booking_id", label: "Booking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    {
+      key: "client_name",
+      label: "Client",
+      sortable: true,
+      render: (val: string, row: BookingListItem) => (
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+            style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}
+          >
+            {(row.client_name ?? "?")[0].toUpperCase()}
+          </div>
+          <span className="text-xs font-medium text-primary">{row.client_name ?? "—"}</span>
+        </div>
+      )
+    },
+    {
+      key: "property_name",
+      label: "Property / Unit",
+      sortable: true,
+      render: (val: string, row: BookingListItem) => (
+        <div className="flex items-center gap-1.5">
+          <Building2 size={11} className="text-muted shrink-0" />
+          <div>
+            <p className="text-xs text-secondary">{row.property_name ?? "—"}</p>
+            {row.unit_number && (
+              <p className="text-[10px] text-muted">Unit {row.unit_number}</p>
+            )}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: "assigned_to",
+      label: "Assigned To",
+      render: (val: any, row: BookingListItem) => (
+        <div className="flex flex-col gap-1">
+          {row.dealer_name && <AssignChip name={row.dealer_name} role="Dealer" />}
+          {row.staff_name  && <AssignChip name={row.staff_name}  role="Staff" />}
+          {!row.dealer_name && !row.staff_name && (
+            <span className="text-xs text-muted">Unassigned</span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: "booking_amount",
+      label: "Amount",
+      sortable: true,
+      render: (val: number, row: BookingListItem) => (
+        <div>
+          <p className="text-xs font-semibold text-primary">{formatCurrency(row.booking_amount)}</p>
+          <p className="text-[10px] text-muted">of {formatCurrency(row.property_price)}</p>
+        </div>
+      )
+    },
+    {
+      key: "expiry_date",
+      label: "Expiry",
+      sortable: true,
+      render: (val: string, row: BookingListItem) => <ExpiryChip b={row} />
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string, row: BookingListItem) => <BookingStatusBadge status={row.status} isExpired={row.is_expired} />
+    }
+  ];
+
+  const bookingActions = [
+    {
+      key: "view",
+      label: "View",
+      icon: Eye,
+      onClick: (row: BookingListItem) => navigate(`/crm/bookings/${row.id}`),
+    },
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: BookingListItem) => printRecord(`Booking ${row.booking_id}`, [
+        { label: "Client", value: row.client_name ?? "—" },
+        { label: "Property", value: row.property_name ?? "—" },
+        { label: "Amount", value: formatCurrency(row.booking_amount) },
+        { label: "Status", value: row.status },
+        { label: "Expiry", value: new Date(row.expiry_date).toLocaleDateString() },
+      ]),
+    }
+  ];
+
+  const toolbarActions = (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={refresh}
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors border border-gray-700 bg-transparent text-gray-300 hover:bg-gray-800"
+      >
+        <RefreshCw size={12} />
+        <span>Refresh</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowCreate(true)}
+        className="btn-primary flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-md"
+      >
+        <Plus size={13} />
+        <span>New Booking</span>
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-5 animate-slide-up">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-primary">Bookings</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Property reservations · {stats?.total_bookings ?? 0} total
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={load}
-            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg transition-colors"
-            style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface2)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-          >
-            <RefreshCw size={12} /> Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="btn-primary flex items-center gap-2 px-4 py-2 text-sm"
-          >
-            <Plus size={14} /> New Booking
-          </button>
-        </div>
-      </div>
-
       {/* ── Stats grid ── */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -266,7 +380,7 @@ export default function BookingList() {
               >
                 {BOOKING_STATUS_LABEL[key]}
                 <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center"
+                  className="text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center ml-1"
                   style={{ background: `${color}22`, color }}
                 >
                   {count}
@@ -277,156 +391,34 @@ export default function BookingList() {
         </div>
       )}
 
-      {/* ── Toolbar ── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-          <input
-            className="input-dark pl-8 pr-3 py-2 text-sm"
-            style={{ minWidth: 240 }}
-            placeholder="Search ID, client, property…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted">
-          <Filter size={11} />
-          <span>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
-        </div>
-      </div>
-
-      {/* ── Table ── */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-16 text-center">
-            <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-muted mt-3">Loading bookings…</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-16 text-center">
-            <BookOpen size={36} className="text-muted mx-auto mb-3 opacity-40" />
-            <p className="text-sm text-secondary font-medium">No bookings found</p>
-            <p className="text-xs text-muted mt-1">
-              {search ? "Try a different search term" : "Create your first booking to get started"}
-            </p>
-            {!search && (
-              <button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                className="btn-primary mt-4 px-4 py-2 text-sm inline-flex items-center gap-2"
-              >
-                <Plus size={13} /> New Booking
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface2)" }}>
-                  {["Booking ID", "Client", "Property / Unit", "Assigned To", "Amount", "Expiry", "Status"].map(h => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-[10px] font-bold text-muted uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                  <ActionsTh />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(b => (
-                  <tr
-                    key={b.id}
-                    className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    {/* Booking ID */}
-                    <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs text-blue-400 font-semibold">{b.booking_id}</span>
-                    </td>
-
-                    {/* Client */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                          style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}
-                        >
-                          {(b.client_name ?? "?")[0].toUpperCase()}
-                        </div>
-                        <span className="text-xs font-medium text-primary">{b.client_name ?? "—"}</span>
-                      </div>
-                    </td>
-
-                    {/* Property / Unit */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        <Building2 size={11} className="text-muted shrink-0" />
-                        <div>
-                          <p className="text-xs text-secondary">{b.property_name ?? "—"}</p>
-                          {b.unit_number && (
-                            <p className="text-[10px] text-muted">Unit {b.unit_number}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Assigned To */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-col gap-1">
-                        {b.dealer_name && <AssignChip name={b.dealer_name} role="Dealer" />}
-                        {b.staff_name  && <AssignChip name={b.staff_name}  role="Staff" />}
-                        {!b.dealer_name && !b.staff_name && (
-                          <span className="text-xs text-muted">Unassigned</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Amount */}
-                    <td className="px-4 py-3.5">
-                      <p className="text-xs font-semibold text-primary">{formatCurrency(b.booking_amount)}</p>
-                      <p className="text-[10px] text-muted">of {formatCurrency(b.property_price)}</p>
-                    </td>
-
-                    {/* Expiry */}
-                    <td className="px-4 py-3.5">
-                      <ExpiryChip b={b} />
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3.5">
-                      <BookingStatusBadge status={b.status} isExpired={b.is_expired} />
-                    </td>
-
-                    <ActionsCell className="px-4 py-3.5">
-                      <QuickRowActions
-                        row={b}
-                        compact
-                        onView={(row) => navigate(`/crm/bookings/${row.id}`)}
-                        onPrint={(row) => printRecord(`Booking ${row.booking_id}`, [
-                          { label: "Client", value: row.client_name ?? "—" },
-                          { label: "Property", value: row.property_name ?? "—" },
-                          { label: "Amount", value: formatCurrency(row.booking_amount) },
-                          { label: "Status", value: row.status },
-                          { label: "Expiry", value: new Date(row.expiry_date).toLocaleDateString() },
-                        ])}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* ── Main AppTable ── */}
+      <AppTable
+        storageKey="rems_crm_bookings_table"
+        title="Bookings"
+        subtitle="Manage and track financial commitments and property holding reservations"
+        data={bookings}
+        columns={bookingColumns}
+        rowActions={bookingActions}
+        loading={loading}
+        error={error}
+        onRetry={refresh}
+        toolbarActions={toolbarActions}
+        pagination={{
+          page: params.page,
+          pageSize: params.pageSize,
+          total: total,
+        }}
+        onPageChange={handlePageChange}
+        onFilterChange={handleFilterChange}
+        showDateFilter={true}
+        showStatusFilter={false}
+      />
 
       {/* ── Create modal ── */}
       {showCreate && (
         <BookingCreateModal
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => { setShowCreate(false); refresh(); }}
         />
       )}
     </div>
