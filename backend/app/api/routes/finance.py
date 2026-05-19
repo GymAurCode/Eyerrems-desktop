@@ -333,7 +333,7 @@ async def list_invoices(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Invoice)
+    query = db.query(Invoice).order_by(Invoice.created_at.desc())
     if not user.is_super_admin:
         query = query.filter(Invoice.company_id == user.company_id)
     if status:
@@ -356,7 +356,7 @@ async def list_invoices(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Invoice.created_at.desc()).all()
+    return query.all()
 
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
@@ -840,7 +840,7 @@ async def list_expenses(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Expense, Account).join(Account, Expense.account_id == Account.id)
+    query = db.query(Expense, Account).join(Account, Expense.account_id == Account.id).order_by(Expense.date.desc())
 
     actual_offset = offset if offset is not None else skip
 
@@ -857,7 +857,7 @@ async def list_expenses(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    rows = query.order_by(Expense.date.desc()).all()
+    rows = query.all()
     return [
         ExpenseResponse(
             id=exp.id,

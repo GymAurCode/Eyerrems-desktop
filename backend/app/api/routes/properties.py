@@ -196,6 +196,7 @@ def list_properties(
     query = (
         db.query(Property)
         .options(joinedload(Property.amenities), joinedload(Property.category_rel))
+        .order_by(Property.id.desc())
     )
     if property_type:
         query = query.join(Property.category_rel).filter(PropertyCategory.name == property_type)
@@ -214,7 +215,7 @@ def list_properties(
         property_status=property_status
     )
     response.headers["X-Total-Count"] = str(total)
-    props = query.order_by(Property.id.desc()).all()
+    props = query.all()
     return [_prop_out(p) for p in props]
 
 
@@ -382,7 +383,7 @@ def list_all_units(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Unit).join(Floor)
+    query = db.query(Unit).join(Floor).order_by(Unit.id)
     if property_id:
         query = query.filter(Floor.property_id == property_id)
     query, total = apply_table_filters(
@@ -398,7 +399,7 @@ def list_all_units(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Unit.id).all()
+    return query.all()
 
 
 @router.get("/{property_id}/units", response_model=list[UnitOut])
@@ -531,7 +532,7 @@ def list_leases(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Lease)
+    query = db.query(Lease).order_by(Lease.start_date.desc())
     query, total = apply_table_filters(
         query=query,
         model=Lease,
@@ -545,7 +546,7 @@ def list_leases(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Lease.start_date.desc()).all()
+    return query.all()
 
 
 @router.post("/leases", response_model=LeaseOut)
@@ -580,7 +581,7 @@ def list_buyers(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Buyer)
+    query = db.query(Buyer).order_by(Buyer.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Buyer,
@@ -594,7 +595,7 @@ def list_buyers(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Buyer.id.desc()).all()
+    return query.all()
 
 
 @router.post("/buyers", response_model=BuyerOut)
@@ -625,7 +626,7 @@ def list_sellers(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Seller)
+    query = db.query(Seller).order_by(Seller.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Seller,
@@ -639,7 +640,7 @@ def list_sellers(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Seller.id.desc()).all()
+    return query.all()
 
 
 @router.post("/sellers", response_model=SellerOut)
@@ -670,7 +671,7 @@ def list_sales(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(PropertySale)
+    query = db.query(PropertySale).order_by(PropertySale.sale_date.desc())
     query, total = apply_table_filters(
         query=query,
         model=PropertySale,
@@ -684,7 +685,7 @@ def list_sales(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(PropertySale.sale_date.desc()).all()
+    return query.all()
 
 
 @router.post("/sales", response_model=PropertySaleOut)

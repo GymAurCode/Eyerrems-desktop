@@ -114,7 +114,7 @@ def list_leads(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Lead).options(joinedload(Lead.client))
+    query = db.query(Lead).options(joinedload(Lead.client)).order_by(Lead.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Lead,
@@ -128,7 +128,7 @@ def list_leads(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    leads = query.order_by(Lead.id.desc()).all()
+    leads = query.all()
     result = []
     for lead in leads:
         d = LeadOut.model_validate(lead).model_dump()
@@ -221,6 +221,7 @@ def list_clients(
         db.query(Client)
         .options(joinedload(Client.lead), joinedload(Client.assigned_dealer),
                  joinedload(Client.attachments))
+        .order_by(Client.id.desc())
     )
     query, total = apply_table_filters(
         query=query,
@@ -235,7 +236,7 @@ def list_clients(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    clients = query.order_by(Client.id.desc()).all()
+    clients = query.all()
     return [_client_out(c) for c in clients]
 
 
@@ -331,7 +332,7 @@ def list_dealers(
     endDate: date | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Dealer).options(joinedload(Dealer.attachments))
+    query = db.query(Dealer).options(joinedload(Dealer.attachments)).order_by(Dealer.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Dealer,
@@ -345,7 +346,7 @@ def list_dealers(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    dealers = query.order_by(Dealer.id.desc()).all()
+    dealers = query.all()
     return dealers
 
 
@@ -457,6 +458,7 @@ def list_deals(
         db.query(Deal)
         .options(joinedload(Deal.client), joinedload(Deal.dealer),
                  joinedload(Deal.property), joinedload(Deal.attachments))
+        .order_by(Deal.id.desc())
     )
     query, total = apply_table_filters(
         query=query,
@@ -471,7 +473,7 @@ def list_deals(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    deals = query.order_by(Deal.id.desc()).all()
+    deals = query.all()
     return [_deal_out(d) for d in deals]
 
 

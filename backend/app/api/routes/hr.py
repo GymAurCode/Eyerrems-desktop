@@ -211,7 +211,7 @@ def list_employees(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("Admin", "Manager", "Staff")),
 ):
-    query = db.query(Employee).filter(Employee.is_active.is_(True))
+    query = db.query(Employee).filter(Employee.is_active.is_(True)).order_by(Employee.full_name)
     if department_id:
         query = query.filter(Employee.department_id == department_id)
     if branch_id:
@@ -232,7 +232,7 @@ def list_employees(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Employee.full_name).all()
+    return query.all()
 
 
 @router.post("/employees", response_model=EmployeeResponse, status_code=201)

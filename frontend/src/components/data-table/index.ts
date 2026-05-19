@@ -6,6 +6,7 @@
 // Main component
 export { default as DataTable } from './DataTable';
 export { default as SmartTable } from './SmartTable';
+export { default as AppTable, removeEmptyParams } from './AppTable';
 
 // Individual components for advanced usage
 export { default as TableToolbar } from './components/TableToolbar';

@@ -252,7 +252,7 @@ def list_tenants(
     status: str | None = None,
     _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
 ):
-    query = db.query(Tenant)
+    query = db.query(Tenant).order_by(Tenant.id.desc())
     if status:
         if status.lower() == "active":
             query = query.filter(Tenant.is_active == True)
@@ -271,7 +271,7 @@ def list_tenants(
         end_date=endDate,
     )
     response.headers["X-Total-Count"] = str(total)
-    return query.order_by(Tenant.id.desc()).all()
+    return query.all()
 
 
 @router.get("/dashboard", response_model=TenantDashboardOut)

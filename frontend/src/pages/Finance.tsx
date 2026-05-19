@@ -9,7 +9,7 @@ import { RowActions, QuickRowActions } from "../components/actions";
 import type { ActionConfig } from "../components/actions";
 import { formatCurrency } from "../lib/currency";
 import { api } from "../lib/api";
-import { SmartTable } from "../components/data-table";
+import { AppTable, removeEmptyParams } from "../components/data-table";
 import {
   accountsApi, journalsApi, invoicesApi, paymentsApi,
   commissionsApi, expensesApi, bankCashApi,
@@ -483,27 +483,47 @@ function JournalsTab() {
   const [journals, setJournals] = useState<Journal[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const paramsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [viewJournal, setViewJournal] = useState<Journal | null>(null);
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
-  const fetchJournals = async (params: any) => {
-    paramsRef.current = params;
+  const fetchJournals = async (currentParams: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
+      const sanitized = removeEmptyParams({
+        limit: currentParams.pageSize,
+        skip: (currentParams.page - 1) * currentParams.pageSize,
+      });
       const res = await api.get<Journal[]>("/finance/journals", {
-        params: {
-          limit: params.pageSize,
-          skip: (params.page - 1) * params.pageSize,
-        }
+        params: sanitized
       });
       setJournals(res.data);
-      setTotal(res.data.length < params.pageSize ? (params.page - 1) * params.pageSize + res.data.length : 1000);
-    } catch (e) {
+      setTotal(res.data.length < currentParams.pageSize ? (currentParams.page - 1) * currentParams.pageSize + res.data.length : 1000);
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "Failed to load journals");
     } finally {
       setLoading(false);
     }
   };
+
+  const refreshJournals = () => {
+    void fetchJournals(params);
+  };
+
+  useEffect(() => {
+    void fetchJournals(params);
+  }, [params]);
 
   const journalColumns = [
     { key: "id", label: "Journal #", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
@@ -537,14 +557,23 @@ function JournalsTab() {
 
   return (
     <div>
-      <SmartTable
+      <AppTable
         storageKey="rems_finance_journals"
+        title="Journal Entries"
+        subtitle="Double-entry ledger journal postings"
         data={journals}
         columns={journalColumns}
         rowActions={journalActions}
         loading={loading}
-        total={total}
-        onParamsChange={fetchJournals}
+        error={error}
+        onRetry={refreshJournals}
+        pagination={{
+          page: params.page,
+          pageSize: params.pageSize,
+          total: total,
+        }}
+        onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
+        onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
         showDateFilter={false}
         showStatusFilter={false}
         showTypeFilter={false}
@@ -627,32 +656,52 @@ function InvoicesTab({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const paramsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [viewInv, setViewInv] = useState<Invoice | null>(null);
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
-  const fetchInvoices = async (params: any) => {
-    paramsRef.current = params;
+  const fetchInvoices = async (currentParams: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
+      const sanitized = removeEmptyParams({
+        limit: currentParams.pageSize,
+        offset: (currentParams.page - 1) * currentParams.pageSize,
+        search: currentParams.search,
+        filter: currentParams.filter,
+        startDate: currentParams.startDate,
+        endDate: currentParams.endDate,
+        status: currentParams.status,
+      });
       const res = await api.get<Invoice[]>("/finance/invoices", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-          status: params.status || undefined,
-        }
+        params: sanitized
       });
       setInvoices(res.data);
       setTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "Failed to load invoices");
     } finally {
       setLoading(false);
     }
   };
+
+  const refreshInvoices = () => {
+    void fetchInvoices(params);
+  };
+
+  useEffect(() => {
+    void fetchInvoices(params);
+  }, [params]);
 
   const invoiceColumns = [
     { key: "id", label: "Invoice #", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
@@ -710,14 +759,23 @@ function InvoicesTab({
 
   return (
     <div>
-      <SmartTable
+      <AppTable
         storageKey="rems_finance_invoices"
+        title="Invoices"
+        subtitle="Manage billing, rental invoices, and collection status"
         data={invoices}
         columns={invoiceColumns}
         rowActions={invoiceActions}
         loading={loading}
-        total={total}
-        onParamsChange={fetchInvoices}
+        error={error}
+        onRetry={refreshInvoices}
+        pagination={{
+          page: params.page,
+          pageSize: params.pageSize,
+          total: total,
+        }}
+        onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
+        onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
         showStatusFilter={true}
         statusOptions={statusOptions}
         showTypeFilter={false}
@@ -789,26 +847,46 @@ function PaymentsTab() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const paramsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
-  const fetchPayments = async (params: any) => {
-    paramsRef.current = params;
+  const fetchPayments = async (currentParams: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
+      const sanitized = removeEmptyParams({
+        limit: currentParams.pageSize,
+        skip: (currentParams.page - 1) * currentParams.pageSize,
+      });
       const res = await api.get<Payment[]>("/finance/payments", {
-        params: {
-          limit: params.pageSize,
-          skip: (params.page - 1) * params.pageSize,
-        }
+        params: sanitized
       });
       setPayments(res.data);
-      setTotal(res.data.length < params.pageSize ? (params.page - 1) * params.pageSize + res.data.length : 1000);
-    } catch (e) {
+      setTotal(res.data.length < currentParams.pageSize ? (currentParams.page - 1) * currentParams.pageSize + res.data.length : 1000);
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "Failed to load payments");
     } finally {
       setLoading(false);
     }
   };
+
+  const refreshPayments = () => {
+    void fetchPayments(params);
+  };
+
+  useEffect(() => {
+    void fetchPayments(params);
+  }, [params]);
 
   const paymentColumns = [
     { key: "id", label: "#", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
@@ -847,14 +925,23 @@ function PaymentsTab() {
   ];
 
   return (
-    <SmartTable
+    <AppTable
       storageKey="rems_finance_payments"
+      title="Payments"
+      subtitle="Rental collections and miscellaneous transaction logs"
       data={payments}
       columns={paymentColumns}
       rowActions={paymentActions}
       loading={loading}
-      total={total}
-      onParamsChange={fetchPayments}
+      error={error}
+      onRetry={refreshPayments}
+      pagination={{
+        page: params.page,
+        pageSize: params.pageSize,
+        total: total,
+      }}
+      onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
+      onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
       showDateFilter={false}
       showStatusFilter={false}
       showTypeFilter={false}
@@ -914,39 +1001,53 @@ function CommissionsTab({
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const paramsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [dealers, setDealers] = useState<{ id: number; name: string }[]>([]);
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
   useEffect(() => {
     crmApi.getDealers().then((d) => setDealers(d.map((x) => ({ id: x.id, name: x.name })))).catch(() => {});
   }, []);
 
-  const fetchCommissions = async (params: any) => {
-    paramsRef.current = params;
+  const fetchCommissions = async (currentParams: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
+      const sanitized = removeEmptyParams({
+        limit: currentParams.pageSize,
+        skip: (currentParams.page - 1) * currentParams.pageSize,
+        type: currentParams.propertyType,
+        payment_status: currentParams.status,
+      });
       const res = await api.get<Commission[]>("/finance/commissions", {
-        params: {
-          limit: params.pageSize,
-          skip: (params.page - 1) * params.pageSize,
-          type: params.propertyType || undefined,
-          payment_status: params.status || undefined,
-        }
+        params: sanitized
       });
       setCommissions(res.data);
-      setTotal(res.data.length < params.pageSize ? (params.page - 1) * params.pageSize + res.data.length : 1000);
-    } catch (e) {
+      setTotal(res.data.length < currentParams.pageSize ? (currentParams.page - 1) * currentParams.pageSize + res.data.length : 1000);
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "Failed to load commissions");
     } finally {
       setLoading(false);
     }
   };
 
   const refreshCommissions = () => {
-    if (paramsRef.current) {
-      void fetchCommissions(paramsRef.current);
-    }
+    void fetchCommissions(params);
   };
+
+  useEffect(() => {
+    void fetchCommissions(params);
+  }, [params]);
 
   const handleMarkPaid = async (c: Commission) => {
     setLoading(true);
@@ -1063,14 +1164,23 @@ function CommissionsTab({
         </div>
       </div>
 
-      <SmartTable
+      <AppTable
         storageKey="rems_finance_commissions"
+        title="Commissions"
+        subtitle="Manage agent/dealer sales commissions and payout cycles"
         data={commissions}
         columns={commissionColumns}
         rowActions={commissionActions}
         loading={loading}
-        total={total}
-        onParamsChange={fetchCommissions}
+        error={error}
+        onRetry={refreshCommissions}
+        pagination={{
+          page: params.page,
+          pageSize: params.pageSize,
+          total: total,
+        }}
+        onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
+        onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
         showStatusFilter={true}
         statusOptions={statusOptions}
         showTypeFilter={true}
@@ -1091,30 +1201,50 @@ function ExpensesTab({ onAdd }: { onAdd: () => void }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const paramsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [params, setParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
-  const fetchExpenses = async (params: any) => {
-    paramsRef.current = params;
+  const fetchExpenses = async (currentParams: typeof params) => {
     setLoading(true);
+    setError(null);
     try {
+      const sanitized = removeEmptyParams({
+        limit: currentParams.pageSize,
+        offset: (currentParams.page - 1) * currentParams.pageSize,
+        search: currentParams.search,
+        filter: currentParams.filter,
+        startDate: currentParams.startDate,
+        endDate: currentParams.endDate,
+      });
       const res = await api.get<Expense[]>("/finance/expenses", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-        }
+        params: sanitized
       });
       setExpenses(res.data);
       setTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "Failed to load expenses");
     } finally {
       setLoading(false);
     }
   };
+
+  const refreshExpenses = () => {
+    void fetchExpenses(params);
+  };
+
+  useEffect(() => {
+    void fetchExpenses(params);
+  }, [params]);
 
   const handleEditExpense = (expense: Expense) => {
     console.log("[Finance] Edit expense", expense.id);
@@ -1123,9 +1253,7 @@ function ExpensesTab({ onAdd }: { onAdd: () => void }) {
   const handleDeleteExpense = async (expense: Expense) => {
     try {
       await expensesApi.delete(expense.id);
-      if (paramsRef.current) {
-        void fetchExpenses(paramsRef.current);
-      }
+      refreshExpenses();
     } catch (error) {
       console.error("[Finance] Failed to delete expense", error);
       throw error;
@@ -1180,14 +1308,23 @@ function ExpensesTab({ onAdd }: { onAdd: () => void }) {
   ];
 
   return (
-    <SmartTable
+    <AppTable
       storageKey="rems_finance_expenses"
+      title="Expenses"
+      subtitle="Track corporate operating expenditures, bills, and payments"
       data={expenses}
       columns={expenseColumns}
       rowActions={expenseActions}
       loading={loading}
-      total={total}
-      onParamsChange={fetchExpenses}
+      error={error}
+      onRetry={refreshExpenses}
+      pagination={{
+        page: params.page,
+        pageSize: params.pageSize,
+        total: total,
+      }}
+      onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
+      onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
       showStatusFilter={false}
       showTypeFilter={false}
       toolbarActions={

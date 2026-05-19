@@ -10,7 +10,7 @@ import Modal from "../components/Modal";
 import { FormField } from "../components/crm/FormField";
 import BookingList from "./crm/bookings/BookingList";
 import { api } from "../lib/api";
-import { SmartTable } from "../components/data-table";
+import { AppTable } from "../components/data-table";
 
 const TABS = ["Leads", "Clients", "Dealers", "Deals", "Bookings"];
 
@@ -53,22 +53,62 @@ export default function CRMPage() {
   // Leads pagination & query state
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadsLoading, setLeadsLoading] = useState(false);
-  const leadsParamsRef = useRef<any>(null);
+  const [leadsErr, setLeadsErr] = useState<string | null>(null);
+  const [leadsParams, setLeadsParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
   // Clients pagination & query state
   const [clientsTotal, setClientsTotal] = useState(0);
   const [clientsLoading, setClientsLoading] = useState(false);
-  const clientsParamsRef = useRef<any>(null);
+  const [clientsErr, setClientsErr] = useState<string | null>(null);
+  const [clientsParams, setClientsParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
   // Dealers pagination & query state
   const [dealersTotal, setDealersTotal] = useState(0);
   const [dealersLoading, setDealersLoading] = useState(false);
-  const dealersParamsRef = useRef<any>(null);
+  const [dealersErr, setDealersErr] = useState<string | null>(null);
+  const [dealersParams, setDealersParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
   // Deals pagination & query state
   const [dealsTotal, setDealsTotal] = useState(0);
   const [dealsLoading, setDealsLoading] = useState(false);
-  const dealsParamsRef = useRef<any>(null);
+  const [dealsErr, setDealsErr] = useState<string | null>(null);
+  const [dealsParams, setDealsParams] = useState({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    filter: "",
+    startDate: "",
+    endDate: "",
+    propertyType: "",
+    status: "",
+  });
 
   // Modals
   const [leadModal, setLeadModal]     = useState(false);
@@ -89,130 +129,129 @@ export default function CRMPage() {
   // Search
   const [searchQ, setSearchQ] = useState("");
 
-  const fetchLeads = async (params: any) => {
-    leadsParamsRef.current = params;
+  const fetchLeads = async (params: typeof leadsParams) => {
     setLeadsLoading(true);
+    setLeadsErr(null);
     try {
-      const res = await api.get<Lead[]>("/crm/leads", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-        }
+      const sanitized = removeEmptyParams({
+        limit: params.pageSize,
+        offset: (params.page - 1) * params.pageSize,
+        search: params.search,
+        filter: params.filter,
+        startDate: params.startDate,
+        endDate: params.endDate,
       });
+      const res = await api.get<Lead[]>("/crm/leads", { params: sanitized });
       setLeads(res.data);
       setLeadsTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setLeadsErr(e.message || "Failed to load leads");
     } finally {
       setLeadsLoading(false);
     }
   };
 
   const refreshLeads = () => {
-    if (leadsParamsRef.current) {
-      void fetchLeads(leadsParamsRef.current);
-    }
+    void fetchLeads(leadsParams);
   };
 
-  const fetchClients = async (params: any) => {
-    clientsParamsRef.current = params;
+  const fetchClients = async (params: typeof clientsParams) => {
     setClientsLoading(true);
+    setClientsErr(null);
     try {
-      const res = await api.get<Client[]>("/crm/clients", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-        }
+      const sanitized = removeEmptyParams({
+        limit: params.pageSize,
+        offset: (params.page - 1) * params.pageSize,
+        search: params.search,
+        filter: params.filter,
+        startDate: params.startDate,
+        endDate: params.endDate,
       });
+      const res = await api.get<Client[]>("/crm/clients", { params: sanitized });
       setClients(res.data);
       setClientsTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setClientsErr(e.message || "Failed to load clients");
     } finally {
       setClientsLoading(false);
     }
   };
 
   const refreshClients = () => {
-    if (clientsParamsRef.current) {
-      void fetchClients(clientsParamsRef.current);
-    }
+    void fetchClients(clientsParams);
   };
 
-  const fetchDealers = async (params: any) => {
-    dealersParamsRef.current = params;
+  const fetchDealers = async (params: typeof dealersParams) => {
     setDealersLoading(true);
+    setDealersErr(null);
     try {
-      const res = await api.get<Dealer[]>("/crm/dealers", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-        }
+      const sanitized = removeEmptyParams({
+        limit: params.pageSize,
+        offset: (params.page - 1) * params.pageSize,
+        search: params.search,
+        filter: params.filter,
+        startDate: params.startDate,
+        endDate: params.endDate,
       });
+      const res = await api.get<Dealer[]>("/crm/dealers", { params: sanitized });
       setDealers(res.data);
       setDealersTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setDealersErr(e.message || "Failed to load dealers");
     } finally {
       setDealersLoading(false);
     }
   };
 
   const refreshDealers = () => {
-    if (dealersParamsRef.current) {
-      void fetchDealers(dealersParamsRef.current);
-    }
+    void fetchDealers(dealersParams);
   };
 
-  const fetchDeals = async (params: any) => {
-    dealsParamsRef.current = params;
+  const fetchDeals = async (params: typeof dealsParams) => {
     setDealsLoading(true);
+    setDealsErr(null);
     try {
-      const res = await api.get<Deal[]>("/crm/deals", {
-        params: {
-          limit: params.pageSize,
-          offset: (params.page - 1) * params.pageSize,
-          search: params.search || undefined,
-          filter: params.filter || undefined,
-          startDate: params.startDate || undefined,
-          endDate: params.endDate || undefined,
-        }
+      const sanitized = removeEmptyParams({
+        limit: params.pageSize,
+        offset: (params.page - 1) * params.pageSize,
+        search: params.search,
+        filter: params.filter,
+        startDate: params.startDate,
+        endDate: params.endDate,
       });
+      const res = await api.get<Deal[]>("/crm/deals", { params: sanitized });
       setDeals(res.data);
       setDealsTotal(Number(res.headers["x-total-count"] || res.data.length));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setDealsErr(e.message || "Failed to load deals");
     } finally {
       setDealsLoading(false);
     }
   };
 
   const refreshDeals = () => {
-    if (dealsParamsRef.current) {
-      void fetchDeals(dealsParamsRef.current);
-    }
+    void fetchDeals(dealsParams);
   };
 
-  const load = async () => {
-    refreshLeads();
-    refreshClients();
-    refreshDealers();
-    refreshDeals();
-  };
+  useEffect(() => {
+    void fetchLeads(leadsParams);
+  }, [leadsParams]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void fetchClients(clientsParams);
+  }, [clientsParams]);
+
+  useEffect(() => {
+    void fetchDealers(dealersParams);
+  }, [dealersParams]);
+
+  useEffect(() => {
+    void fetchDeals(dealsParams);
+  }, [dealsParams]);
 
   const createLead = async () => {
     if (!leadName.trim()) { setLeadErr("Name is required"); return; }
@@ -315,14 +354,23 @@ export default function CRMPage() {
         ];
 
         return (
-          <SmartTable
+          <AppTable
             storageKey="rems_crm_leads_table"
+            title="Leads"
+            subtitle="Track and manage prospective customer leads"
             data={leads}
             columns={leadColumns}
             rowActions={leadActions}
             loading={leadsLoading}
-            total={leadsTotal}
-            onParamsChange={fetchLeads}
+            error={leadsErr}
+            onRetry={refreshLeads}
+            pagination={{
+              page: leadsParams.page,
+              pageSize: leadsParams.pageSize,
+              total: leadsTotal,
+            }}
+            onPageChange={(config) => setLeadsParams((prev) => ({ ...prev, ...config }))}
+            onFilterChange={(filters) => setLeadsParams((prev) => ({ ...prev, ...filters }))}
             showTypeFilter={false}
             showStatusFilter={false}
           />
@@ -362,14 +410,23 @@ export default function CRMPage() {
         ];
 
         return (
-          <SmartTable
+          <AppTable
             storageKey="rems_crm_clients_table"
+            title="Clients"
+            subtitle="View and manage converted leads and clients"
             data={clients}
             columns={clientColumns}
             rowActions={clientActions}
             loading={clientsLoading}
-            total={clientsTotal}
-            onParamsChange={fetchClients}
+            error={clientsErr}
+            onRetry={refreshClients}
+            pagination={{
+              page: clientsParams.page,
+              pageSize: clientsParams.pageSize,
+              total: clientsTotal,
+            }}
+            onPageChange={(config) => setClientsParams((prev) => ({ ...prev, ...config }))}
+            onFilterChange={(filters) => setClientsParams((prev) => ({ ...prev, ...filters }))}
             showTypeFilter={false}
             showStatusFilter={false}
           />
@@ -411,14 +468,23 @@ export default function CRMPage() {
         ];
 
         return (
-          <SmartTable
+          <AppTable
             storageKey="rems_crm_dealers_table"
+            title="Dealers"
+            subtitle="Manage agent/dealer partnerships and commission structures"
             data={dealers}
             columns={dealerColumns}
             rowActions={dealerActions}
             loading={dealersLoading}
-            total={dealersTotal}
-            onParamsChange={fetchDealers}
+            error={dealersErr}
+            onRetry={refreshDealers}
+            pagination={{
+              page: dealersParams.page,
+              pageSize: dealersParams.pageSize,
+              total: dealersTotal,
+            }}
+            onPageChange={(config) => setDealersParams((prev) => ({ ...prev, ...config }))}
+            onFilterChange={(filters) => setDealersParams((prev) => ({ ...prev, ...filters }))}
             showTypeFilter={false}
             showStatusFilter={false}
           />
@@ -466,14 +532,23 @@ export default function CRMPage() {
         ];
 
         return (
-          <SmartTable
+          <AppTable
             storageKey="rems_crm_deals_table"
+            title="Deals"
+            subtitle="Track client transactions, bookings, and pipeline progress"
             data={deals}
             columns={dealColumns}
             rowActions={dealActions}
             loading={dealsLoading}
-            total={dealsTotal}
-            onParamsChange={fetchDeals}
+            error={dealsErr}
+            onRetry={refreshDeals}
+            pagination={{
+              page: dealsParams.page,
+              pageSize: dealsParams.pageSize,
+              total: dealsTotal,
+            }}
+            onPageChange={(config) => setDealsParams((prev) => ({ ...prev, ...config }))}
+            onFilterChange={(filters) => setDealsParams((prev) => ({ ...prev, ...filters }))}
             showTypeFilter={false}
             showStatusFilter={false}
           />
