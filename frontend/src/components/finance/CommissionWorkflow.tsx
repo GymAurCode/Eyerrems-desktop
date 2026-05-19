@@ -165,7 +165,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
         sale_amount: saleAmount ? Number(saleAmount) : null,
         commission_rate: commissionRate ? Number(commissionRate) : null,
         amount: amountOverride ? Number(amountOverride) : null,
-        allow_override: allowOverride && isAdmin(),
+        allow_override: allowOverride && isAdmin,
         type,
         reference: reference || undefined,
         description: description || undefined,
@@ -278,13 +278,13 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
               )}
             </div>
 
-            {isAdmin() && (
+            {isAdmin && (
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input type="checkbox" checked={allowOverride} onChange={(e) => setAllowOverride(e.target.checked)} />
                 Allow manual amount override (admin)
               </label>
             )}
-            {allowOverride && isAdmin() && (
+            {allowOverride && isAdmin && (
               <div>
                 <label className="text-[10px] uppercase tracking-wider mb-1 block" style={{ color: "var(--text-muted)" }}>Override amount</label>
                 <input className="input-dark w-full px-2 py-1.5 text-xs" type="number" value={amountOverride} onChange={(e) => setAmountOverride(e.target.value)} />

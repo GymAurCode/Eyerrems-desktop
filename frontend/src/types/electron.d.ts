@@ -54,6 +54,8 @@ export interface ElectronAPI {
     getPath: () => Promise<string>;
     cleanup: () => Promise<{ deleted: number }>;
   };
+
+  log: (level: string, message: string, details?: any) => void;
 }
 
 declare global {

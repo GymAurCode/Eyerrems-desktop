@@ -1409,3 +1409,51 @@
   thead { display: table-header-group; }
   tfoot { display: table-footer-group; }
 }
+
+/* ── Login and Signup autofill/theme overrides ── */
+.login-input {
+  background: rgba(30, 33, 52, 0.8) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  color: #f1f5f9 !important;
+  border-radius: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-input::placeholder {
+  color: #64748b !important;
+}
+
+.login-input:hover {
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+.login-input:focus {
+  outline: none !important;
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+}
+
+.login-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Specific autofill override for login/signup inputs */
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus,
+.login-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #f1f5f9 !important;
+  transition: background-color 5000s ease-in-out 0s;
+  box-shadow: 0 0 0px 1000px rgba(30, 33, 52, 0.8) inset !important;
+}
+
+/* Global autofill overrides using theme-aware variables for the rest of the application */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  box-shadow: 0 0 0px 1000px var(--bg-surface2) inset !important;
+}

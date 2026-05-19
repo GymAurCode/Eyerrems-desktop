@@ -29,6 +29,7 @@ const NAV_COLORS: Record<string, {
   "/communication":{ icon: "#64748b", iconHover: "#25D366", activeBg: "rgba(37,211,102,0.12)", hoverBg: "rgba(37,211,102,0.07)"  }, // WhatsApp Green — Communication
   "/reminders":    { icon: "#64748b", iconHover: "#8b5cf6", activeBg: "rgba(139,92,246,0.12)", hoverBg: "rgba(139,92,246,0.07)"  }, // Violet — Reminders
   "/admin":        { icon: "#64748b", iconHover: "#ef4444", activeBg: "rgba(239,68,68,0.12)",   hoverBg: "rgba(239,68,68,0.07)"   }, // Red — Admin
+  "/reports?tab=import": { icon: "#64748b", iconHover: "#22c55e", activeBg: "rgba(34,197,94,0.12)",  hoverBg: "rgba(34,197,94,0.07)"  }, // Green — Import
   "/import":       { icon: "#64748b", iconHover: "#22c55e", activeBg: "rgba(34,197,94,0.12)",  hoverBg: "rgba(34,197,94,0.07)"  }, // Green — Import
 };
 
@@ -50,7 +51,6 @@ const NAV_ITEMS = [
   { path: "/communication",label: "Communication", icon: MessageSquare,   roles: ["Admin","Accountant","Dealer","Staff","Manager"], feature: "mail_module" },
   { path: "/reminders",    label: "Reminders",    icon: Bell,            roles: ["Admin","Accountant","Dealer","Staff","Manager"], feature: "reminders_module" },
   { path: "/admin",        label: "Admin",        icon: ShieldCheck,     roles: ["Admin"],                                         feature: null },
-  { path: "/import",       label: "Bulk Import",  icon: Upload,          roles: ["Admin", "Manager"],                              feature: null },
 ];
 
 export default function Sidebar() {
@@ -105,9 +105,11 @@ export default function Sidebar() {
         {visible.map(({ path, label, icon: Icon }) => {
           const active = path === "/"
             ? location.pathname === "/"
-            : location.pathname.startsWith(path);
+            : path.includes("?")
+              ? location.pathname + location.search === path
+              : location.pathname.startsWith(path) && !location.search.includes("tab=");
           const badge = path === "/communication" && mailUnread > 0 ? mailUnread : 0;
-          const clr = NAV_COLORS[path] ?? DEFAULT_COLOR;
+          const clr = NAV_COLORS[path] ?? NAV_COLORS[path.split("?")[0]] ?? DEFAULT_COLOR;
 
           return (
             <Link

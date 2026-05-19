@@ -11,6 +11,7 @@ import SuperAdminRoute from "./components/SuperAdminRoute";
 import FeatureGuard from "./components/FeatureGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
 import { ErrorTrackerPanel } from "./components/ErrorTracker";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
@@ -322,7 +323,9 @@ export default function App() {
           <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
             <CompanyLayout>
               <FeatureGuard feature="finance_module" fallback={<DisabledModule />}>
-                <FinancePage />
+                <ErrorBoundary>
+                  <FinancePage />
+                </ErrorBoundary>
               </FeatureGuard>
             </CompanyLayout>
           </ProtectedRoute>
@@ -371,9 +374,7 @@ export default function App() {
           </ProtectedRoute>
         } />
         <Route path="/import" element={
-          <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
-            <CompanyLayout><ImportCenter /></CompanyLayout>
-          </ProtectedRoute>
+          <Navigate to="/reports?tab=import" replace />
         } />
         <Route path="/admin-panel" element={
           <ProtectedRoute allowedRoles={["Admin"]}>

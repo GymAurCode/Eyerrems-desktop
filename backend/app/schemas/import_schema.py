@@ -86,3 +86,24 @@ class ImportRowLogOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MasterValidateResponse(BaseModel):
+    employees: ImportValidateResponse | None = None
+    properties: ImportValidateResponse | None = None
+    leads: ImportValidateResponse | None = None
+    message: str | None = None
+
+
+class MasterExecuteRequest(BaseModel):
+    employees_batch_id: int | None = None
+    properties_batch_id: int | None = None
+    leads_batch_id: int | None = None
+    duplicate_mode: DuplicateMode = "skip"
+
+
+class MasterExecuteResponse(BaseModel):
+    employees: ImportExecuteResponse | None = None
+    properties: ImportExecuteResponse | None = None
+    leads: ImportExecuteResponse | None = None
+    message: str

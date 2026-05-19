@@ -437,6 +437,32 @@ ipcMain.handle("temp:cleanup", async () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// IPC HANDLERS - LOGGING
+// ══════════════════════════════════════════════════════════════════════════════
+
+ipcMain.on("log:renderer", (event, level, message, details) => {
+  const timestamp = new Date().toISOString();
+  const detailStr = details ? ` | Details: ${typeof details === "string" ? details : JSON.stringify(details)}` : "";
+  const logMessage = `[Renderer][${level.toUpperCase()}] ${timestamp} - ${message}${detailStr}\n`;
+  
+  if (level === "error") {
+    console.error(logMessage.trim());
+  } else {
+    console.log(logMessage.trim());
+  }
+
+  try {
+    const logDir = path.join(app.getPath("userData"), "logs");
+    const logPath = path.join(logDir, "renderer.log");
+    fsSync.mkdirSync(logDir, { recursive: true });
+    fsSync.appendFileSync(logPath, logMessage, "utf8");
+  } catch (err) {
+    console.error("Failed to write renderer log to file:", err);
+  }
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // APP LIFECYCLE
 // ══════════════════════════════════════════════════════════════════════════════
 

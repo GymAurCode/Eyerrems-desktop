@@ -103,11 +103,25 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    window.electronAPI?.log("info", "FinancePage mounted", {
+      pathname: location.pathname,
+      state: location.state,
+    });
+    return () => {
+      window.electronAPI?.log("info", "FinancePage unmounted");
+    };
+  }, [location.pathname, location.state]);
+
+  useEffect(() => {
     const fromState = (location.state as { financeTab?: Tab } | null)?.financeTab;
-    if (fromState) setTab(fromState);
+    if (fromState) {
+      window.electronAPI?.log("info", `FinancePage setting tab from state: ${fromState}`);
+      setTab(fromState);
+    }
   }, [location.state]);
 
   const load = useCallback(async () => {
+    window.electronAPI?.log("info", "FinancePage load starting");
     try {
       const [accs, invs, pmts, comms, exps, tb, pl, bb, cb] = await Promise.allSettled([
         accountsApi.list(), invoicesApi.list(), paymentsApi.list(),
@@ -115,6 +129,19 @@ export default function FinancePage() {
         journalsApi.trialBalance(), journalsApi.profitLoss(),
         bankCashApi.bankBalance(), bankCashApi.cashBalance(),
       ]);
+      
+      window.electronAPI?.log("info", "FinancePage API calls settled", {
+        accounts: accs.status,
+        invoices: invs.status,
+        payments: pmts.status,
+        commissions: comms.status,
+        expenses: exps.status,
+        trialBalance: tb.status,
+        profitLoss: pl.status,
+        bankBalance: bb.status,
+        cashBalance: cb.status,
+      });
+
       if (accs.status  === "fulfilled") setAccounts(accs.value);
       if (invs.status  === "fulfilled") setInvoices(invs.value);
       if (pmts.status  === "fulfilled") setPayments(pmts.value);
@@ -124,16 +151,34 @@ export default function FinancePage() {
       if (pl.status    === "fulfilled") setProfitLoss(pl.value);
       if (bb.status    === "fulfilled") setBankBalance(bb.value.balance);
       if (cb.status    === "fulfilled") setCashBalance(cb.value.balance);
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      window.electronAPI?.log("error", "FinancePage load failed", {
+        message: e?.message,
+        stack: e?.stack,
+      });
+    }
   }, []);
 
   const loadJournals = useCallback(async () => {
-    try { const d = await journalsApi.list({ limit: 200 }); setJournals(d); } catch (e) { console.error(e); }
+    window.electronAPI?.log("info", "FinancePage loading journals");
+    try {
+      const d = await journalsApi.list({ limit: 200 });
+      setJournals(d);
+      window.electronAPI?.log("info", `FinancePage journals loaded: ${d.length} records`);
+    } catch (e: any) {
+      console.error(e);
+      window.electronAPI?.log("error", "FinancePage loadJournals failed", {
+        message: e?.message,
+        stack: e?.stack,
+      });
+    }
   }, []);
 
-
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (tab === "journals") loadJournals(); }, [tab, loadJournals]);
+  useEffect(() => {
+    if (tab === "journals") loadJournals();
+  }, [tab, loadJournals]);
 
   const wrap = (fn: () => Promise<void>) => async () => {
     setLoading(true);
@@ -148,130 +193,132 @@ export default function FinancePage() {
   const totalExpenses   = profitLoss?.total_expenses ?? 0;
 
   return (
-    <div className="p-6 space-y-5 animate-slide-up">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-primary">Finance & Accounting</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Double-entry accounting · real-time ledger</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setDlg("account")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Plus size={13}/> Account</button>
-          <button onClick={() => setDlg("invoice")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><DollarSign size={13}/> Invoice</button>
-          <button onClick={() => setDlg("payment")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><TrendingUp size={13}/> Payment</button>
-          <button onClick={() => setDlg("expense")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Receipt size={13}/> Expense</button>
-          <button onClick={() => setDlg("journal")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><FileText size={13}/> Journal</button>
-          <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-colors"
-            style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}>
-            <RefreshCw size={13}/>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Stat Cards (same as Dashboard MetricCard) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatCard label="Bank Balance"        value={formatCurrency(bankBalance)}
-          icon={CreditCard}  iconBg="rgba(59,130,246,0.12)"  iconColor="#3b82f6"
-          glowClass="glow-blue glow-blue-hover" />
-        <StatCard label="Cash Balance"        value={formatCurrency(cashBalance)}
-          icon={Banknote}    iconBg="rgba(16,185,129,0.12)"  iconColor="#10b981"
-          glowClass="glow-green glow-green-hover" />
-        <StatCard label="Total Income"        value={formatCurrency(totalIncome)}
-          icon={TrendingUp}  iconBg="rgba(16,185,129,0.12)"  iconColor="#10b981"
-          glowClass="glow-green glow-green-hover" trend={`${profitLoss?.income?.length ?? 0} accounts`} trendUp />
-        <StatCard label="Total Expenses"      value={formatCurrency(totalExpenses)}
-          icon={Receipt}     iconBg="rgba(239,68,68,0.12)"   iconColor="#ef4444"
-          glowClass="glow-red glow-red-hover" sub={`${expenses.length} records`} />
-        <StatCard label="Pending Receivables" value={formatCurrency(totalInvoiced - totalCollected)}
-          icon={Wallet}      iconBg="rgba(245,158,11,0.12)"  iconColor="#f59e0b"
-          glowClass="glow-yellow glow-yellow-hover" sub={`${pendingInvoices.length} invoices`} />
-      </div>
-
-      {/* ── Tab Bar ── */}
-      <div style={{ borderBottom: "1px solid var(--border)" }} className="overflow-x-auto">
-        <div className="flex gap-0 min-w-max">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-                tab === id
-                  ? "border-blue-500 text-blue-400"
-                  : "border-transparent hover:text-primary"
-              }`}
-              style={{ color: tab === id ? "#60a5fa" : "var(--text-muted)" }}>
-              <Icon size={13}/>{label}
+    <ErrorBoundary>
+      <div className="p-6 space-y-5 animate-slide-up">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-primary">Finance & Accounting</h1>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Double-entry accounting · real-time ledger</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setDlg("account")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Plus size={13}/> Account</button>
+            <button onClick={() => setDlg("invoice")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><DollarSign size={13}/> Invoice</button>
+            <button onClick={() => setDlg("payment")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><TrendingUp size={13}/> Payment</button>
+            <button onClick={() => setDlg("expense")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Receipt size={13}/> Expense</button>
+            <button onClick={() => setDlg("journal")}  className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><FileText size={13}/> Journal</button>
+            <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}>
+              <RefreshCw size={13}/>
             </button>
-          ))}
+          </div>
         </div>
-      </div>
 
-      {/* ── Tab Content ── */}
-      <div>
-        {tab === "dashboard"   && <DashboardTab trialBalance={trialBalance} profitLoss={profitLoss} invoices={invoices} payments={payments} bankBalance={bankBalance} cashBalance={cashBalance} expenses={expenses} />}
-        {tab === "accounts"    && (
-          <ErrorBoundary fallback={
-            <div className="p-8 text-center">
-              <h3 className="text-lg font-semibold text-red-400 mb-2">Chart of Accounts Error</h3>
-              <p className="text-sm text-gray-400 mb-4">There was an error loading the Chart of Accounts.</p>
-              <button 
-                onClick={() => window.location.reload()} 
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Refresh Page
+        {/* ── Stat Cards (same as Dashboard MetricCard) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <StatCard label="Bank Balance"        value={formatCurrency(bankBalance)}
+            icon={CreditCard}  iconBg="rgba(59,130,246,0.12)"  iconColor="#3b82f6"
+            glowClass="glow-blue glow-blue-hover" />
+          <StatCard label="Cash Balance"        value={formatCurrency(cashBalance)}
+            icon={Banknote}    iconBg="rgba(16,185,129,0.12)"  iconColor="#10b981"
+            glowClass="glow-green glow-green-hover" />
+          <StatCard label="Total Income"        value={formatCurrency(totalIncome)}
+            icon={TrendingUp}  iconBg="rgba(16,185,129,0.12)"  iconColor="#10b981"
+            glowClass="glow-green glow-green-hover" trend={`${profitLoss?.income?.length ?? 0} accounts`} trendUp />
+          <StatCard label="Total Expenses"      value={formatCurrency(totalExpenses)}
+            icon={Receipt}     iconBg="rgba(239,68,68,0.12)"   iconColor="#ef4444"
+            glowClass="glow-red glow-red-hover" sub={`${expenses.length} records`} />
+          <StatCard label="Pending Receivables" value={formatCurrency(totalInvoiced - totalCollected)}
+            icon={Wallet}      iconBg="rgba(245,158,11,0.12)"  iconColor="#f59e0b"
+            glowClass="glow-yellow glow-yellow-hover" sub={`${pendingInvoices.length} invoices`} />
+        </div>
+
+        {/* ── Tab Bar ── */}
+        <div style={{ borderBottom: "1px solid var(--border)" }} className="overflow-x-auto">
+          <div className="flex gap-0 min-w-max">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => setTab(id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  tab === id
+                    ? "border-blue-500 text-blue-400"
+                    : "border-transparent hover:text-primary"
+                }`}
+                style={{ color: tab === id ? "#60a5fa" : "var(--text-muted)" }}>
+                <Icon size={13}/>{label}
               </button>
-            </div>
-          }>
-            <ChartOfAccounts />
-          </ErrorBoundary>
-        )}
-        {tab === "journals"    && <JournalsTab journals={journals} onRefresh={loadJournals} />}
-        {tab === "invoices"    && <InvoicesTab invoices={invoices} onPay={(inv) => setDlg(`pay:${inv.id}`)} />}
-        {tab === "payments"    && <PaymentsTab payments={payments} />}
-        {tab === "bank"        && <BankCashTab instrument="bank"  balance={bankBalance} accounts={accounts} setDlg={setDlg} />}
-        {tab === "cash"        && <BankCashTab instrument="cash"  balance={cashBalance} accounts={accounts} setDlg={setDlg} />}
-        {tab === "commissions" && (
-          <CommissionsTab
-            commissions={commissions}
-            onAdd={() => setDlg("commission")}
-            onReload={load}
-          />
-        )}
-        {tab === "expenses"    && <ExpensesTab expenses={expenses} onAdd={() => setDlg("expense")} />}
-        {tab === "ledger"      && <UnifiedLedgersTab />}
-        {tab === "reports"     && <ReportsTab trialBalance={trialBalance} profitLoss={profitLoss} />}
-        {tab === "operations"  && <OperationsTab />}
-      </div>
+            ))}
+          </div>
+        </div>
 
-      {/* ── Dialogs ── */}
-      <CreateAccountDialog isOpen={dlg === "account"} onClose={() => setDlg(null)} onSubmit={async (d) => { await accountsApi.create(d); await load(); }} isLoading={loading} />
-      <CreateInvoiceDialog isOpen={dlg === "invoice"} onClose={() => setDlg(null)} onSubmit={async (d) => { await invoicesApi.create(d as any); await load(); }} isLoading={loading} />
-      <MakePaymentDialog
-        isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))}
-        onClose={() => setDlg(null)}
-        onSubmit={async (d) => { await paymentsApi.create(d as any); await load(); }}
-        invoices={invoices.filter(i => i.status !== "paid")}
-        preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined}
-        isLoading={loading} />
-      <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { await expensesApi.create(d as any); await load(); }} accounts={accounts.filter(a => a.account_type === "Expense")} isLoading={loading} />
-      <CommissionWorkflow
-        isOpen={dlg === "commission"}
-        onClose={() => setDlg(null)}
-        onSuccess={load}
-      />
-      <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { await journalsApi.create(d); await load(); if (tab === "journals") await loadJournals(); }} accounts={accounts} isLoading={loading} />
-      <BankCashDialog
-        isOpen={["bank_payment","bank_receipt","cash_payment","cash_receipt"].includes(dlg ?? "")}
-        type={dlg as any} onClose={() => setDlg(null)}
-        onSubmit={async (d) => {
-          if (dlg === "bank_payment") await bankCashApi.bankPayment(d);
-          if (dlg === "bank_receipt") await bankCashApi.bankReceipt(d);
-          if (dlg === "cash_payment") await bankCashApi.cashPayment(d);
-          if (dlg === "cash_receipt") await bankCashApi.cashReceipt(d);
-          await load();
-        }}
-        accounts={accounts} isLoading={loading} />
-    </div>
+        {/* ── Tab Content ── */}
+        <div>
+          {tab === "dashboard"   && <DashboardTab trialBalance={trialBalance} profitLoss={profitLoss} invoices={invoices} payments={payments} bankBalance={bankBalance} cashBalance={cashBalance} expenses={expenses} />}
+          {tab === "accounts"    && (
+            <ErrorBoundary fallback={
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-semibold text-red-400 mb-2">Chart of Accounts Error</h3>
+                <p className="text-sm text-gray-400 mb-4">There was an error loading the Chart of Accounts.</p>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Refresh Page
+                </button>
+              </div>
+            }>
+              <ChartOfAccounts />
+            </ErrorBoundary>
+          )}
+          {tab === "journals"    && <JournalsTab journals={journals} onRefresh={loadJournals} />}
+          {tab === "invoices"    && <InvoicesTab invoices={invoices} onPay={(inv) => setDlg(`pay:${inv.id}`)} />}
+          {tab === "payments"    && <PaymentsTab payments={payments} />}
+          {tab === "bank"        && <BankCashTab instrument="bank"  balance={bankBalance} accounts={accounts} setDlg={setDlg} />}
+          {tab === "cash"        && <BankCashTab instrument="cash"  balance={cashBalance} accounts={accounts} setDlg={setDlg} />}
+          {tab === "commissions" && (
+            <CommissionsTab
+              commissions={commissions}
+              onAdd={() => setDlg("commission")}
+              onReload={load}
+            />
+          )}
+          {tab === "expenses"    && <ExpensesTab expenses={expenses} onAdd={() => setDlg("expense")} />}
+          {tab === "ledger"      && <UnifiedLedgersTab />}
+          {tab === "reports"     && <ReportsTab trialBalance={trialBalance} profitLoss={profitLoss} />}
+          {tab === "operations"  && <OperationsTab />}
+        </div>
+
+        {/* ── Dialogs ── */}
+        <CreateAccountDialog isOpen={dlg === "account"} onClose={() => setDlg(null)} onSubmit={async (d) => { await accountsApi.create(d); await load(); }} isLoading={loading} />
+        <CreateInvoiceDialog isOpen={dlg === "invoice"} onClose={() => setDlg(null)} onSubmit={async (d) => { await invoicesApi.create(d as any); await load(); }} isLoading={loading} />
+        <MakePaymentDialog
+          isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))}
+          onClose={() => setDlg(null)}
+          onSubmit={async (d) => { await paymentsApi.create(d as any); await load(); }}
+          invoices={invoices.filter(i => i.status !== "paid")}
+          preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined}
+          isLoading={loading} />
+        <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { await expensesApi.create(d as any); await load(); }} accounts={accounts.filter(a => a.account_type === "Expense")} isLoading={loading} />
+        <CommissionWorkflow
+          isOpen={dlg === "commission"}
+          onClose={() => setDlg(null)}
+          onSuccess={load}
+        />
+        <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { await journalsApi.create(d); await load(); if (tab === "journals") await loadJournals(); }} accounts={accounts} isLoading={loading} />
+        <BankCashDialog
+          isOpen={["bank_payment","bank_receipt","cash_payment","cash_receipt"].includes(dlg ?? "")}
+          type={dlg as any} onClose={() => setDlg(null)}
+          onSubmit={async (d) => {
+            if (dlg === "bank_payment") await bankCashApi.bankPayment(d);
+            if (dlg === "bank_receipt") await bankCashApi.bankReceipt(d);
+            if (dlg === "cash_payment") await bankCashApi.cashPayment(d);
+            if (dlg === "cash_receipt") await bankCashApi.cashReceipt(d);
+            await load();
+          }}
+          accounts={accounts} isLoading={loading} />
+      </div>
+    </ErrorBoundary>
   );
 }
 

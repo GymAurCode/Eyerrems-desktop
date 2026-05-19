@@ -232,7 +232,7 @@ export default function LoginPage() {
               <form onSubmit={submit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Email address</label>
-                  <input className="input-dark w-full px-4 py-3 text-sm" type="email"
+                  <input className="input-dark login-input w-full px-4 py-3 text-sm" type="email"
                     placeholder="you@company.com" value={email}
                     onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
                     style={{ background: "rgba(30,33,52,0.8)", borderColor: "rgba(99,102,241,0.2)" }} />
@@ -240,7 +240,7 @@ export default function LoginPage() {
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Password</label>
                   <div className="relative">
-                    <input className="input-dark w-full px-4 py-3 text-sm pr-11"
+                    <input className="input-dark login-input w-full px-4 py-3 text-sm pr-11"
                       type={showPass ? "text" : "password"} placeholder="••••••••"
                       value={password} onChange={(e) => setPassword(e.target.value)}
                       required autoComplete="current-password"

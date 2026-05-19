@@ -99,5 +99,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
      */
     cleanup: () => ipcRenderer.invoke("temp:cleanup"),
   },
+
+  // Logger
+  log: (level, message, details) => ipcRenderer.send("log:renderer", level, message, details),
 });
 

@@ -72,11 +72,11 @@ export class ErrorBoundary extends Component<Props, State> {
               Refresh Page
             </button>
           </div>
-          {process.env.NODE_ENV === 'development' && this.state.error && (
+          {this.state.error && (
             <details className="mt-4 text-left">
-              <summary className="text-xs text-gray-500 cursor-pointer">Error Details (Development)</summary>
-              <pre className="text-xs text-red-400 mt-2 p-2 bg-gray-800 rounded overflow-auto">
-                {this.state.error.stack}
+              <summary className="text-xs text-gray-500 cursor-pointer">Error Details & Stack Trace</summary>
+              <pre className="text-xs text-red-400 mt-2 p-3 bg-gray-900 rounded-lg overflow-auto select-text whitespace-pre-wrap max-h-60">
+                {this.state.error.stack || this.state.error.message}
               </pre>
             </details>
           )}
