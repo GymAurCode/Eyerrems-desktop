@@ -3,6 +3,7 @@
  * Helper functions for table operations
  */
 
+import React from 'react';
 import { TableColumn } from './types';
 
 /**
@@ -59,13 +60,13 @@ export function createStatusBadge(statusColors: Record<string, { bg: string; col
   return function StatusBadge({ status }: { status: string }) {
     const colors = statusColors[status?.toLowerCase()] || { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' };
     
-    return (
-      <span
-        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize"
-        style={{ background: colors.bg, color: colors.color }}
-      >
-        {status}
-      </span>
+    return React.createElement(
+      'span',
+      {
+        className: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
+        style: { background: colors.bg, color: colors.color }
+      },
+      status
     );
   };
 }
@@ -124,32 +125,40 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       label: 'ID',
       width: 80,
       align: 'right',
-      render: (value) => (
-        <span className="font-mono text-xs text-gray-400">#{value}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'font-mono text-xs text-gray-400' },
+        `#${value}`
       ),
     },
     
     name: {
       key: 'name',
       label: 'Name',
-      render: (value) => (
-        <span className="font-medium text-gray-200">{value}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'font-medium text-gray-200' },
+        value
       ),
     },
     
     email: {
       key: 'email',
       label: 'Email',
-      render: (value) => (
-        <span className="text-blue-400 hover:text-blue-300">{value}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'text-blue-400 hover:text-blue-300' },
+        value
       ),
     },
     
     phone: {
       key: 'phone',
       label: 'Phone',
-      render: (value) => (
-        <span className="font-mono text-xs">{value}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'font-mono text-xs' },
+        value
       ),
     },
     
@@ -160,7 +169,7 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       align: 'center',
       render: (value) => {
         const StatusBadge = createStatusBadge(STATUS_COLORS);
-        return <StatusBadge status={value} />;
+        return React.createElement(StatusBadge, { status: value });
       },
     },
     
@@ -169,10 +178,10 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       label: 'Amount',
       width: 120,
       align: 'right',
-      render: (value) => (
-        <span className="font-mono text-sm font-medium">
-          {formatCurrency(value)}
-        </span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'font-mono text-sm font-medium' },
+        formatCurrency(value)
       ),
     },
     
@@ -180,8 +189,10 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       key: 'date',
       label: 'Date',
       width: 120,
-      render: (value) => (
-        <span className="text-xs">{formatDate(value)}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'text-xs' },
+        formatDate(value)
       ),
     },
     
@@ -189,8 +200,10 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       key: 'datetime',
       label: 'Date & Time',
       width: 160,
-      render: (value) => (
-        <span className="text-xs">{formatDateTime(value)}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'text-xs' },
+        formatDateTime(value)
       ),
     },
     
@@ -198,8 +211,10 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       key: 'created_at',
       label: 'Created',
       width: 120,
-      render: (value) => (
-        <span className="text-xs text-gray-400">{formatDate(value)}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'text-xs text-gray-400' },
+        formatDate(value)
       ),
     },
     
@@ -207,8 +222,10 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       key: 'updated_at',
       label: 'Updated',
       width: 120,
-      render: (value) => (
-        <span className="text-xs text-gray-400">{formatDate(value)}</span>
+      render: (value) => React.createElement(
+        'span',
+        { className: 'text-xs text-gray-400' },
+        formatDate(value)
       ),
     },
   };
