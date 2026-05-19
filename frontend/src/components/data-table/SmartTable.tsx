@@ -5,13 +5,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import DataTable from './DataTable';
-import { ColumnConfig, PaginationConfig, RowActionConfig } from './types';
+import { TableColumn, PaginationConfig, TableAction } from './types';
 import { Search, Calendar, RefreshCw, X } from 'lucide-react';
 
 interface SmartTableProps<T> {
   // Data & Columns
   data: T[];
-  columns: ColumnConfig<T>[];
+  columns: TableColumn<T>[];
   loading?: boolean;
   total: number;
   
@@ -23,7 +23,7 @@ interface SmartTableProps<T> {
   subtitle?: string;
   
   // Action configurations
-  rowActions?: RowActionConfig<T>[];
+  rowActions?: TableAction<T>[];
   onRowClick?: (row: T) => void;
   toolbarActions?: React.ReactNode;
   
