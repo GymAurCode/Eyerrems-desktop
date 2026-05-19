@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { api } from '../lib/api';
 
 interface PermissionContextType {
   permissions: string[];
@@ -24,14 +25,10 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me/permissions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await api.get('/auth/me/permissions');
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response.status === 200) {
+        const data = response.data;
         setPermissions(data);
         // Cache permissions
         localStorage.setItem('permissions', JSON.stringify(data));

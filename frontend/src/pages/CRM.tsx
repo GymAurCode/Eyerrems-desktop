@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Users, Search, Circle, Edit2 } from "lucide-react";
+import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer } from "lucide-react";
 import { QuickRowActions, printRecord } from "../components/actions";
 import { crmApi, Lead, Client, Dealer, Deal } from "../lib/crmApi";
 import ClientForm from "../components/crm/ClientForm";
@@ -9,6 +9,8 @@ import DealForm from "../components/crm/DealForm";
 import Modal from "../components/Modal";
 import { FormField } from "../components/crm/FormField";
 import BookingList from "./crm/bookings/BookingList";
+import { api } from "../lib/api";
+import { SmartTable } from "../components/data-table";
 
 const TABS = ["Leads", "Clients", "Dealers", "Deals", "Bookings"];
 
@@ -48,6 +50,26 @@ export default function CRMPage() {
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [deals, setDeals]     = useState<Deal[]>([]);
 
+  // Leads pagination & query state
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const leadsParamsRef = useRef<any>(null);
+
+  // Clients pagination & query state
+  const [clientsTotal, setClientsTotal] = useState(0);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const clientsParamsRef = useRef<any>(null);
+
+  // Dealers pagination & query state
+  const [dealersTotal, setDealersTotal] = useState(0);
+  const [dealersLoading, setDealersLoading] = useState(false);
+  const dealersParamsRef = useRef<any>(null);
+
+  // Deals pagination & query state
+  const [dealsTotal, setDealsTotal] = useState(0);
+  const [dealsLoading, setDealsLoading] = useState(false);
+  const dealsParamsRef = useRef<any>(null);
+
   // Modals
   const [leadModal, setLeadModal]     = useState(false);
   const [clientModal, setClientModal] = useState(false);
@@ -67,17 +89,127 @@ export default function CRMPage() {
   // Search
   const [searchQ, setSearchQ] = useState("");
 
+  const fetchLeads = async (params: any) => {
+    leadsParamsRef.current = params;
+    setLeadsLoading(true);
+    try {
+      const res = await api.get<Lead[]>("/crm/leads", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search,
+          filter: params.filter,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }
+      });
+      setLeads(res.data);
+      setLeadsTotal(Number(res.headers["x-total-count"] || res.data.length));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLeadsLoading(false);
+    }
+  };
+
+  const refreshLeads = () => {
+    if (leadsParamsRef.current) {
+      void fetchLeads(leadsParamsRef.current);
+    }
+  };
+
+  const fetchClients = async (params: any) => {
+    clientsParamsRef.current = params;
+    setClientsLoading(true);
+    try {
+      const res = await api.get<Client[]>("/crm/clients", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search,
+          filter: params.filter,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }
+      });
+      setClients(res.data);
+      setClientsTotal(Number(res.headers["x-total-count"] || res.data.length));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
+  const refreshClients = () => {
+    if (clientsParamsRef.current) {
+      void fetchClients(clientsParamsRef.current);
+    }
+  };
+
+  const fetchDealers = async (params: any) => {
+    dealersParamsRef.current = params;
+    setDealersLoading(true);
+    try {
+      const res = await api.get<Dealer[]>("/crm/dealers", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search,
+          filter: params.filter,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }
+      });
+      setDealers(res.data);
+      setDealersTotal(Number(res.headers["x-total-count"] || res.data.length));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDealersLoading(false);
+    }
+  };
+
+  const refreshDealers = () => {
+    if (dealersParamsRef.current) {
+      void fetchDealers(dealersParamsRef.current);
+    }
+  };
+
+  const fetchDeals = async (params: any) => {
+    dealsParamsRef.current = params;
+    setDealsLoading(true);
+    try {
+      const res = await api.get<Deal[]>("/crm/deals", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search,
+          filter: params.filter,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }
+      });
+      setDeals(res.data);
+      setDealsTotal(Number(res.headers["x-total-count"] || res.data.length));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDealsLoading(false);
+    }
+  };
+
+  const refreshDeals = () => {
+    if (dealsParamsRef.current) {
+      void fetchDeals(dealsParamsRef.current);
+    }
+  };
+
   const load = async () => {
-    const [leads, clients, dealers, deals] = await Promise.all([
-      crmApi.getLeads(),
-      crmApi.getClients(),
-      crmApi.getDealers(),
-      crmApi.getDeals(),
-    ]);
-    setLeads(leads);
-    setClients(clients);
-    setDealers(dealers);
-    setDeals(deals);
+    refreshLeads();
+    refreshClients();
+    refreshDealers();
+    refreshDeals();
   };
 
   useEffect(() => { void load(); }, []);
@@ -150,173 +282,203 @@ export default function CRMPage() {
       </div>
 
       {/* Tab content */}
-      {tab === 0 && (
-        <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          {leads.length === 0 ? <Empty label="No leads yet." /> : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <Th>Lead ID</Th><Th>Name</Th><Th>Phone</Th><Th>Source</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((l) => (
-                  <tr key={l.id} className="row-hover cursor-pointer"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    onClick={() => navigate(`/crm/leads/${l.id}`)}>
-                    <Td mono blue>{l.lead_id}</Td>
-                    <Td bold>{l.name}</Td>
-                    <Td>{l.phone ?? "—"}</Td>
-                    <Td>{l.source ?? "—"}</Td>
-                    <td className="px-5 py-3.5"><Badge status={l.status} /></td>
-                    <td className="px-5 py-3.5 text-right">
-                      <QuickRowActions
-                        row={l}
-                        onView={(lead) => navigate(`/crm/leads/${lead.id}`)}
-                        onPrint={(lead) => printRecord(`Lead ${lead.lead_id}`, [
-                          { label: "Name", value: lead.name },
-                          { label: "Phone", value: lead.phone ?? "—" },
-                          { label: "Status", value: lead.status },
-                        ])}
-                        variant="icon-buttons"
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+      {tab === 0 && (() => {
+        const leadColumns = [
+          { key: "lead_id", label: "Lead ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+          { key: "phone", label: "Phone", sortable: true },
+          { key: "source", label: "Source", sortable: true },
+          {
+            key: "status",
+            label: "Status",
+            render: (val: string) => <Badge status={val} />
+          }
+        ];
 
-      {tab === 1 && (
-        <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          {clients.length === 0 ? <Empty label="No clients yet." /> : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <Th>Tracking ID</Th><Th>Client ID</Th><Th>Name</Th>
-                  <Th>Phone</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((c) => (
-                  <tr key={c.id} className="row-hover cursor-pointer"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    onClick={() => navigate(`/crm/clients/${c.id}`)}>
-                    <Td mono blue>{c.tracking_id}</Td>
-                    <Td mono>{c.client_id}</Td>
-                    <Td bold>{c.name}</Td>
-                    <Td>{c.phone ?? "—"}</Td>
-                    <td className="px-5 py-3.5"><Badge status={c.status} /></td>
-                    <td className="px-5 py-3.5 text-right">
-                      <QuickRowActions
-                        row={c}
-                        onView={(client) => navigate(`/crm/clients/${client.id}`)}
-                        onPrint={(client) => printRecord(`Client ${client.client_id}`, [
-                          { label: "Name", value: client.name },
-                          { label: "Phone", value: client.phone ?? "—" },
-                          { label: "Status", value: client.status },
-                        ])}
-                        variant="icon-buttons"
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+        const leadActions = [
+          {
+            key: "view",
+            label: "View",
+            icon: Eye,
+            onClick: (row: Lead) => navigate(`/crm/leads/${row.id}`),
+          },
+          {
+            key: "print",
+            label: "Print",
+            icon: Printer,
+            onClick: (row: Lead) => printRecord(`Lead ${row.lead_id}`, [
+              { label: "Name", value: row.name },
+              { label: "Phone", value: row.phone ?? "—" },
+              { label: "Status", value: row.status },
+            ]),
+          }
+        ];
 
-      {tab === 2 && (
-        <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          {dealers.length === 0 ? <Empty label="No dealers yet." /> : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <Th>Dealer ID</Th><Th>Name</Th><Th>Phone</Th>
-                  <Th>Company</Th><Th>Commission</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {dealers.map((d) => (
-                  <tr key={d.id} className="row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <Td mono blue>{d.dealer_id}</Td>
-                    <Td bold>{d.name}</Td>
-                    <Td>{d.phone ?? "—"}</Td>
-                    <Td>{d.company ?? "—"}</Td>
-                    <Td>
-                      {d.commission_rate
-                        ? `${d.commission_rate}${d.commission_type === "percentage" ? "%" : " (fixed)"}`
-                        : "—"}
-                    </Td>
-                    <td className="px-5 py-3.5 text-right">
-                      <QuickRowActions
-                        row={d}
-                        onEdit={setEditDealer}
-                        onPrint={(dealer) => printRecord(`Dealer ${dealer.dealer_id}`, [
-                          { label: "Name", value: dealer.name },
-                          { label: "Company", value: dealer.company ?? "—" },
-                        ])}
-                        editPermission="crm:manage"
-                        variant="icon-buttons"
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+        return (
+          <SmartTable
+            storageKey="rems_crm_leads_table"
+            data={leads}
+            columns={leadColumns}
+            rowActions={leadActions}
+            loading={leadsLoading}
+            total={leadsTotal}
+            onParamsChange={fetchLeads}
+            showTypeFilter={false}
+            showStatusFilter={false}
+          />
+        );
+      })()}
 
-      {tab === 3 && (
-        <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          {deals.length === 0 ? <Empty label="No deals yet." /> : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <Th>Tracking ID</Th><Th>Deal ID</Th><Th>Title</Th>
-                  <Th>Client</Th><Th>Value</Th><Th>Status</Th><Th className="text-right" style={{ width: "1%" }}>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {deals.map((d) => (
-                  <tr key={d.id} className="row-hover cursor-pointer"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    onClick={() => navigate(`/crm/deals/${d.id}`)}>
-                    <Td mono blue>{d.tracking_id}</Td>
-                    <Td mono>{d.deal_id}</Td>
-                    <Td>{d.deal_title ?? "—"}</Td>
-                    <Td>{d.client_name ?? "—"}</Td>
-                    <Td bold>{Number(d.deal_value).toLocaleString()}</Td>
-                    <td className="px-5 py-3.5"><Badge status={d.status} /></td>
-                    <td className="px-5 py-3.5 text-right">
-                      <QuickRowActions
-                        row={d}
-                        onView={(deal) => navigate(`/crm/deals/${deal.id}`)}
-                        onPrint={(deal) => printRecord(`Deal ${deal.deal_id}`, [
-                          { label: "Title", value: deal.deal_title ?? "—" },
-                          { label: "Client", value: deal.client_name ?? "—" },
-                          { label: "Value", value: String(deal.deal_value) },
-                          { label: "Status", value: deal.status },
-                        ])}
-                        variant="icon-buttons"
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+      {tab === 1 && (() => {
+        const clientColumns = [
+          { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+          { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
+          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+          { key: "phone", label: "Phone", sortable: true },
+          {
+            key: "status",
+            label: "Status",
+            render: (val: string) => <Badge status={val} />
+          }
+        ];
+
+        const clientActions = [
+          {
+            key: "view",
+            label: "View",
+            icon: Eye,
+            onClick: (row: Client) => navigate(`/crm/clients/${row.id}`),
+          },
+          {
+            key: "print",
+            label: "Print",
+            icon: Printer,
+            onClick: (row: Client) => printRecord(`Client ${row.client_id}`, [
+              { label: "Name", value: row.name },
+              { label: "Phone", value: row.phone ?? "—" },
+              { label: "Status", value: row.status },
+            ]),
+          }
+        ];
+
+        return (
+          <SmartTable
+            storageKey="rems_crm_clients_table"
+            data={clients}
+            columns={clientColumns}
+            rowActions={clientActions}
+            loading={clientsLoading}
+            total={clientsTotal}
+            onParamsChange={fetchClients}
+            showTypeFilter={false}
+            showStatusFilter={false}
+          />
+        );
+      })()}
+
+      {tab === 2 && (() => {
+        const dealerColumns = [
+          { key: "dealer_id", label: "Dealer ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+          { key: "phone", label: "Phone", sortable: true },
+          { key: "company", label: "Company", sortable: true },
+          {
+            key: "commission_rate",
+            label: "Commission",
+            render: (val: any, row: Dealer) => row.commission_rate
+              ? `${row.commission_rate}${row.commission_type === "percentage" ? "%" : " (fixed)"}`
+              : "—"
+          }
+        ];
+
+        const dealerActions = [
+          {
+            key: "edit",
+            label: "Edit",
+            icon: Edit2,
+            onClick: (row: Dealer) => setEditDealer(row),
+            permission: "crm:manage"
+          },
+          {
+            key: "print",
+            label: "Print",
+            icon: Printer,
+            onClick: (row: Dealer) => printRecord(`Dealer ${row.dealer_id}`, [
+              { label: "Name", value: row.name },
+              { label: "Company", value: row.company ?? "—" },
+            ]),
+          }
+        ];
+
+        return (
+          <SmartTable
+            storageKey="rems_crm_dealers_table"
+            data={dealers}
+            columns={dealerColumns}
+            rowActions={dealerActions}
+            loading={dealersLoading}
+            total={dealersTotal}
+            onParamsChange={fetchDealers}
+            showTypeFilter={false}
+            showStatusFilter={false}
+          />
+        );
+      })()}
+
+      {tab === 3 && (() => {
+        const dealColumns = [
+          { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+          { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
+          { key: "deal_title", label: "Title", sortable: true },
+          { key: "client_name", label: "Client", sortable: true },
+          {
+            key: "deal_value",
+            label: "Value",
+            sortable: true,
+            className: "font-medium text-primary",
+            render: (val: number) => Number(val).toLocaleString()
+          },
+          {
+            key: "status",
+            label: "Status",
+            render: (val: string) => <Badge status={val} />
+          }
+        ];
+
+        const dealActions = [
+          {
+            key: "view",
+            label: "View",
+            icon: Eye,
+            onClick: (row: Deal) => navigate(`/crm/deals/${row.id}`),
+          },
+          {
+            key: "print",
+            label: "Print",
+            icon: Printer,
+            onClick: (row: Deal) => printRecord(`Deal ${row.deal_id}`, [
+              { label: "Title", value: row.deal_title ?? "—" },
+              { label: "Client", value: row.client_name ?? "—" },
+              { label: "Value", value: String(row.deal_value) },
+              { label: "Status", value: row.status },
+            ]),
+          }
+        ];
+
+        return (
+          <SmartTable
+            storageKey="rems_crm_deals_table"
+            data={deals}
+            columns={dealColumns}
+            rowActions={dealActions}
+            loading={dealsLoading}
+            total={dealsTotal}
+            onParamsChange={fetchDeals}
+            showTypeFilter={false}
+            showStatusFilter={false}
+          />
+        );
+      })()}
 
       {tab === 4 && (
         <BookingList />

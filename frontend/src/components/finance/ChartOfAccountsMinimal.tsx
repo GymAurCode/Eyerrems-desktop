@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, AlertCircle } from "lucide-react";
+import { api } from "../../lib/api";
 
 // Minimal account type
 interface MinimalAccount {
@@ -17,21 +18,10 @@ interface MinimalAccount {
   children: MinimalAccount[];
 }
 
-// Simple API call without external dependencies
+// Simple API call using standard API client
 async function loadAccountsSimple(): Promise<MinimalAccount[]> {
   try {
-    const response = await fetch('/api/finance/accounts/tree', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await api.get<MinimalAccount[]>('/finance/accounts/tree').then((r) => r.data);
     return data;
   } catch (error) {
     console.error('Simple API call failed:', error);

@@ -249,9 +249,15 @@ def list_tenants(
     filter: str | None = None,
     startDate: date | None = None,
     endDate: date | None = None,
+    status: str | None = None,
     _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
 ):
     query = db.query(Tenant)
+    if status:
+        if status.lower() == "active":
+            query = query.filter(Tenant.is_active == True)
+        elif status.lower() == "ended":
+            query = query.filter(Tenant.is_active == False)
     query, total = apply_table_filters(
         query=query,
         model=Tenant,

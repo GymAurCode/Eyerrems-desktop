@@ -1,10 +1,11 @@
-import { useEffect, useState, FormEvent } from "react";
-import { Plus, TrendingUp } from "lucide-react";
+import { useEffect, useState, FormEvent, useRef } from "react";
+import { Plus, Printer } from "lucide-react";
 import Modal from "../../Modal";
 import { propApi, PropertySale, Property, Unit, Buyer, Seller } from "../../../lib/propertyApi";
-
 import { formatCurrency } from "../../../lib/currency";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
+import { printRecord } from "../../actions";
+import { SmartTable } from "../../data-table";
+import { api } from "../../../lib/api";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -19,6 +20,9 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
   const [buyers, setBuyers]         = useState<Buyer[]>([]);
   const [sellers, setSellers]       = useState<Seller[]>([]);
   const [open, setOpen]             = useState(false);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const paramsRef = useRef<any>(null);
 
   const [propId, setPropId]     = useState<number | "">("");
   const [unitId, setUnitId]     = useState<number | "">("");
@@ -29,11 +33,43 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
   const [status, setStatus]     = useState("pending");
   const [notes, setNotes]       = useState("");
 
-  const load = () => propApi.getSales().then((res) => {
-    const data = res && 'data' in res ? (res as any).data : res;
-    setSales(Array.isArray(data) ? data : []);
-  });
-  useEffect(() => { void load(); }, [refresh]);
+  const fetchSales = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
+    try {
+      const res = await api.get<PropertySale[]>("/properties/sales/all", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          filter: params.dateFilter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
+        }
+      });
+      const data = res.data;
+      setSales(Array.isArray(data) ? data : []);
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(totalCount);
+    } catch (err) {
+      console.error(err);
+      setSales([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchSales(paramsRef.current);
+    }
+  };
+
+  useEffect(() => {
+    refreshTable();
+  }, [refresh]);
+
   useEffect(() => {
     Promise.all([
       propApi.getProperties(), propApi.getBuyers(), propApi.getSellers(),
@@ -46,6 +82,7 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
       setSellers(Array.isArray(sData) ? sData : []);
     });
   }, []);
+
   useEffect(() => {
     if (!propId) { setUnits([]); setUnitId(""); return; }
     propApi.getUnits(Number(propId)).then((res) => {
@@ -72,63 +109,109 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
     reset(); setOpen(false); onRefresh();
   };
 
+  const columns = [
+    {
+      key: "tid",
+      label: "TID",
+      className: "font-mono text-xs text-blue-400"
+    },
+    {
+      key: "property_id",
+      label: "Property",
+      render: (val: any) => val || "—",
+      className: "text-secondary font-mono text-xs"
+    },
+    {
+      key: "unit_id",
+      label: "Unit",
+      render: (val: any) => val || "—",
+      className: "text-secondary font-mono text-xs"
+    },
+    {
+      key: "buyer_id",
+      label: "Buyer",
+      render: (val: number, row: PropertySale) => {
+        const buyer = buyers.find((b) => b.id === val);
+        return buyer?.name ?? val;
+      },
+      className: "text-primary font-medium"
+    },
+    {
+      key: "seller_id",
+      label: "Seller",
+      render: (val: number, row: PropertySale) => {
+        const seller = sellers.find((s) => s.id === val);
+        return seller?.name ?? val;
+      },
+      className: "text-primary font-medium"
+    },
+    {
+      key: "sale_price",
+      label: "Price",
+      render: (val: any) => formatCurrency(val),
+      className: "text-emerald-400 font-semibold"
+    },
+    {
+      key: "sale_date",
+      label: "Date",
+      className: "text-secondary"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => {
+        const sc = STATUS_COLOR[val] ?? "#94a3b8";
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: `${sc}18`, color: sc }}>{val}</span>
+        );
+      }
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: PropertySale) => {
+        const buyer = buyers.find((b) => b.id === row.buyer_id);
+        const seller = sellers.find((s) => s.id === row.seller_id);
+        printRecord(`Sale ${row.tid}`, [
+          { label: "Buyer", value: buyer?.name ?? String(row.buyer_id) },
+          { label: "Seller", value: seller?.name ?? String(row.seller_id) },
+          { label: "Price", value: formatCurrency(row.sale_price) },
+          { label: "Date", value: row.sale_date },
+          { label: "Status", value: row.status },
+        ]);
+      }
+    }
+  ];
+
   return (
     <>
-      <div className="flex justify-end mb-1">
-        <button type="button" onClick={() => { reset(); setOpen(true); }}
-          className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-          <Plus size={15} /> New Sale
-        </button>
-      </div>
-
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {sales.length === 0 ? (
-          <div className="p-12 text-center">
-            <TrendingUp size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">No sales recorded yet.</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID","Property","Unit","Buyer","Seller","Price","Date","Status"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map((s) => {
-                const sc = STATUS_COLOR[s.status] ?? "#94a3b8";
-                const buyer  = buyers.find((b) => b.id === s.buyer_id);
-                const seller = sellers.find((x) => x.id === s.seller_id);
-                return (
-                  <tr key={s.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400">{s.tid}</td>
-                    <td className="px-4 py-3 text-secondary font-mono text-xs">{s.property_id ?? "—"}</td>
-                    <td className="px-4 py-3 text-secondary font-mono text-xs">{s.unit_id ?? "—"}</td>
-                    <td className="px-4 py-3 text-primary">{buyer?.name ?? s.buyer_id}</td>
-                    <td className="px-4 py-3 text-primary">{seller?.name ?? s.seller_id}</td>
-                    <td className="px-4 py-3 text-emerald-400 font-semibold">{formatCurrency(s.sale_price)}</td>
-                    <td className="px-4 py-3 text-secondary">{s.sale_date}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${sc}18`, color: sc }}>{s.status}</span>
-                    </td>
-                    <ActionsCell>
-                      <QuickRowActions row={s} compact onPrint={(row) => printRecord(`Sale ${row.tid}`, [
-                        { label: "Price", value: formatCurrency(row.sale_price) },
-                        { label: "Date", value: row.sale_date },
-                        { label: "Status", value: row.status },
-                      ])} hiddenActions={["view", "edit", "delete"]} />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <SmartTable
+        storageKey="rems_property_sales"
+        data={sales}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchSales}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Pending", value: "pending" },
+          { label: "Completed", value: "completed" },
+          { label: "Cancelled", value: "cancelled" }
+        ]}
+        showDateFilter={true}
+        toolbarActions={
+          <button type="button" onClick={() => { reset(); setOpen(true); }}
+            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
+            <Plus size={13} /> New Sale
+          </button>
+        }
+      />
 
       <Modal open={open} onClose={() => setOpen(false)} title="Record Sale">
         <form onSubmit={submit} className="space-y-3">

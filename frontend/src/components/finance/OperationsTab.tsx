@@ -1,11 +1,13 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, useRef } from "react";
 import {
   TrendingUp, TrendingDown, RotateCcw, ArrowLeftRight,
-  SlidersHorizontal, GitMerge, AlertTriangle, X,
+  SlidersHorizontal, GitMerge, AlertTriangle, X, Eye, Printer
 } from "lucide-react";
 import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../actions";
+import { SmartTable } from "../data-table";
 import Modal from "../Modal";
 import { formatCurrency } from "../../lib/currency";
+import { api } from "../../lib/api";
 import {
   operationsApi, journalsApi, accountsApi,
   type FinanceOperation, type Journal, type Account,
@@ -687,18 +689,36 @@ type ModalType = "revenue" | "expense" | "refund" | "transfer" | "adjustment" | 
 export default function OperationsTab() {
   const [modal, setModal] = useState<ModalType>(null);
   const [ops, setOps] = useState<FinanceOperation[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const paramsRef = useRef<any>(null);
   const [detailOp, setDetailOp] = useState<FinanceOperation | null>(null);
-  const [typeFilter, setTypeFilter] = useState("ALL");
 
-  const load = async () => {
+  const fetchOperations = async (params: any) => {
+    paramsRef.current = params;
     setLoading(true);
-    try { setOps(await operationsApi.history({ limit: 500 })); }
-    catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    try {
+      const res = await api.get<FinanceOperation[]>("/finance/operations", {
+        params: {
+          limit: params.pageSize,
+          skip: (params.page - 1) * params.pageSize,
+          type: params.status || undefined,
+        }
+      });
+      setOps(res.data);
+      setTotal(res.data.length < params.pageSize ? (params.page - 1) * params.pageSize + res.data.length : 1000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  const refreshHistory = () => {
+    if (paramsRef.current) {
+      void fetchOperations(paramsRef.current);
+    }
+  };
 
   const CARDS: { id: ModalType; icon: React.ElementType; title: string; description: string; color: string }[] = [
     {
@@ -733,8 +753,75 @@ export default function OperationsTab() {
     },
   ];
 
-  const TYPES = ["ALL", "REVENUE", "EXPENSE", "REFUND", "TRANSFER", "ADJUSTMENT", "MERGE"];
-  const filtered = typeFilter === "ALL" ? ops : ops.filter(o => o.type === typeFilter);
+  const statusOptions = [
+    { label: "All Types", value: "" },
+    { label: "Revenue", value: "REVENUE" },
+    { label: "Expense", value: "EXPENSE" },
+    { label: "Refund", value: "REFUND" },
+    { label: "Transfer", value: "TRANSFER" },
+    { label: "Adjustment", value: "ADJUSTMENT" },
+    { label: "Merge", value: "MERGE" }
+  ];
+
+  const columns = [
+    { key: "id", label: "#", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    {
+      key: "created_at",
+      label: "Date",
+      render: (val: string) => new Date(val).toLocaleDateString()
+    },
+    {
+      key: "type",
+      label: "Type",
+      render: (val: string) => <TypeBadge type={val} />
+    },
+    { key: "sub_type", label: "Sub-Type", render: (val: string) => val || "—" },
+    {
+      key: "amount",
+      label: "Amount",
+      className: "text-right font-semibold",
+      render: (val: number) => formatCurrency(val)
+    },
+    { key: "from_account_name", label: "From / Debit", render: (val: string) => val || "—" },
+    { key: "to_account_name", label: "To / Credit", render: (val: string) => val || "—" },
+    {
+      key: "journal_id",
+      label: "Reference",
+      className: "font-mono text-xs text-muted",
+      render: (val: any, row: FinanceOperation) => (
+        <span>
+          J#{row.journal_id}{row.reference_journal_id ? ` ← J#${row.reference_journal_id}` : ""}
+        </span>
+      )
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      className: "max-w-[140px] truncate text-xs text-muted",
+      render: (val: string) => val || "—"
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "view",
+      label: "View",
+      icon: Eye,
+      onClick: (row: FinanceOperation) => setDetailOp(row)
+    },
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: FinanceOperation) => printRecord(`Finance Operation #${row.id}`, [
+        { label: "Type", value: row.type },
+        { label: "Amount", value: formatCurrency(row.amount) },
+        { label: "From", value: row.from_account_name ?? "—" },
+        { label: "To", value: row.to_account_name ?? "—" },
+        { label: "Reason", value: row.reason ?? "—" },
+      ])
+    }
+  ];
 
   return (
     <div className="space-y-6">
@@ -756,99 +843,32 @@ export default function OperationsTab() {
       </div>
 
       {/* Operations History Table */}
-      <div className="detail-container">
-        <div className="detail-section flex items-center justify-between flex-wrap gap-2">
-          <p className="detail-section-title mb-0">Operations History</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Type filter */}
-            <div className="flex gap-1 flex-wrap">
-              {TYPES.map(t => (
-                <button key={t} onClick={() => setTypeFilter(t)}
-                  className="text-[10px] px-2.5 py-1 rounded-full font-semibold transition-colors"
-                  style={typeFilter === t
-                    ? { background: (TYPE_STYLE[t] ?? ["rgba(59,130,246,0.2)", "#60a5fa"])[0], color: (TYPE_STYLE[t] ?? ["", "#60a5fa"])[1] }
-                    : { background: "var(--bg-surface2)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-            <button onClick={load}
-              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-              style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
-              Refresh
-            </button>
-          </div>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center px-1">
+          <p className="text-sm font-semibold text-primary">Operations History</p>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Sub-Type</th>
-                <th className="text-right">Amount</th>
-                <th>From / Debit</th>
-                <th>To / Credit</th>
-                <th>Reference</th>
-                <th>Reason</th>
-                <ActionsTh />
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={10} className="text-center py-8" style={{ color: "var(--text-muted)" }}>Loading...</td></tr>
-              )}
-              {!loading && filtered.length === 0 && (
-                <tr><td colSpan={10} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No operations yet</td></tr>
-              )}
-              {filtered.map(op => (
-                <tr key={op.id}>
-                  <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>#{op.id}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{new Date(op.created_at).toLocaleDateString()}</td>
-                  <td><TypeBadge type={op.type} /></td>
-                  <td className="text-xs" style={{ color: "var(--text-muted)" }}>{op.sub_type ?? "—"}</td>
-                  <td className="text-right font-semibold">{formatCurrency(op.amount)}</td>
-                  <td className="text-xs" style={{ color: "var(--text-secondary)" }}>{op.from_account_name ?? "—"}</td>
-                  <td className="text-xs" style={{ color: "var(--text-secondary)" }}>{op.to_account_name ?? "—"}</td>
-                  <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                    J#{op.journal_id}{op.reference_journal_id ? ` ← J#${op.reference_journal_id}` : ""}
-                  </td>
-                  <td className="max-w-[140px] truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                    {op.reason ?? "—"}
-                  </td>
-                  <ActionsCell>
-                    <QuickRowActions
-                      row={op}
-                      compact
-                      onView={(row) => setDetailOp(row)}
-                      onPrint={(row) => printRecord(`Finance Operation #${row.id}`, [
-                        { label: "Type", value: row.type },
-                        { label: "Amount", value: formatCurrency(row.amount) },
-                        { label: "From", value: row.from_account_name ?? "—" },
-                        { label: "To", value: row.to_account_name ?? "—" },
-                        { label: "Reason", value: row.reason ?? "—" },
-                      ])}
-                      hiddenActions={["edit", "delete"]}
-                    />
-                  </ActionsCell>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SmartTable
+          storageKey="rems_finance_operations"
+          data={ops}
+          columns={columns}
+          rowActions={rowActions}
+          loading={loading}
+          total={total}
+          onParamsChange={fetchOperations}
+          showStatusFilter={true}
+          statusOptions={statusOptions}
+          showTypeFilter={false}
+          showDateFilter={false}
+        />
       </div>
 
       {/* Modals */}
-      {modal === "revenue"    && <RevenueModal    onClose={() => setModal(null)} onDone={load} />}
-      {modal === "expense"    && <ExpenseModal    onClose={() => setModal(null)} onDone={load} />}
-      {modal === "refund"     && <RefundModal     onClose={() => setModal(null)} onDone={load} />}
-      {modal === "transfer"   && <TransferModal   onClose={() => setModal(null)} onDone={load} />}
-      {modal === "adjustment" && <AdjustmentModal onClose={() => setModal(null)} onDone={load} />}
-      {modal === "merge"      && <MergeModal      onClose={() => setModal(null)} onDone={load} />}
+      {modal === "revenue"    && <RevenueModal    onClose={() => setModal(null)} onDone={refreshHistory} />}
+      {modal === "expense"    && <ExpenseModal    onClose={() => setModal(null)} onDone={refreshHistory} />}
+      {modal === "refund"     && <RefundModal     onClose={() => setModal(null)} onDone={refreshHistory} />}
+      {modal === "transfer"   && <TransferModal   onClose={() => setModal(null)} onDone={refreshHistory} />}
+      {modal === "adjustment" && <AdjustmentModal onClose={() => setModal(null)} onDone={refreshHistory} />}
+      {modal === "merge"      && <MergeModal      onClose={() => setModal(null)} onDone={refreshHistory} />}
       {detailOp && <DetailModal op={detailOp} onClose={() => setDetailOp(null)} />}
     </div>
   );

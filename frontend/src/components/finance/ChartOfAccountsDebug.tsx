@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from "react";
+import { api } from "../../lib/api";
 
 export default function ChartOfAccountsDebug() {
   const [mounted, setMounted] = useState(false);
@@ -82,24 +83,11 @@ function TestAPICall() {
   const testAPI = async () => {
     setStatus('loading');
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch('/finance/accounts/tree', {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setResult(`✅ API Success: ${data.length} accounts loaded`);
-        setStatus('success');
-      } else {
-        setResult(`❌ API Error: ${response.status} ${response.statusText}`);
-        setStatus('error');
-      }
+      const response = await api.get<any[]>('/finance/accounts/tree');
+      setResult(`✅ API Success: ${response.data.length} accounts loaded`);
+      setStatus('success');
     } catch (error: any) {
-      setResult(`❌ Network Error: ${error.message}`);
+      setResult(`❌ API Error: ${error.response?.status || "network"} - ${error.message}`);
       setStatus('error');
     }
   };

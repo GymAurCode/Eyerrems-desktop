@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus, Building2, ChevronDown, ChevronRight,
   ImagePlus, Paperclip, X, Trash2, Hash, Edit2, AlertTriangle,
+  Eye, Printer
 } from "lucide-react";
 import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
 import Modal from "../../Modal";
@@ -11,6 +12,8 @@ import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
 import { propApi, Property, PropertyCategory } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
+import { SmartTable } from "../../data-table";
+import { api } from "../../../lib/api";
 
 type Props = { onView: (id: number) => void; refresh: number; onRefresh: () => void };
 
@@ -49,6 +52,9 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const navigate = useNavigate();
   const [properties, setProperties]   = useState<Property[]>([]);
   const [categories, setCategories]   = useState<PropertyCategory[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const paramsRef = useRef<any>(null);
   const [open, setOpen]               = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState("");
@@ -88,16 +94,50 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const [floorsExpanded, setFloorsExpanded] = useState(false);
   const [mediaExpanded, setMediaExpanded]   = useState(true);
 
-  const loadProperties = () => propApi.getProperties().then((res) => {
-    const data = res && 'data' in res ? (res as any).data : res;
-    setProperties(Array.isArray(data) ? data : []);
-  });
   const loadCategories = () => propApi.getCategories().then((res) => {
     const data = res && 'data' in res ? (res as any).data : res;
     setCategories(Array.isArray(data) ? data : []);
   });
 
-  useEffect(() => { void loadProperties(); }, [refresh]);
+  const fetchProperties = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
+    try {
+      const res = await api.get<Property[]>("/properties", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          property_status: params.status || undefined,
+          property_type: params.propertyType || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
+          filter: params.dateFilter || undefined,
+        }
+      });
+      const data = res.data;
+      setProperties(Array.isArray(data) ? data : []);
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(totalCount);
+    } catch (err) {
+      console.error(err);
+      setProperties([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchProperties(paramsRef.current);
+    }
+  };
+
+  useEffect(() => {
+    refreshTable();
+  }, [refresh]);
+
   useEffect(() => { void loadCategories(); }, []);
 
   const openDialog = async () => {
@@ -222,73 +262,112 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     onRefresh();
   };
 
+  const columns = [
+    {
+      key: "tid",
+      label: "TID",
+      className: "font-mono text-xs text-blue-400"
+    },
+    {
+      key: "address",
+      label: "Address",
+      render: (val: any) => val || "—",
+      className: "text-primary font-medium"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => {
+        const sc = STATUS_COLOR[val] ?? "#94a3b8";
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: `${sc}18`, color: sc }}>{val}</span>
+        );
+      }
+    },
+    {
+      key: "category_name",
+      label: "Category",
+      render: (val: any) => val || "—",
+      className: "text-secondary"
+    },
+    {
+      key: "size",
+      label: "Size",
+      render: (val: any) => val || "—",
+      className: "text-secondary"
+    },
+    {
+      key: "for_sale",
+      label: "For Sale",
+      render: (val: any, row: Property) => row.for_sale ? formatCurrency(row.sale_price) : "No",
+      className: "text-secondary"
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "view",
+      label: "View",
+      icon: Eye,
+      onClick: (row: Property) => navigate(`/property/${row.id}`),
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      icon: Edit2,
+      onClick: (row: Property) => navigate(`/property/${row.id}`),
+    },
+    {
+      key: "delete",
+      label: "Delete",
+      icon: Trash2,
+      variant: "danger" as const,
+      onClick: (row: Property) => void handleDeleteProperty(row),
+    },
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Property) => printRecord(`Property ${row.tid}`, [
+        { label: "TID", value: row.tid },
+        { label: "Address", value: row.address || "—" },
+        { label: "Status", value: row.status },
+        { label: "Category", value: row.category_name || "—" },
+        { label: "Size", value: row.size || "—" },
+        { label: "For Sale", value: row.for_sale ? formatCurrency(row.sale_price) : "No" },
+      ])
+    }
+  ];
+
   return (
     <>
-      <div className="flex justify-end mb-1">
-        <button type="button" onClick={() => void openDialog()}
-          className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-          <Plus size={15} /> New Property
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {properties.length === 0 ? (
-          <div className="p-12 text-center">
-            <Building2 size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">No properties yet.</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID","Address","Status","Category","Size","For Sale"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
-                ))}
-                <ActionsTh />
-              </tr>
-            </thead>
-            <tbody>
-              {properties.map((p) => {
-                const sc = STATUS_COLOR[p.status] ?? "#94a3b8";
-                return (
-                  <tr key={p.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400">{p.tid}</td>
-                    <td className="px-4 py-3 text-primary font-medium">{p.address || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${sc}18`, color: sc }}>{p.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary">{p.category_name || "—"}</td>
-                    <td className="px-4 py-3 text-secondary">{p.size || "—"}</td>
-                    <td className="px-4 py-3 text-secondary">
-                      {p.for_sale ? formatCurrency(p.sale_price) : "No"}
-                    </td>
-                    <ActionsCell>
-                      <QuickRowActions
-                        row={p}
-                        compact
-                        onView={(row) => navigate(`/property/${row.id}`)}
-                        onEdit={(row) => navigate(`/property/${row.id}`)}
-                        onDelete={handleDeleteProperty}
-                        onPrint={(row) => printRecord(`Property ${row.tid}`, [
-                          { label: "TID", value: row.tid },
-                          { label: "Address", value: row.address || "—" },
-                          { label: "Status", value: row.status },
-                          { label: "Category", value: row.category_name || "—" },
-                          { label: "Size", value: row.size || "—" },
-                          { label: "For Sale", value: row.for_sale ? formatCurrency(row.sale_price) : "No" },
-                        ])}
-                      />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <SmartTable
+        storageKey="rems_properties"
+        data={properties}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchProperties}
+        showTypeFilter={true}
+        typeOptions={categories.map((c) => ({ label: c.name, value: c.name }))}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Available", value: "available" },
+          { label: "Reserved", value: "reserved" },
+          { label: "Rented", value: "rented" },
+          { label: "Sold", value: "sold" },
+          { label: "Maintenance", value: "maintenance" }
+        ]}
+        showDateFilter={true}
+        toolbarActions={
+          <button type="button" onClick={() => void openDialog()}
+            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
+            <Plus size={13} /> New Property
+          </button>
+        }
+      />
 
       {/* ── Create Property Dialog ── */}
       <Modal open={open} onClose={() => setOpen(false)} title="New Property" size="xl">

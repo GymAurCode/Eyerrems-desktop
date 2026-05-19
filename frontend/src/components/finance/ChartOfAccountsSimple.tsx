@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { api } from "../../lib/api";
 
 // Basic icons as simple components
 const ChevronRightIcon = () => (
@@ -328,19 +329,7 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
       setError(null);
       console.log('Loading accounts...');
       
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch('/finance/accounts/tree', {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await api.get<AccountTreeNode[]>('/finance/accounts/tree').then((r) => r.data);
       console.log('Accounts loaded:', data.length);
       
       setTree(data);

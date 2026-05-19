@@ -4,6 +4,7 @@ import {
   AlertCircle, ShieldCheck, FileSpreadsheet, X,
 } from "lucide-react";
 import ImportPreviewTable from "./ImportPreviewTable";
+import { api } from "../../lib/api";
 
 interface MasterImportWizardProps {
   onClose: () => void;
@@ -57,20 +58,8 @@ export default function MasterImportWizard({ onClose }: MasterImportWizardProps)
         form.append("files", f);
       });
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/import/master-validate`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-        body: form,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Validation failed");
-      }
-
-      const data = await res.json();
+      const res = await api.post("/import/master-validate", form);
+      const data = res.data;
       setValidation(data);
       setExcludedRows({
         employees: new Set(),
@@ -85,7 +74,8 @@ export default function MasterImportWizard({ onClose }: MasterImportWizardProps)
       setStep("preview");
       setProgress(100);
     } catch (e: any) {
-      setError(e.message || "Failed to validate combined files.");
+      const errMsg = e.response?.data?.detail || e.message || "Failed to validate combined files.";
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -107,26 +97,14 @@ export default function MasterImportWizard({ onClose }: MasterImportWizardProps)
 
     try {
       setProgress(60);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/import/master-execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Master combined import execution failed");
-      }
-
-      const data = await res.json();
+      const res = await api.post("/import/master-execute", payload);
+      const data = res.data;
       setImportResult(data);
       setStep("done");
       setProgress(100);
     } catch (e: any) {
-      setError(e.message || "Failed to execute combined import.");
+      const errMsg = e.response?.data?.detail || e.message || "Failed to execute combined import.";
+      setError(errMsg);
       setStep("preview");
     } finally {
       setLoading(false);

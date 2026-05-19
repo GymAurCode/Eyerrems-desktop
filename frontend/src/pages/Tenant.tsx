@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, TrendingUp, AlertCircle, Clock,
   X, ChevronRight, ChevronLeft, CheckCircle, Bell, DollarSign,
+  Eye, Printer
 } from "lucide-react";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { printRecord } from "../components/actions";
 import { tenantApi, Tenant, TenantDashboard, TenantAlert, WizardPayload } from "../lib/tenantApi";
 import { propApi, Property, Unit, FloorWithUnits } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
+import { SmartTable } from "../components/data-table";
+import { api } from "../lib/api";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -377,34 +380,132 @@ export default function TenantPage() {
   const [dashboard, setDashboard] = useState<TenantDashboard | null>(null);
   const [alerts, setAlerts]       = useState<TenantAlert[]>([]);
   const [showWizard, setWizard]   = useState(false);
-  const [search, setSearch]       = useState("");
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading]     = useState(false);
+  const [total, setTotal]         = useState(0);
+  const paramsRef = useRef<any>(null);
 
-  const load = async () => {
+  const fetchTenants = async (params: any) => {
+    paramsRef.current = params;
     setLoading(true);
     try {
-      const [t, d] = await Promise.all([tenantApi.list(), tenantApi.dashboard()]);
-      setTenants(Array.isArray(t) ? t : []);
+      const res = await api.get<Tenant[]>("/tenants", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          filter: params.dateFilter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
+          status: params.status || undefined,
+        }
+      });
+      const data = res.data;
+      setTenants(Array.isArray(data) ? data : []);
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(totalCount);
+    } catch (err) {
+      console.error(err);
+      setTenants([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDashboard = async () => {
+    try {
+      const d = await tenantApi.dashboard();
       setDashboard(d ?? null);
-    } catch { setTenants([]); }
+    } catch {
+      setDashboard(null);
+    }
     try {
       const a = await tenantApi.alerts();
       setAlerts(Array.isArray(a) ? a : []);
-    } catch { setAlerts([]); }
-    setLoading(false);
+    } catch {
+      setAlerts([]);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
-  const filtered = tenants.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.tenant_id.toLowerCase().includes(search.toLowerCase()) ||
-    (t.phone ?? "").includes(search)
-  );
+  const refreshTable = () => {
+    loadDashboard();
+    if (paramsRef.current) {
+      fetchTenants(paramsRef.current);
+    }
+  };
 
   const alertIcons: Record<string, React.ElementType> = {
     overdue: AlertCircle, due_soon: Clock, lease_expiry: Bell,
   };
+
+  const columns = [
+    {
+      key: "tenant_id",
+      label: "Tenant ID",
+      className: "font-mono text-xs text-blue-400"
+    },
+    {
+      key: "name",
+      label: "Name",
+      className: "text-primary font-medium"
+    },
+    {
+      key: "phone",
+      label: "Phone",
+      className: "text-secondary"
+    },
+    {
+      key: "email",
+      label: "Email",
+      render: (val: any) => val || "—",
+      className: "text-secondary"
+    },
+    {
+      key: "is_active",
+      label: "Status",
+      render: (val: boolean) => {
+        const sc = STATUS_COLOR[val ? "active" : "ended"] ?? "#94a3b8";
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: `${sc}18`, color: sc }}>
+            {val ? "Active" : "Ended"}
+          </span>
+        );
+      }
+    },
+    {
+      key: "created_at",
+      label: "Joined",
+      render: (val: string) => new Date(val).toLocaleDateString(),
+      className: "text-secondary"
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "view",
+      label: "View Detail",
+      icon: Eye,
+      onClick: (row: Tenant) => navigate(`/tenants/${row.id}`)
+    },
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Tenant) => printRecord(`Tenant ${row.tenant_id}`, [
+        { label: "Tenant ID", value: row.tenant_id },
+        { label: "Name", value: row.name },
+        { label: "Phone", value: row.phone ?? "—" },
+        { label: "Email", value: row.email ?? "—" },
+        { label: "Status", value: row.is_active ? "Active" : "Ended" },
+        { label: "Joined", value: new Date(row.created_at).toLocaleDateString() },
+      ])
+    }
+  ];
 
   return (
     <div className="p-6 space-y-5 animate-slide-up">
@@ -460,79 +561,30 @@ export default function TenantPage() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3">
-        <input className="input-dark px-3 py-2 text-sm" style={{ maxWidth: "280px" }}
-          placeholder="Search by name, ID, phone…"
-          value={search} onChange={e => setSearch(e.target.value)} />
-        <button type="button" onClick={() => setWizard(true)}
-          className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-          <Plus size={15} /> New Tenant
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <Users size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">No tenants found.</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Tenant ID", "Name", "Phone", "Email", "Status", "Joined", "Actions"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(t => {
-                const sc = STATUS_COLOR[t.is_active ? "active" : "ended"];
-                return (
-                  <tr key={t.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400">{t.tenant_id}</td>
-                    <td className="px-4 py-3 text-primary font-medium">{t.name}</td>
-                    <td className="px-4 py-3 text-secondary">{t.phone}</td>
-                    <td className="px-4 py-3 text-secondary">{t.email ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${sc}18`, color: sc }}>
-                        {t.is_active ? "Active" : "Ended"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary">{new Date(t.created_at).toLocaleDateString()}</td>
-                    <ActionsCell>
-                      <QuickRowActions
-                        row={t}
-                        compact
-                        onView={(row) => navigate(`/tenants/${row.id}`)}
-                        onPrint={(row) => printRecord(`Tenant ${row.tenant_id}`, [
-                          { label: "Tenant ID", value: row.tenant_id },
-                          { label: "Name", value: row.name },
-                          { label: "Phone", value: row.phone ?? "—" },
-                          { label: "Email", value: row.email ?? "—" },
-                          { label: "Status", value: row.is_active ? "Active" : "Ended" },
-                          { label: "Joined", value: new Date(row.created_at).toLocaleDateString() },
-                        ])}
-                      />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <SmartTable
+        storageKey="rems_tenants"
+        data={tenants}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchTenants}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Active", value: "active" },
+          { label: "Ended", value: "ended" }
+        ]}
+        showDateFilter={true}
+        toolbarActions={
+          <button type="button" onClick={() => setWizard(true)}
+            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
+            <Plus size={13} /> New Tenant
+          </button>
+        }
+      />
 
       {showWizard && (
-        <TenantWizard onClose={() => setWizard(false)} onCreated={() => { setWizard(false); load(); }} />
+        <TenantWizard onClose={() => setWizard(false)} onCreated={() => { setWizard(false); refreshTable(); }} />
       )}
     </div>
   );

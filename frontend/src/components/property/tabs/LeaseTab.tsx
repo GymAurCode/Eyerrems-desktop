@@ -1,10 +1,11 @@
-import { useEffect, useState, FormEvent } from "react";
-import { Plus, FileText } from "lucide-react";
+import { useEffect, useState, FormEvent, useRef } from "react";
+import { Plus, Printer } from "lucide-react";
 import Modal from "../../Modal";
 import { propApi, Lease, Property, Unit } from "../../../lib/propertyApi";
-
 import { formatCurrency } from "../../../lib/currency";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
+import { printRecord } from "../../actions";
+import { SmartTable } from "../../data-table";
+import { api } from "../../../lib/api";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -17,6 +18,9 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [units, setUnits]           = useState<Unit[]>([]);
   const [open, setOpen]             = useState(false);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const paramsRef = useRef<any>(null);
 
   const [propId, setPropId]         = useState<number | "">("");
   const [unitId, setUnitId]         = useState<number | "">("");
@@ -27,17 +31,50 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const [status, setStatus]         = useState("active");
   const [notes, setNotes]           = useState("");
 
-  const load = () => propApi.getLeases().then((res) => {
-    const data = res && 'data' in res ? (res as any).data : res;
-    setLeases(Array.isArray(data) ? data : []);
-  });
-  useEffect(() => { void load(); }, [refresh]);
+  const fetchLeases = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
+    try {
+      const res = await api.get<Lease[]>("/properties/leases/all", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          filter: params.dateFilter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
+        }
+      });
+      const data = res.data;
+      setLeases(Array.isArray(data) ? data : []);
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(totalCount);
+    } catch (err) {
+      console.error(err);
+      setLeases([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchLeases(paramsRef.current);
+    }
+  };
+
+  useEffect(() => {
+    refreshTable();
+  }, [refresh]);
+
   useEffect(() => {
     propApi.getProperties().then((res) => {
       const data = res && 'data' in res ? (res as any).data : res;
       setProperties(Array.isArray(data) ? data : []);
     });
   }, []);
+
   useEffect(() => {
     if (!propId) { setUnits([]); setUnitId(""); return; }
     propApi.getUnits(Number(propId)).then((res) => {
@@ -62,61 +99,93 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
     reset(); setOpen(false); onRefresh();
   };
 
+  const columns = [
+    {
+      key: "tid",
+      label: "TID",
+      className: "font-mono text-xs text-blue-400"
+    },
+    {
+      key: "tenant_name",
+      label: "Tenant",
+      render: (val: any) => val || "—",
+      className: "text-primary font-medium"
+    },
+    {
+      key: "unit_id",
+      label: "Unit ID",
+      className: "text-secondary font-mono text-xs"
+    },
+    {
+      key: "start_date",
+      label: "Start",
+      className: "text-secondary"
+    },
+    {
+      key: "end_date",
+      label: "End",
+      render: (val: any) => val || "—",
+      className: "text-secondary"
+    },
+    {
+      key: "monthly_rent",
+      label: "Rent/mo",
+      render: (val: any) => formatCurrency(val),
+      className: "text-secondary"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => {
+        const sc = STATUS_COLOR[val] ?? "#94a3b8";
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: `${sc}18`, color: sc }}>{val}</span>
+        );
+      }
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Lease) => printRecord(`Lease ${row.tid}`, [
+        { label: "Tenant", value: row.tenant_name || "—" },
+        { label: "Rent", value: formatCurrency(row.monthly_rent) },
+        { label: "Status", value: row.status },
+        { label: "Start Date", value: row.start_date },
+        { label: "End Date", value: row.end_date || "—" },
+      ])
+    }
+  ];
+
   return (
     <>
-      <div className="flex justify-end mb-1">
-        <button type="button" onClick={() => { reset(); setOpen(true); }}
-          className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-          <Plus size={15} /> New Lease
-        </button>
-      </div>
-
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {leases.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">No leases yet.</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID","Tenant","Unit ID","Start","End","Rent/mo","Status"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
-                ))}
-                <ActionsTh />
-              </tr>
-            </thead>
-            <tbody>
-              {leases.map((l) => {
-                const sc = STATUS_COLOR[l.status] ?? "#94a3b8";
-                return (
-                  <tr key={l.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400">{l.tid}</td>
-                    <td className="px-4 py-3 text-primary">{l.tenant_name || "—"}</td>
-                    <td className="px-4 py-3 text-secondary font-mono text-xs">{l.unit_id}</td>
-                    <td className="px-4 py-3 text-secondary">{l.start_date}</td>
-                    <td className="px-4 py-3 text-secondary">{l.end_date || "—"}</td>
-                    <td className="px-4 py-3 text-secondary">{formatCurrency(l.monthly_rent)}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${sc}18`, color: sc }}>{l.status}</span>
-                    </td>
-                    <ActionsCell>
-                      <QuickRowActions row={l} compact onPrint={(row) => printRecord(`Lease ${row.tid}`, [
-                        { label: "Tenant", value: row.tenant_name || "—" },
-                        { label: "Rent", value: formatCurrency(row.monthly_rent) },
-                        { label: "Status", value: row.status },
-                      ])} hiddenActions={["view", "edit", "delete"]} />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <SmartTable
+        storageKey="rems_leases"
+        data={leases}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchLeases}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Active", value: "active" },
+          { label: "Pending", value: "pending" },
+          { label: "Expired", value: "expired" },
+          { label: "Terminated", value: "terminated" }
+        ]}
+        showDateFilter={true}
+        toolbarActions={
+          <button type="button" onClick={() => { reset(); setOpen(true); }}
+            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
+            <Plus size={13} /> New Lease
+          </button>
+        }
+      />
 
       <Modal open={open} onClose={() => setOpen(false)} title="New Lease">
         <form onSubmit={submit} className="space-y-3">

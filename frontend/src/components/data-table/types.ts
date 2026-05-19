@@ -38,7 +38,7 @@ export interface PaginationConfig {
 export interface TableAction<T = any> {
   key: string;
   label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ComponentType<any>;
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'warning';
   onClick: (row: T) => void;
   disabled?: (row: T) => boolean;
@@ -49,7 +49,7 @@ export interface TableAction<T = any> {
 export interface BulkAction<T = any> {
   key: string;
   label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ComponentType<any>;
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'warning';
   onClick: (selectedRows: T[]) => void;
   disabled?: (selectedRows: T[]) => boolean;
@@ -59,7 +59,7 @@ export interface BulkAction<T = any> {
 export interface TableToolbarAction {
   key: string;
   label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ComponentType<any>;
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'warning';
   onClick: () => void;
   disabled?: boolean;
@@ -122,7 +122,7 @@ export interface DataTableProps<T = any> {
   // Empty state
   emptyTitle?: string;
   emptyDescription?: string;
-  emptyIcon?: React.ComponentType<{ size?: number; className?: string }>;
+  emptyIcon?: React.ComponentType<any>;
   
   // Row interaction
   onRowClick?: (row: T, index: number) => void;

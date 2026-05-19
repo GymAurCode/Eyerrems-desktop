@@ -2,16 +2,18 @@
  * HR Management Page
  * Tabs: Dashboard · Employees · Attendance · Leaves · Payroll · Setup
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Users, Calendar, FileText, DollarSign, Settings2, Plus,
   RefreshCw, Search, CheckCircle, XCircle, Clock,
   Building2, MapPin, Briefcase, UserCheck,
-  TrendingUp, ArrowDownRight, Printer,
+  TrendingUp, ArrowDownRight, Printer, Eye,
 } from "lucide-react";
 import Modal from "../components/Modal";
 import { formatCurrency } from "../lib/currency";
 import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { SmartTable } from "../components/data-table";
+import { api } from "../lib/api";
 import {
   departmentsApi, positionsApi, branchesApi, employeesApi,
   attendanceApi, leaveTypesApi, leavesApi, payrollApi, holidaysApi,
@@ -224,7 +226,7 @@ function DashboardTab({ employees, departments }: { employees: Employee[]; depar
                   <td style={{ color: "var(--text-secondary)" }}>{emp.department?.name ?? "—"}</td>
                   <td style={{ color: "var(--text-secondary)" }}>{emp.employment_type}</td>
                   <td><StatusBadge status={emp.employment_status} /></td>
-                  <td style={{ color: "var(--text-secondary)" }}>{new Date(emp.joining_date).toLocaleDateString()}</td>
+                  <td style={{ color: "var(--text-secondary)" }}>{emp.joining_date ? new Date(emp.joining_date).toLocaleDateString() : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -240,13 +242,15 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
   employees: Employee[]; departments: Department[]; positions: Position[];
   branches: Branch[]; onRefresh: () => void;
 }) {
-  const [search, setSearch]         = useState("");
-  const [deptFilter, setDeptFilter] = useState("");
+  const [emps, setEmps] = useState<Employee[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const paramsRef = useRef<any>(null);
+
   const [selected, setSelected]     = useState<Employee | null>(null);
   const [showAdd, setShowAdd]       = useState(false);
   const [showSalary, setShowSalary] = useState(false);
   const [salary, setSalary]         = useState<SalaryStructure | null>(null);
-  const [loading, setLoading]       = useState(false);
   const [err, setErr]               = useState("");
 
   const [empForm, setEmpForm] = useState<Record<string, any>>({
@@ -260,11 +264,34 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
     overtime_hourly_rate: 0, effective_from: new Date().toISOString().split("T")[0],
   });
 
-  const filtered = employees.filter(e => {
-    const ms = !search || e.full_name.toLowerCase().includes(search.toLowerCase()) || e.employee_id.toLowerCase().includes(search.toLowerCase());
-    const md = !deptFilter || String(e.department_id) === deptFilter;
-    return ms && md;
-  });
+  const fetchEmployees = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
+    try {
+      const res = await api.get<Employee[]>("/hr/employees", {
+        params: {
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          department_id: params.propertyType ? Number(params.propertyType) : undefined,
+          status: params.status || undefined,
+        }
+      });
+      setEmps(res.data);
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || 0);
+      setTotal(totalCount);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchEmployees(paramsRef.current);
+    }
+  };
 
   const openEmployee = async (emp: Employee) => {
     const detail = await employeesApi.get(emp.id).catch(() => emp);
@@ -278,6 +305,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
       await employeesApi.create(empForm);
       setShowAdd(false);
       setEmpForm({ employment_type: "Permanent", employment_status: "Active", joining_date: new Date().toISOString().split("T")[0] });
+      refreshTable();
       await onRefresh();
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
@@ -300,62 +328,58 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
   const sf = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setSalForm(p => ({ ...p, [key]: parseFloat(e.target.value) || 0 }));
 
+  const columns = [
+    { key: "employee_id", label: "ID", sortable: true, className: "font-mono text-xs text-muted" },
+    { key: "full_name", label: "Name", className: "font-medium text-primary" },
+    { key: "department", label: "Department", render: (val: any, row: Employee) => row.department?.name || "—" },
+    { key: "position", label: "Position", render: (val: any, row: Employee) => row.position?.title || "—" },
+    { key: "employment_type", label: "Type" },
+    { key: "employment_status", label: "Status", render: (val: string) => <StatusBadge status={val} /> },
+    { key: "joining_date", label: "Joined", render: (val: string) => val ? new Date(val).toLocaleDateString() : "—" },
+  ];
+
+  const rowActions = [
+    {
+      key: "view",
+      label: "View",
+      icon: Eye,
+      onClick: (row: Employee) => openEmployee(row)
+    },
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Employee) => printRecord(`Employee ${row.employee_id}`, [
+        { label: "Name", value: row.full_name },
+        { label: "Department", value: row.department?.name ?? "—" },
+        { label: "Position", value: row.position?.title ?? "—" },
+        { label: "Status", value: row.employment_status },
+      ])
+    }
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search employees…" className={`${inputCls} pl-8 w-52`} style={inputStyle} />
-          </div>
-          <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-            className={`${inputCls} w-40`} style={inputStyle}>
-            <option value="">All Departments</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
-        <button onClick={() => { setShowAdd(true); setErr(""); }}
-          className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs">
-          <Plus size={13} /> Add Employee
-        </button>
-      </div>
-
-      <div className="detail-container">
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Position</th><th>Type</th><th>Status</th><th>Joined</th><ActionsTh /></tr></thead>
-            <tbody>
-              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No employees found</td></tr>}
-              {filtered.map(emp => (
-                <tr key={emp.id}>
-                  <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{emp.employee_id}</td>
-                  <td className="font-medium text-primary">{emp.full_name}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.department?.name ?? "—"}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.position?.title ?? "—"}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.employment_type}</td>
-                  <td><StatusBadge status={emp.employment_status} /></td>
-                  <td style={{ color: "var(--text-secondary)" }}>{new Date(emp.joining_date).toLocaleDateString()}</td>
-                  <ActionsCell>
-                    <QuickRowActions
-                      row={emp}
-                      compact
-                      onView={openEmployee}
-                      onPrint={(row) => printRecord(`Employee ${row.employee_id}`, [
-                        { label: "Name", value: row.full_name },
-                        { label: "Department", value: row.department?.name ?? "—" },
-                        { label: "Position", value: row.position?.title ?? "—" },
-                        { label: "Status", value: row.employment_status },
-                      ])}
-                      hiddenActions={["edit", "delete"]}
-                    />
-                  </ActionsCell>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SmartTable
+        storageKey="rems_hr_employees"
+        data={emps}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchEmployees}
+        showTypeFilter={true}
+        typeOptions={departments.map(d => ({ label: d.name, value: String(d.id) }))}
+        showStatusFilter={true}
+        statusOptions={["Active", "Inactive", "Resigned", "Terminated"].map(s => ({ label: s, value: s }))}
+        showDateFilter={false}
+        toolbarActions={
+          <button onClick={() => { setShowAdd(true); setErr(""); }}
+            className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs">
+            <Plus size={13} /> Add Employee
+          </button>
+        }
+      />
 
       {/* Add Employee */}
       <Modal open={showAdd} title="Add Employee" onClose={() => setShowAdd(false)}>
@@ -408,7 +432,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
             <div className="grid grid-cols-2 gap-3 text-xs">
               {([["Employee ID", selected.employee_id], ["Status", selected.employment_status], ["Type", selected.employment_type],
                 ["Department", selected.department?.name ?? "—"], ["Position", selected.position?.title ?? "—"],
-                ["Branch", selected.branch?.name ?? "—"], ["Joined", new Date(selected.joining_date).toLocaleDateString()],
+                ["Branch", selected.branch?.name ?? "—"], ["Joined", selected.joining_date ? new Date(selected.joining_date).toLocaleDateString() : "—"],
                 ["Work Email", selected.work_email ?? "—"]] as [string,string][]).map(([k, v]) => (
                 <div key={k}><p style={{ color: "var(--text-muted)" }}>{k}</p><p className="font-medium text-primary mt-0.5">{v}</p></div>
               ))}
@@ -571,14 +595,15 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
 // ── Leaves Tab ────────────────────────────────────────────────────────────────
 function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveTypes: LeaveType[] }) {
   const [leaves, setLeaves]           = useState<Leave[]>([]);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [empFilter, setEmpFilter]     = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [total, setTotal]             = useState(0);
+  const paramsRef = useRef<any>(null);
+
   const [showRequest, setShowRequest] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
   const [balances, setBalances]       = useState<LeaveBalance[]>([]);
   const [rejectId, setRejectId]       = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [loading, setLoading]         = useState(false);
   const [err, setErr]                 = useState("");
   const [leaveForm, setLeaveForm]     = useState<Record<string, any>>({
     start_date: new Date().toISOString().split("T")[0],
@@ -586,37 +611,82 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
     total_days: 1,
   });
 
-  const loadLeaves = useCallback(async () => {
+  const fetchLeaves = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
     try {
-      const data = await leavesApi.list({ status: statusFilter || undefined, employee_id: empFilter ? Number(empFilter) : undefined });
-      setLeaves(data);
-    } catch { setLeaves([]); }
-  }, [statusFilter, empFilter]);
+      const statusFilter = params.status || undefined;
+      const empFilter = params.propertyType ? Number(params.propertyType) : undefined;
+      
+      const data = await leavesApi.list({
+        status: statusFilter,
+        employee_id: empFilter
+      });
+      
+      const searchTerm = params.search?.toLowerCase() || "";
+      const filteredData = data.filter(l => {
+        const emp = employees.find(e => e.id === l.employee_id);
+        const lt  = leaveTypes.find(t => t.id === l.leave_type_id);
+        const empName = emp?.full_name?.toLowerCase() || "";
+        const leaveTypeName = lt?.name?.toLowerCase() || "";
+        const reasonText = l.reason?.toLowerCase() || "";
+        
+        return !searchTerm || 
+               empName.includes(searchTerm) || 
+               leaveTypeName.includes(searchTerm) || 
+               reasonText.includes(searchTerm);
+      });
 
-  useEffect(() => { loadLeaves(); }, [loadLeaves]);
+      const startIndex = (params.page - 1) * params.pageSize;
+      const endIndex = startIndex + params.pageSize;
+      
+      setLeaves(filteredData.slice(startIndex, endIndex));
+      setTotal(filteredData.length);
+    } catch {
+      setLeaves([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchLeaves(paramsRef.current);
+    }
+  };
 
   const lf = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setLeaveForm(p => ({ ...p, [key]: e.target.value }));
 
   const requestLeave = async () => {
     setErr(""); setLoading(true);
-    try { await leavesApi.request(leaveForm); setShowRequest(false); await loadLeaves(); }
-    catch (e: any) { setErr(e.message); }
+    try {
+      await leavesApi.request(leaveForm);
+      setShowRequest(false);
+      refreshTable();
+    } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
   };
 
   const approve = async (id: number) => {
     setLoading(true);
-    try { await leavesApi.approve(id); await loadLeaves(); }
-    catch (e: any) { alert(e.message); }
+    try {
+      await leavesApi.approve(id);
+      refreshTable();
+    } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const reject = async () => {
     if (!rejectId || !rejectReason) return;
     setLoading(true);
-    try { await leavesApi.reject(rejectId, rejectReason); setRejectId(null); setRejectReason(""); await loadLeaves(); }
-    catch (e: any) { alert(e.message); }
+    try {
+      await leavesApi.reject(rejectId, rejectReason);
+      setRejectId(null);
+      setRejectReason("");
+      refreshTable();
+    } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
@@ -625,60 +695,100 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
     catch { setBalances([]); setShowBalance(true); }
   };
 
+  const columns = [
+    {
+      key: "employee_id",
+      label: "Employee",
+      render: (val: any, row: Leave) => {
+        const emp = employees.find(e => e.id === row.employee_id);
+        return emp?.full_name ?? `#${row.employee_id}`;
+      },
+      className: "font-medium text-primary"
+    },
+    {
+      key: "leave_type_id",
+      label: "Type",
+      render: (val: any, row: Leave) => {
+        const lt = leaveTypes.find(t => t.id === row.leave_type_id);
+        return lt?.name ?? "—";
+      },
+      className: "text-secondary"
+    },
+    {
+      key: "start_date",
+      label: "From",
+      render: (val: string) => new Date(val).toLocaleDateString(),
+      className: "text-secondary"
+    },
+    {
+      key: "end_date",
+      label: "To",
+      render: (val: string) => new Date(val).toLocaleDateString(),
+      className: "text-secondary"
+    },
+    {
+      key: "total_days",
+      label: "Days",
+      className: "font-semibold text-primary"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => <StatusBadge status={val} />
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      className: "max-w-xs truncate text-secondary"
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "approve",
+      label: "Approve",
+      icon: CheckCircle,
+      variant: "success" as const,
+      hidden: (row: Leave) => row.status !== "Pending",
+      onClick: (row: Leave) => approve(row.id),
+    },
+    {
+      key: "reject",
+      label: "Reject",
+      icon: XCircle,
+      variant: "danger" as const,
+      hidden: (row: Leave) => row.status !== "Pending",
+      onClick: (row: Leave) => setRejectId(row.id),
+    },
+    {
+      key: "balance",
+      label: "Balance",
+      icon: Eye,
+      onClick: (row: Leave) => viewBalance(row.employee_id),
+    }
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
-          <select value={empFilter} onChange={e => setEmpFilter(e.target.value)} className={`${inputCls} w-44`} style={inputStyle}>
-            <option value="">All Employees</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${inputCls} w-36`} style={inputStyle}>
-            <option value="">All Status</option>
-            {["Pending","Approved","Rejected","Cancelled"].map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <button onClick={() => { setShowRequest(true); setErr(""); }} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Plus size={13} /> Request Leave</button>
-      </div>
-
-      <div className="detail-container">
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead>
-            <tbody>
-              {leaves.length === 0 && <tr><td colSpan={8} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No leave requests</td></tr>}
-              {leaves.map(l => {
-                const emp = employees.find(e => e.id === l.employee_id);
-                const lt  = leaveTypes.find(t => t.id === l.leave_type_id);
-                return (
-                  <tr key={l.id}>
-                    <td className="font-medium text-primary">{emp?.full_name ?? `#${l.employee_id}`}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{lt?.name ?? "—"}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{new Date(l.start_date).toLocaleDateString()}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{new Date(l.end_date).toLocaleDateString()}</td>
-                    <td className="font-semibold text-primary">{l.total_days}</td>
-                    <td><StatusBadge status={l.status} /></td>
-                    <td className="max-w-xs truncate" style={{ color: "var(--text-secondary)" }}>{l.reason}</td>
-                    <ActionsCell>
-                      <RowActions
-                        row={l}
-                        compact
-                        actions={[
-                          ...(l.status === "Pending" ? [
-                            { type: "approve" as const, handler: () => approve(l.id) },
-                            { type: "reject" as const, handler: () => setRejectId(l.id) },
-                          ] : []),
-                          { type: "view", label: "Balance", handler: () => viewBalance(l.employee_id) },
-                        ]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SmartTable
+        storageKey="rems_hr_leaves"
+        data={leaves}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchLeaves}
+        showTypeFilter={true}
+        typeOptions={employees.map(e => ({ label: e.full_name, value: String(e.id) }))}
+        showStatusFilter={true}
+        statusOptions={["Pending", "Approved", "Rejected", "Cancelled"].map(s => ({ label: s, value: s }))}
+        showDateFilter={false}
+        toolbarActions={
+          <button onClick={() => { setShowRequest(true); setErr(""); }} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs">
+            <Plus size={13} /> Request Leave
+          </button>
+        }
+      />
 
       <Modal open={showRequest} title="Request Leave" onClose={() => setShowRequest(false)}>
         <div className="grid grid-cols-2 gap-3">
@@ -745,49 +855,83 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const [period, setPeriod]       = useState(currentPeriod);
   const [payrolls, setPayrolls]   = useState<Payroll[]>([]);
+  const [total, setTotal]         = useState(0);
   const [summary, setSummary]     = useState<any>(null);
   const [payslip, setPayslip]     = useState<PayslipData | null>(null);
   const [calcEmpId, setCalcEmpId] = useState<number | null>(null);
   const [markPaidId, setMarkPaidId] = useState<number | null>(null);
   const [loading, setLoading]     = useState(false);
+  const paramsRef = useRef<any>(null);
   const [paidForm, setPaidForm]   = useState({
     payment_date: new Date().toISOString().split("T")[0],
     payment_method: "Bank Transfer", transaction_reference: "", bank_account: "",
   });
 
-  const loadPayroll = useCallback(async () => {
-    const [p, s] = await Promise.allSettled([payrollApi.list({ payroll_period: period }), payrollApi.summary(period)]);
-    if (p.status === "fulfilled") setPayrolls(p.value);
-    if (s.status === "fulfilled") setSummary(s.value);
-  }, [period]);
+  const fetchPayroll = async (params: any) => {
+    paramsRef.current = params;
+    setLoading(true);
+    try {
+      const data = await payrollApi.list({
+        payroll_period: period,
+        status: params.status || undefined
+      });
+      
+      const searchTerm = params.search?.toLowerCase() || "";
+      const filteredData = data.filter(p => {
+        const emp = employees.find(e => e.id === p.employee_id);
+        const empName = emp?.full_name?.toLowerCase() || "";
+        return !searchTerm || empName.includes(searchTerm);
+      });
 
-  useEffect(() => { loadPayroll(); }, [loadPayroll]);
+      const startIndex = (params.page - 1) * params.pageSize;
+      const endIndex = startIndex + params.pageSize;
+      
+      setPayrolls(filteredData.slice(startIndex, endIndex));
+      setTotal(filteredData.length);
+    } catch {
+      setPayrolls([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshTable = () => {
+    if (paramsRef.current) {
+      fetchPayroll(paramsRef.current);
+    }
+    payrollApi.summary(period).then(setSummary).catch(() => setSummary(null));
+  };
+
+  useEffect(() => {
+    refreshTable();
+  }, [period]);
 
   const calcSingle = async () => {
     if (!calcEmpId || calcEmpId === -1) return;
     setLoading(true);
-    try { await payrollApi.calculate(calcEmpId, period); setCalcEmpId(null); await loadPayroll(); }
+    try { await payrollApi.calculate(calcEmpId, period); setCalcEmpId(null); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const calcAll = async () => {
     setLoading(true);
-    try { await payrollApi.calculateAll(period); await loadPayroll(); }
+    try { await payrollApi.calculateAll(period); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const approve = async (id: number) => {
     setLoading(true);
-    try { await payrollApi.approve(id); await loadPayroll(); }
+    try { await payrollApi.approve(id); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const postAccounting = async (id: number) => {
     setLoading(true);
-    try { await payrollApi.postAccounting(id); await loadPayroll(); }
+    try { await payrollApi.postAccounting(id); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
@@ -795,7 +939,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const markPaid = async () => {
     if (!markPaidId) return;
     setLoading(true);
-    try { await payrollApi.markPaid(markPaidId, paidForm); setMarkPaidId(null); await loadPayroll(); }
+    try { await payrollApi.markPaid(markPaidId, paidForm); setMarkPaidId(null); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
@@ -808,21 +952,95 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const pf = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setPaidForm(p => ({ ...p, [key]: e.target.value }));
 
+  const columns = [
+    {
+      key: "employee_id",
+      label: "Employee",
+      render: (val: any, row: Payroll) => {
+        const emp = employees.find(e => e.id === row.employee_id);
+        return emp?.full_name ?? `#${row.employee_id}`;
+      },
+      className: "font-medium text-primary"
+    },
+    {
+      key: "basic_salary",
+      label: "Basic",
+      render: (val: number) => formatCurrency(val),
+      className: "text-right text-secondary"
+    },
+    {
+      key: "gross_salary",
+      label: "Gross",
+      render: (val: number) => formatCurrency(val),
+      className: "text-right font-semibold text-emerald-400"
+    },
+    {
+      key: "total_deductions",
+      label: "Deductions",
+      render: (val: number) => formatCurrency(val),
+      className: "text-right text-red-400"
+    },
+    {
+      key: "net_salary",
+      label: "Net",
+      render: (val: number) => formatCurrency(val),
+      className: "text-right font-bold text-primary"
+    },
+    {
+      key: "overtime_hours",
+      label: "OT Hrs",
+      render: (val: number) => Number(val || 0).toFixed(1),
+      className: "text-secondary"
+    },
+    {
+      key: "late_days",
+      label: "Late",
+      className: "text-secondary"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => <StatusBadge status={val} />
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "approve",
+      label: "Approve",
+      icon: CheckCircle,
+      variant: "success" as const,
+      hidden: (row: Payroll) => row.status !== "Calculated",
+      onClick: (row: Payroll) => approve(row.id),
+    },
+    {
+      key: "post",
+      label: "Post",
+      icon: FileText,
+      variant: "primary" as const,
+      hidden: (row: Payroll) => row.status !== "Approved" || !!row.journal_id,
+      onClick: (row: Payroll) => postAccounting(row.id),
+    },
+    {
+      key: "pay",
+      label: "Pay",
+      icon: DollarSign,
+      variant: "warning" as const,
+      hidden: (row: Payroll) => row.status !== "Approved",
+      onClick: (row: Payroll) => setMarkPaidId(row.id),
+    },
+    {
+      key: "payslip",
+      label: "Payslip",
+      icon: Printer,
+      onClick: (row: Payroll) => viewPayslip(row.id),
+    }
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2 items-center">
-          <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className={`${inputCls} w-40`} style={inputStyle} />
-          <button onClick={loadPayroll} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}><RefreshCw size={13} /></button>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setCalcEmpId(-1)} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}><Plus size={13} /> Single</button>
-          <button onClick={calcAll} disabled={loading} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Users size={13} /> {loading ? "Processing…" : "Calculate All"}</button>
-        </div>
-      </div>
-
       {summary && (
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 animate-fadeIn">
           <StatCard label="Employees" value={summary.total_employees} icon={Users} iconBg="rgba(59,130,246,0.12)" iconColor="#3b82f6" />
           <StatCard label="Total Gross" value={formatCurrency(summary.total_gross_salary)} icon={TrendingUp} iconBg="rgba(16,185,129,0.12)" iconColor="#10b981" />
           <StatCard label="Total Deductions" value={formatCurrency(summary.total_deductions)} icon={ArrowDownRight} iconBg="rgba(239,68,68,0.12)" iconColor="#ef4444" />
@@ -830,43 +1048,27 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
         </div>
       )}
 
-      <div className="detail-container">
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead><tr><th>Employee</th><th className="text-right">Basic</th><th className="text-right">Gross</th><th className="text-right">Deductions</th><th className="text-right">Net</th><th>OT Hrs</th><th>Late</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              {payrolls.length === 0 && <tr><td colSpan={9} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No payroll for {period}. Click "Calculate All" to generate.</td></tr>}
-              {payrolls.map(p => {
-                const emp = employees.find(e => e.id === p.employee_id);
-                return (
-                  <tr key={p.id}>
-                    <td className="font-medium text-primary">{emp?.full_name ?? `#${p.employee_id}`}</td>
-                    <td className="text-right" style={{ color: "var(--text-secondary)" }}>{formatCurrency(p.basic_salary)}</td>
-                    <td className="text-right font-semibold text-emerald-400">{formatCurrency(p.gross_salary)}</td>
-                    <td className="text-right text-red-400">{formatCurrency(p.total_deductions)}</td>
-                    <td className="text-right font-bold text-primary">{formatCurrency(p.net_salary)}</td>
-                    <td style={{ color: Number(p.overtime_hours) > 0 ? "#10b981" : "var(--text-secondary)" }}>{Number(p.overtime_hours).toFixed(1)}</td>
-                    <td style={{ color: p.late_days > 0 ? "#f59e0b" : "var(--text-secondary)" }}>{p.late_days}</td>
-                    <td><StatusBadge status={p.status} /></td>
-                    <ActionsCell>
-                      <RowActions
-                        row={p}
-                        compact
-                        actions={[
-                          ...(p.status === "Calculated" ? [{ type: "approve" as const, handler: () => approve(p.id) }] : []),
-                          ...(p.status === "Approved" && !p.journal_id ? [{ type: "custom" as const, label: "Post", handler: () => postAccounting(p.id) }] : []),
-                          ...(p.status === "Approved" ? [{ type: "custom" as const, label: "Pay", handler: () => setMarkPaidId(p.id) }] : []),
-                          { type: "print", label: "Payslip", handler: () => viewPayslip(p.id) },
-                        ]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SmartTable
+        storageKey="rems_hr_payroll"
+        data={payrolls}
+        columns={columns}
+        rowActions={rowActions}
+        loading={loading}
+        total={total}
+        onParamsChange={fetchPayroll}
+        showTypeFilter={false}
+        showStatusFilter={true}
+        statusOptions={["Calculated", "Approved", "Paid"].map(s => ({ label: s, value: s }))}
+        showDateFilter={false}
+        toolbarActions={
+          <div className="flex gap-2 items-center">
+            <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className={`${inputCls} w-40`} style={inputStyle} />
+            <button onClick={refreshTable} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}><RefreshCw size={13} /></button>
+            <button onClick={() => setCalcEmpId(-1)} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}><Plus size={13} /> Single</button>
+            <button onClick={calcAll} disabled={loading} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs"><Users size={13} /> {loading ? "Processing…" : "Calculate All"}</button>
+          </div>
+        }
+      />
 
       <Modal open={calcEmpId !== null} title="Calculate Payroll" onClose={() => setCalcEmpId(null)}>
         <Field label="Employee *">
@@ -947,7 +1149,6 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
     </div>
   );
 }
-
 // ── Setup Tab ─────────────────────────────────────────────────────────────────
 function SetupTab({
   departments, positions, branches, leaveTypes, holidays, onRefresh,
@@ -966,7 +1167,7 @@ function SetupTab({
   const [deptModal, setDeptModal] = useState(false);
 
   const openDept = (d?: Department) => {
-    if (d) { setDeptForm({ name: d.name, code: d.code, description: d.description ?? "" }); setEditDeptId(d.id); }
+    if (d) { setDeptForm({ name: d.name, code: d.code ?? "", description: d.description ?? "" }); setEditDeptId(d.id); }
     else   { setDeptForm(blankDept); setEditDeptId(null); }
     setDeptModal(true);
   };
@@ -994,7 +1195,7 @@ function SetupTab({
   const [posModal, setPosModal] = useState(false);
 
   const openPos = (p?: Position) => {
-    if (p) { setPosForm({ title: p.title, code: p.code, grade: p.grade ?? "", description: p.description ?? "", min_salary: String(p.min_salary ?? ""), max_salary: String(p.max_salary ?? "") }); setEditPosId(p.id); }
+    if (p) { setPosForm({ title: p.title, code: p.code ?? "", grade: p.grade ?? "", description: p.description ?? "", min_salary: String(p.min_salary ?? ""), max_salary: String(p.max_salary ?? "") }); setEditPosId(p.id); }
     else   { setPosForm(blankPos); setEditPosId(null); }
     setPosModal(true);
   };
@@ -1016,7 +1217,7 @@ function SetupTab({
   const [branchModal, setBranchModal] = useState(false);
 
   const openBranch = (b?: Branch) => {
-    if (b) { setBranchForm({ name: b.name, code: b.code, address: b.address ?? "", city: b.city ?? "", country: b.country ?? "", phone: b.phone ?? "", email: b.email ?? "" }); setEditBranchId(b.id); }
+    if (b) { setBranchForm({ name: b.name, code: b.code ?? "", address: b.address ?? "", city: b.city ?? "", country: b.country ?? "", phone: b.phone ?? "", email: b.email ?? "" }); setEditBranchId(b.id); }
     else   { setBranchForm(blankBranch); setEditBranchId(null); }
     setBranchModal(true);
   };

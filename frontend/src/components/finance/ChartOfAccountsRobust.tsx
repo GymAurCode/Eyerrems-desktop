@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { api } from "../../lib/api";
 
 // Basic icons as simple components to avoid lucide-react issues
 const ChevronRightIcon = () => (
@@ -48,137 +49,7 @@ const AlertIcon = () => (
   </svg>
 );
 
-// Safe API wrapper
-class SafeAPI {
-  private static baseURL = '';
-  
-  static setBaseURL(url: string) {
-    this.baseURL = url;
-  }
-  
-  static async get<T>(endpoint: string): Promise<T> {
-    try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'GET',
-        headers,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`API GET ${endpoint} failed:`, error);
-      throw error;
-    }
-  }
-  
-  static async post<T>(endpoint: string, body: any): Promise<T> {
-    try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`API POST ${endpoint} failed:`, error);
-      throw error;
-    }
-  }
-  
-  static async put<T>(endpoint: string, body: any): Promise<T> {
-    try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(body),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`API PUT ${endpoint} failed:`, error);
-      throw error;
-    }
-  }
-  
-  static async delete(endpoint: string): Promise<void> {
-    try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'DELETE',
-        headers,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.error(`API DELETE ${endpoint} failed:`, error);
-      throw error;
-    }
-  }
-}
 
-// Initialize API base URL
-try {
-  const apiUrl = (window as any).__API_URL__ || 
-                 (import.meta as any)?.env?.VITE_API_URL || 
-                 process?.env?.VITE_API_URL || 
-                 'http://127.0.0.1:8000';
-  SafeAPI.setBaseURL(apiUrl);
-} catch (error) {
-  console.error('Failed to set API base URL:', error);
-  SafeAPI.setBaseURL('http://127.0.0.1:8000');
-}
 
 // Account types
 interface AccountTreeNode {
@@ -243,7 +114,7 @@ const ActionButton = React.memo(({
   title,
   className = ""
 }: { 
-  onClick: () => void; 
+  onClick: (e?: React.MouseEvent) => void; 
   children: React.ReactNode; 
   title: string;
   className?: string;
@@ -294,8 +165,8 @@ const TreeNode = React.memo(({
     }
   }, [node, onSelect]);
 
-  const handleToggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleToggle = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
       setOpen(prev => !prev);
     } catch (error) {
@@ -303,8 +174,8 @@ const TreeNode = React.memo(({
     }
   }, []);
 
-  const handleAdd = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleAdd = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
       onAdd(node);
     } catch (error) {
@@ -312,8 +183,8 @@ const TreeNode = React.memo(({
     }
   }, [node, onAdd]);
 
-  const handleEdit = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleEdit = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
       onEdit(node);
     } catch (error) {
@@ -321,8 +192,8 @@ const TreeNode = React.memo(({
     }
   }, [node, onEdit]);
 
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
       onDelete(node);
     } catch (error) {
@@ -435,7 +306,7 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
       setError(null);
       console.log('Loading accounts...');
       
-      const data = await SafeAPI.get<AccountTreeNode[]>('/finance/accounts/tree');
+      const data = await api.get<AccountTreeNode[]>('/finance/accounts/tree').then((r) => r.data);
       console.log('Accounts loaded:', data.length);
       
       setTree(data);

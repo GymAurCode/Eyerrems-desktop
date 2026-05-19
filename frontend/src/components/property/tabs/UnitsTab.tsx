@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { Printer } from "lucide-react";
 import { propApi, Property, Unit } from "../../../lib/propertyApi";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../actions";
+import { printRecord } from "../../actions";
+import { SmartTable } from "../../data-table";
+import { api } from "../../../lib/api";
+import { formatCurrency } from "../../../lib/currency";
 
 type Props = { refresh: number };
 
@@ -13,6 +17,9 @@ export default function UnitsTab({ refresh }: Props) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProp, setSelectedProp] = useState<number | "">("");
   const [units, setUnits]           = useState<Unit[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const paramsRef = useRef<any>(null);
 
   useEffect(() => {
     propApi.getProperties().then((res) => {
@@ -21,13 +28,101 @@ export default function UnitsTab({ refresh }: Props) {
     });
   }, [refresh]);
 
-  useEffect(() => {
-    if (selectedProp === "") { setUnits([]); return; }
-    propApi.getUnits(Number(selectedProp)).then((res) => {
-      const data = res && 'data' in res ? (res as any).data : res;
+  const fetchUnits = async (params: any) => {
+    paramsRef.current = params;
+    if (selectedProp === "") {
+      setUnits([]);
+      setTotal(0);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.get<Unit[]>("/properties/units/all", {
+        params: {
+          property_id: Number(selectedProp),
+          limit: params.pageSize,
+          offset: (params.page - 1) * params.pageSize,
+          search: params.search || undefined,
+          filter: params.dateFilter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
+        }
+      });
+      const data = res.data;
       setUnits(Array.isArray(data) ? data : []);
-    });
+      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(totalCount);
+    } catch (err) {
+      console.error(err);
+      setUnits([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (paramsRef.current) {
+      fetchUnits(paramsRef.current);
+    }
   }, [selectedProp, refresh]);
+
+  const columns = [
+    {
+      key: "tid",
+      label: "TID",
+      className: "font-mono text-xs text-blue-400"
+    },
+    {
+      key: "unit_number",
+      label: "Unit #",
+      className: "text-primary font-medium"
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (val: string) => {
+        const sc = STATUS_COLOR[val] ?? "#94a3b8";
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: `${sc}18`, color: sc }}>{val}</span>
+        );
+      }
+    },
+    {
+      key: "size",
+      label: "Size",
+      render: (val: any) => val || "—",
+      className: "text-secondary"
+    },
+    {
+      key: "rent_amount",
+      label: "Rent/mo",
+      render: (val: any) => val ? formatCurrency(val) : "—",
+      className: "text-secondary"
+    },
+    {
+      key: "sale_price",
+      label: "Sale Price",
+      render: (val: any) => val ? formatCurrency(val) : "—",
+      className: "text-secondary"
+    }
+  ];
+
+  const rowActions = [
+    {
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Unit) => printRecord(`Unit ${row.tid}`, [
+        { label: "Unit #", value: row.unit_number },
+        { label: "Status", value: row.status },
+        { label: "Size", value: row.size ? String(row.size) : "—" },
+        { label: "Rent Amount", value: row.rent_amount ? formatCurrency(row.rent_amount) : "—" },
+        { label: "Sale Price", value: row.sale_price ? formatCurrency(row.sale_price) : "—" },
+      ])
+    }
+  ];
 
   return (
     <div className="space-y-4">
@@ -39,59 +134,22 @@ export default function UnitsTab({ refresh }: Props) {
         </select>
       </div>
 
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {selectedProp === "" ? (
-          <p className="p-8 text-center text-secondary text-sm">Select a property to view its units.</p>
-        ) : units.length === 0 ? (
-          <p className="p-8 text-center text-secondary text-sm">No units found for this property.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID","Unit #","Status","Size","Rent/mo","Sale Price"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
-                ))}
-                <ActionsTh />
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((u) => {
-                const sc = STATUS_COLOR[u.status] ?? "#94a3b8";
-                return (
-                  <tr key={u.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400">{u.tid}</td>
-                    <td className="px-4 py-3 text-primary font-medium">{u.unit_number}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${sc}18`, color: sc }}>{u.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary">{u.size || "—"}</td>
-                    <td className="px-4 py-3 text-secondary">
-                      {u.rent_amount ? `AED ${Number(u.rent_amount).toLocaleString()}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-secondary">
-                      {u.sale_price ? `AED ${Number(u.sale_price).toLocaleString()}` : "—"}
-                    </td>
-                    <ActionsCell>
-                      <QuickRowActions
-                        row={u}
-                        compact
-                        onPrint={(row) => printRecord(`Unit ${row.tid}`, [
-                          { label: "Unit #", value: row.unit_number },
-                          { label: "Status", value: row.status },
-                          { label: "Size", value: row.size ? String(row.size) : "—" },
-                        ])}
-                        hiddenActions={["view", "edit", "delete"]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {selectedProp === "" ? (
+        <div className="card-dark p-8 text-center text-secondary text-sm" style={{ border: "1px solid var(--border)" }}>
+          Select a property to view its units.
+        </div>
+      ) : (
+        <SmartTable
+          storageKey="rems_property_units"
+          data={units}
+          columns={columns}
+          rowActions={rowActions}
+          loading={loading}
+          total={total}
+          onParamsChange={fetchUnits}
+          showDateFilter={true}
+        />
+      )}
     </div>
   );
 }
