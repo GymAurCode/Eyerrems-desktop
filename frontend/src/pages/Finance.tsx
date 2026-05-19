@@ -638,10 +638,10 @@ function InvoicesTab({
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
           status: params.status || undefined,
         }
       });
@@ -1101,10 +1101,10 @@ function ExpensesTab({ onAdd }: { onAdd: () => void }) {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
         }
       });
       setExpenses(res.data);

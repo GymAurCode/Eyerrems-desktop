@@ -97,10 +97,10 @@ export default function CRMPage() {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
         }
       });
       setLeads(res.data);
@@ -126,10 +126,10 @@ export default function CRMPage() {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
         }
       });
       setClients(res.data);
@@ -155,10 +155,10 @@ export default function CRMPage() {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
         }
       });
       setDealers(res.data);
@@ -184,10 +184,10 @@ export default function CRMPage() {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
-          search: params.search,
-          filter: params.filter,
-          startDate: params.startDate,
-          endDate: params.endDate,
+          search: params.search || undefined,
+          filter: params.filter || undefined,
+          startDate: params.startDate || undefined,
+          endDate: params.endDate || undefined,
         }
       });
       setDeals(res.data);
