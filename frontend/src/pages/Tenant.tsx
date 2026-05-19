@@ -516,7 +516,7 @@ export default function TenantPage() {
                         onPrint={(row) => printRecord(`Tenant ${row.tenant_id}`, [
                           { label: "Tenant ID", value: row.tenant_id },
                           { label: "Name", value: row.name },
-                          { label: "Phone", value: row.phone },
+                          { label: "Phone", value: row.phone ?? "—" },
                           { label: "Email", value: row.email ?? "—" },
                           { label: "Status", value: row.is_active ? "Active" : "Ended" },
                           { label: "Joined", value: new Date(row.created_at).toLocaleDateString() },

@@ -191,7 +191,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       const propRes = await propApi.createProperty({
         tid: tid.trim(),
         address: address || null, description: description || null,
-        status, category_id: categoryId || null, size: size || null,
+        status, category_id: categoryId === "" ? null : categoryId, size: size || null,
         for_sale: forSale, sale_price: forSale && salePrice ? Number(salePrice) : null,
         year_built: yearBuilt ? Number(yearBuilt) : null,
         location_id: locationId, amenity_ids: amenityIds,

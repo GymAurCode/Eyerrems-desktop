@@ -80,7 +80,7 @@ export default function UnitsTab({ refresh }: Props) {
                         onPrint={(row) => printRecord(`Unit ${row.tid}`, [
                           { label: "Unit #", value: row.unit_number },
                           { label: "Status", value: row.status },
-                          { label: "Size", value: row.size || "—" },
+                          { label: "Size", value: row.size ? String(row.size) : "—" },
                         ])}
                         hiddenActions={["view", "edit", "delete"]}
                       />

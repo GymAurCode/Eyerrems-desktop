@@ -243,7 +243,7 @@ const ActionButton = React.memo(({
   title,
   className = ""
 }: { 
-  onClick: (e?: React.MouseEvent) => void; 
+  onClick: () => void; 
   children: React.ReactNode; 
   title: string;
   className?: string;
@@ -303,8 +303,8 @@ const TreeNode = React.memo(({
     }
   }, []);
 
-  const handleAdd = useCallback((e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const handleAdd = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       onAdd(node);
     } catch (error) {
@@ -312,8 +312,8 @@ const TreeNode = React.memo(({
     }
   }, [node, onAdd]);
 
-  const handleEdit = useCallback((e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const handleEdit = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       onEdit(node);
     } catch (error) {
@@ -321,8 +321,8 @@ const TreeNode = React.memo(({
     }
   }, [node, onEdit]);
 
-  const handleDelete = useCallback((e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       onDelete(node);
     } catch (error) {
@@ -419,7 +419,7 @@ export interface ChartOfAccountsProps {
   readOnly?: boolean;
 }
 
-export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsProps) {
+export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccountsProps) {
   const [tree, setTree] = useState<AccountTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AccountTreeNode | null>(null);
@@ -582,7 +582,7 @@ export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsPro
               <div className="flex items-center gap-2">
                 <BookIcon />
                 <span className="text-sm font-bold text-gray-300">
-                  Chart of Accounts (Fixed)
+                  Chart of Accounts (Robust)
                 </span>
                 <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded">
                   {stats.active}/{stats.total}

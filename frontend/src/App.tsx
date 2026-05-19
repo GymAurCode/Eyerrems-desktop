@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SuperAdminRoute from "./components/SuperAdminRoute";
 import FeatureGuard from "./components/FeatureGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
+import { ErrorTrackerPanel } from "./components/ErrorTracker";
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
@@ -486,6 +487,7 @@ export default function App() {
         <Route path="*" element={<Navigate to={token ? "/" : "/login"} replace />} />
       </Routes>
       <ToastContainer />
+      <ErrorTrackerPanel />
     </>
   );
 }

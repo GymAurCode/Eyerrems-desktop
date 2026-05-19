@@ -229,7 +229,7 @@ function PlotFormModal({
         size: size.trim() || undefined,
         plot_type: plotType.trim() || undefined,
         status,
-        price: price ? Number(price) : undefined,
+        price: price || undefined,
         owner_name: ownerName.trim() || undefined,
         owner_phone: ownerPhone.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -429,7 +429,7 @@ function BlockRow({
             </span>
             <span className="font-medium text-primary">{block.name}</span>
             <span className="font-mono text-xs text-blue-400">{block.tid}</span>
-            <BlockTypeBadge type={block.block_type} />
+            <BlockTypeBadge type={block.block_type ?? "residential"} />
           </div>
         </td>
         <td className="px-5 py-3.5">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, MapPin, Tag, ChevronRight, LayoutGrid } from "lucide-react";
 import Modal from "../Modal";
-import { propApi, Location, Amenity, PropertyCategory } from "../../lib/propertyApi";
+import { propApi, Location as PropertyLocation, Amenity, PropertyCategory } from "../../lib/propertyApi";
 
 type Tab = "categories" | "locations" | "amenities";
 
@@ -9,7 +9,7 @@ type Props = { open: boolean; onClose: () => void };
 
 export default function AdvancedOptions({ open, onClose }: Props) {
   const [tab, setTab]               = useState<Tab>("categories");
-  const [locations, setLocations]   = useState<Location[]>([]);
+  const [locations, setLocations]   = useState<PropertyLocation[]>([]);
   const [amenities, setAmenities]   = useState<Amenity[]>([]);
   const [categories, setCategories] = useState<PropertyCategory[]>([]);
 
