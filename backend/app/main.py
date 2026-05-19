@@ -64,6 +64,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 # Tenant resolver — must be added AFTER CORS
 app.add_middleware(TenantMiddleware)

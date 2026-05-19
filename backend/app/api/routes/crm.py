@@ -6,13 +6,14 @@ from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import require_any_permission
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.table_query import apply_table_filters
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.websocket_manager import ws_manager
 from app.models.crm import (
@@ -102,8 +103,32 @@ def _deal_out(deal: Deal) -> dict:
 # ── Leads ─────────────────────────────────────────────────────────────────────
 
 @router.get("/leads", response_model=list[LeadOut])
-def list_leads(db: Session = Depends(get_db), _=Depends(require_any_permission(*PERM_VIEW))):
-    leads = db.query(Lead).options(joinedload(Lead.client)).order_by(Lead.id.desc()).all()
+def list_leads(
+    response: Response,
+    db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    query = db.query(Lead).options(joinedload(Lead.client))
+    query, total = apply_table_filters(
+        query=query,
+        model=Lead,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Lead.name, Lead.phone, Lead.email, Lead.source, Lead.lead_id],
+        date_filter=filter,
+        date_field=Lead.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    leads = query.order_by(Lead.id.desc()).all()
     result = []
     for lead in leads:
         d = LeadOut.model_validate(lead).model_dump()
@@ -181,14 +206,36 @@ def _load_client(db: Session, client_id: int) -> Client:
 
 
 @router.get("/clients", response_model=list[ClientOut])
-def list_clients(db: Session = Depends(get_db), _=Depends(require_any_permission(*PERM_VIEW))):
-    clients = (
+def list_clients(
+    response: Response,
+    db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    query = (
         db.query(Client)
         .options(joinedload(Client.lead), joinedload(Client.assigned_dealer),
                  joinedload(Client.attachments))
-        .order_by(Client.id.desc())
-        .all()
     )
+    query, total = apply_table_filters(
+        query=query,
+        model=Client,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Client.name, Client.phone, Client.email, Client.client_id, Client.tracking_id],
+        date_filter=filter,
+        date_field=Client.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    clients = query.order_by(Client.id.desc()).all()
     return [_client_out(c) for c in clients]
 
 
@@ -273,13 +320,33 @@ def _load_dealer(db: Session, dealer_id: int) -> Dealer:
 
 
 @router.get("/dealers", response_model=list[DealerOut])
-def list_dealers(db: Session = Depends(get_db), _=Depends(require_any_permission(*PERM_VIEW))):
-    return (
-        db.query(Dealer)
-        .options(joinedload(Dealer.attachments))
-        .order_by(Dealer.id.desc())
-        .all()
+def list_dealers(
+    response: Response,
+    db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    query = db.query(Dealer).options(joinedload(Dealer.attachments))
+    query, total = apply_table_filters(
+        query=query,
+        model=Dealer,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Dealer.name, Dealer.phone, Dealer.company, Dealer.dealer_id],
+        date_filter=filter,
+        date_field=Dealer.created_at,
+        start_date=startDate,
+        end_date=endDate,
     )
+    response.headers["X-Total-Count"] = str(total)
+    dealers = query.order_by(Dealer.id.desc()).all()
+    return dealers
 
 
 @router.post("/dealers", response_model=DealerOut)
@@ -375,14 +442,36 @@ def _load_deal(db: Session, deal_id: int) -> Deal:
 
 
 @router.get("/deals", response_model=list[DealOut])
-def list_deals(db: Session = Depends(get_db), _=Depends(require_any_permission(*PERM_VIEW))):
-    deals = (
+def list_deals(
+    response: Response,
+    db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    query = (
         db.query(Deal)
         .options(joinedload(Deal.client), joinedload(Deal.dealer),
                  joinedload(Deal.property), joinedload(Deal.attachments))
-        .order_by(Deal.id.desc())
-        .all()
     )
+    query, total = apply_table_filters(
+        query=query,
+        model=Deal,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Deal.deal_id, Deal.deal_title, Deal.tracking_id],
+        date_filter=filter,
+        date_field=Deal.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    deals = query.order_by(Deal.id.desc()).all()
     return [_deal_out(d) for d in deals]
 
 

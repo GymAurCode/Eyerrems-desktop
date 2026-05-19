@@ -18,7 +18,7 @@ export default function TablePagination({
   onPaginationChange,
   loading = false,
 }: TablePaginationProps) {
-  const { page, pageSize, total, pageSizeOptions = [10, 20, 50, 100] } = pagination;
+  const { page, pageSize, total, pageSizeOptions = [10, 25, 50, 100] } = pagination;
   
   const totalPages = Math.ceil(total / pageSize);
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -83,7 +83,7 @@ export default function TablePagination({
   if (total === 0) {
     return (
       <div className="flex items-center justify-between px-4 py-3 text-xs text-muted">
-        <div>No items to display</div>
+        <div>Showing 0-0 of 0</div>
         <div className="flex items-center gap-2">
           <span>Rows per page:</span>
           <select
@@ -108,7 +108,7 @@ export default function TablePagination({
       {/* Left: Item count and rows per page */}
       <div className="flex items-center gap-6 text-xs text-muted">
         <div>
-          Showing {startItem.toLocaleString()} to {endItem.toLocaleString()} of {total.toLocaleString()} items
+          Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {total.toLocaleString()}
         </div>
         
         <div className="flex items-center gap-2">

@@ -1,9 +1,10 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_permissions, require_any_permission
 from app.core.database import get_db
@@ -319,8 +320,14 @@ async def create_invoice(
 
 @router.get("/invoices", response_model=list[InvoiceResponse])
 async def list_invoices(
+    response: Response,
     skip: int = 0,
-    limit: int = 100,
+    limit: int | None = 100,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     status: str | None = None,
     tenant_id: int | None = None,
     db: Session = Depends(get_db),
@@ -333,7 +340,23 @@ async def list_invoices(
         query = query.filter(Invoice.status == status)
     if tenant_id:
         query = query.filter(Invoice.tenant_id == tenant_id)
-    return query.order_by(Invoice.created_at.desc()).offset(skip).limit(limit).all()
+
+    actual_offset = offset if offset is not None else skip
+
+    query, total = apply_table_filters(
+        query=query,
+        model=Invoice,
+        limit=limit,
+        offset=actual_offset,
+        search=search,
+        search_fields=[Invoice.description, Invoice.status, Invoice.reference],
+        date_filter=filter,
+        date_field=Invoice.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Invoice.created_at.desc()).all()
 
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
@@ -806,19 +829,35 @@ async def create_expense(
 
 @router.get("/expenses", response_model=list[ExpenseResponse])
 async def list_expenses(
+    response: Response,
     skip: int = 0,
-    limit: int = 100,
+    limit: int | None = 100,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    rows = (
-        db.query(Expense, Account)
-        .join(Account, Expense.account_id == Account.id)
-        .order_by(Expense.date.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+    query = db.query(Expense, Account).join(Account, Expense.account_id == Account.id)
+
+    actual_offset = offset if offset is not None else skip
+
+    query, total = apply_table_filters(
+        query=query,
+        model=Expense,
+        limit=limit,
+        offset=actual_offset,
+        search=search,
+        search_fields=[Expense.description, Expense.reference, Expense.paid_from, Account.name, Account.code],
+        date_filter=filter,
+        date_field=Expense.date,
+        start_date=startDate,
+        end_date=endDate,
     )
+    response.headers["X-Total-Count"] = str(total)
+    rows = query.order_by(Expense.date.desc()).all()
     return [
         ExpenseResponse(
             id=exp.id,

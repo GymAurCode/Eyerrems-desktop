@@ -1,9 +1,10 @@
-﻿"""HR Management Routes — Employees, Attendance, Leave, Payroll"""
+"""HR Management Routes — Employees, Attendance, Leave, Payroll"""
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
+from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
@@ -197,23 +198,41 @@ def update_branch(
 
 @router.get("/employees", response_model=List[EmployeeResponse])
 def list_employees(
+    response: Response,
     department_id: Optional[int] = None,
     branch_id: Optional[int] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    filter: Optional[str] = None,
+    startDate: Optional[date] = None,
+    endDate: Optional[date] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("Admin", "Manager", "Staff")),
 ):
-    q = db.query(Employee).filter(Employee.is_active.is_(True))
+    query = db.query(Employee).filter(Employee.is_active.is_(True))
     if department_id:
-        q = q.filter(Employee.department_id == department_id)
+        query = query.filter(Employee.department_id == department_id)
     if branch_id:
-        q = q.filter(Employee.branch_id == branch_id)
+        query = query.filter(Employee.branch_id == branch_id)
     if status:
-        q = q.filter(Employee.employment_status == status)
-    if search:
-        q = q.filter(Employee.full_name.ilike(f"%{search}%"))
-    return q.order_by(Employee.full_name).all()
+        query = query.filter(Employee.employment_status == status)
+
+    query, total = apply_table_filters(
+        query=query,
+        model=Employee,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Employee.full_name, Employee.employee_id, Employee.personal_email, Employee.work_email, Employee.personal_phone, Employee.cnic],
+        date_filter=filter,
+        date_field=Employee.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Employee.full_name).all()
 
 
 @router.post("/employees", response_model=EmployeeResponse, status_code=201)

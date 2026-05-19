@@ -1,9 +1,11 @@
 import shutil
 import uuid
+from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response
 from sqlalchemy.orm import Session, joinedload
+from app.core.table_query import apply_table_filters
 
 from app.api.deps import require_any_permission
 from app.core.config import settings
@@ -179,15 +181,40 @@ def check_tid(
 
 @router.get("/", response_model=list[PropertyOut])
 def list_properties(
+    response: Response,
     db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
+    property_type: str | None = None,
+    property_status: str | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    props = (
+    query = (
         db.query(Property)
         .options(joinedload(Property.amenities), joinedload(Property.category_rel))
-        .order_by(Property.id.desc())
-        .all()
     )
+    if property_type:
+        query = query.join(Property.category_rel).filter(PropertyCategory.name == property_type)
+
+    query, total = apply_table_filters(
+        query=query,
+        model=Property,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Property.name, Property.tid, Property.address, Property.description],
+        date_filter=filter,
+        date_field=Property.created_at,
+        start_date=startDate,
+        end_date=endDate,
+        property_status=property_status
+    )
+    response.headers["X-Total-Count"] = str(total)
+    props = query.order_by(Property.id.desc()).all()
     return [_prop_out(p) for p in props]
 
 
@@ -344,14 +371,34 @@ def delete_floor(
 
 @router.get("/units/all", response_model=list[UnitOut])
 def list_all_units(
+    response: Response,
     property_id: int | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    q = db.query(Unit).join(Floor)
+    query = db.query(Unit).join(Floor)
     if property_id:
-        q = q.filter(Floor.property_id == property_id)
-    return q.order_by(Unit.id).all()
+        query = query.filter(Floor.property_id == property_id)
+    query, total = apply_table_filters(
+        query=query,
+        model=Unit,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Unit.unit_number, Unit.status, Unit.size],
+        date_filter=filter,
+        date_field=Unit.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Unit.id).all()
 
 
 @router.get("/{property_id}/units", response_model=list[UnitOut])
@@ -474,10 +521,31 @@ def list_attachments(
 
 @router.get("/leases/all", response_model=list[LeaseOut])
 def list_leases(
+    response: Response,
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    return db.query(Lease).order_by(Lease.start_date.desc()).all()
+    query = db.query(Lease)
+    query, total = apply_table_filters(
+        query=query,
+        model=Lease,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Lease.tenant_name, Lease.status, Lease.notes],
+        date_filter=filter,
+        date_field=Lease.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Lease.start_date.desc()).all()
 
 
 @router.post("/leases", response_model=LeaseOut)
@@ -502,10 +570,31 @@ async def create_lease(
 
 @router.get("/buyers/all", response_model=list[BuyerOut])
 def list_buyers(
+    response: Response,
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    return db.query(Buyer).order_by(Buyer.id.desc()).all()
+    query = db.query(Buyer)
+    query, total = apply_table_filters(
+        query=query,
+        model=Buyer,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Buyer.name, Buyer.email, Buyer.phone, Buyer.address, Buyer.notes],
+        date_filter=filter,
+        date_field=Buyer.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Buyer.id.desc()).all()
 
 
 @router.post("/buyers", response_model=BuyerOut)
@@ -526,10 +615,31 @@ def create_buyer(
 
 @router.get("/sellers/all", response_model=list[SellerOut])
 def list_sellers(
+    response: Response,
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    return db.query(Seller).order_by(Seller.id.desc()).all()
+    query = db.query(Seller)
+    query, total = apply_table_filters(
+        query=query,
+        model=Seller,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Seller.name, Seller.email, Seller.phone, Seller.address, Seller.notes],
+        date_filter=filter,
+        date_field=Seller.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Seller.id.desc()).all()
 
 
 @router.post("/sellers", response_model=SellerOut)
@@ -550,10 +660,31 @@ def create_seller(
 
 @router.get("/sales/all", response_model=list[PropertySaleOut])
 def list_sales(
+    response: Response,
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    return db.query(PropertySale).order_by(PropertySale.sale_date.desc()).all()
+    query = db.query(PropertySale)
+    query, total = apply_table_filters(
+        query=query,
+        model=PropertySale,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[PropertySale.status, PropertySale.notes],
+        date_filter=filter,
+        date_field=PropertySale.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(PropertySale.sale_date.desc()).all()
 
 
 @router.post("/sales", response_model=PropertySaleOut)

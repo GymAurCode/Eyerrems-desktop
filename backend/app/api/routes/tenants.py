@@ -8,9 +8,10 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
 from app.core.audit import log_create, log_update, log_delete
@@ -240,10 +241,31 @@ def _build_maintenance_out(m: "Maintenance", include_logs: bool = False) -> Main
 
 @router.get("/", response_model=list[TenantOut])
 def list_tenants(
+    response: Response,
     db: Session = Depends(get_db),
+    limit: int | None = None,
+    offset: int | None = None,
+    search: str | None = None,
+    filter: str | None = None,
+    startDate: date | None = None,
+    endDate: date | None = None,
     _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
 ):
-    return db.query(Tenant).order_by(Tenant.id.desc()).all()
+    query = db.query(Tenant)
+    query, total = apply_table_filters(
+        query=query,
+        model=Tenant,
+        limit=limit,
+        offset=offset,
+        search=search,
+        search_fields=[Tenant.name, Tenant.phone, Tenant.email, Tenant.tenant_id, Tenant.cnic],
+        date_filter=filter,
+        date_field=Tenant.created_at,
+        start_date=startDate,
+        end_date=endDate,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return query.order_by(Tenant.id.desc()).all()
 
 
 @router.get("/dashboard", response_model=TenantDashboardOut)
