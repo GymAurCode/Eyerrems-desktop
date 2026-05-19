@@ -21,7 +21,8 @@ import {
 } from "../components/finance/FinanceDialogs";
 import CommissionWorkflow from "../components/finance/CommissionWorkflow";
 import { crmApi } from "../lib/crmApi";
-import ChartOfAccounts from "../components/finance/ChartOfAccounts";
+import ChartOfAccounts from "../components/finance/ChartOfAccountsSimple";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import UnifiedLedgersTab from "../components/finance/UnifiedLedgersTab";
 import OperationsTab from "../components/finance/OperationsTab";
 
@@ -208,7 +209,22 @@ export default function FinancePage() {
       {/* ── Tab Content ── */}
       <div>
         {tab === "dashboard"   && <DashboardTab trialBalance={trialBalance} profitLoss={profitLoss} invoices={invoices} payments={payments} bankBalance={bankBalance} cashBalance={cashBalance} expenses={expenses} />}
-        {tab === "accounts"    && <ChartOfAccounts />}
+        {tab === "accounts"    && (
+          <ErrorBoundary fallback={
+            <div className="p-8 text-center">
+              <h3 className="text-lg font-semibold text-red-400 mb-2">Chart of Accounts Error</h3>
+              <p className="text-sm text-gray-400 mb-4">There was an error loading the Chart of Accounts.</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Refresh Page
+              </button>
+            </div>
+          }>
+            <ChartOfAccounts />
+          </ErrorBoundary>
+        )}
         {tab === "journals"    && <JournalsTab journals={journals} onRefresh={loadJournals} />}
         {tab === "invoices"    && <InvoicesTab invoices={invoices} onPay={(inv) => setDlg(`pay:${inv.id}`)} />}
         {tab === "payments"    && <PaymentsTab payments={payments} />}
