@@ -10,7 +10,7 @@ import Modal from "../components/Modal";
 import { FormField } from "../components/crm/FormField";
 import BookingList from "./crm/bookings/BookingList";
 import { api } from "../lib/api";
-import { AppTable } from "../components/data-table";
+import { AppTable, removeEmptyParams } from "../components/data-table";
 
 const TABS = ["Leads", "Clients", "Dealers", "Deals", "Bookings"];
 
