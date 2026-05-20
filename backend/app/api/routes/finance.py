@@ -349,7 +349,7 @@ async def list_invoices(
         limit=limit,
         offset=actual_offset,
         search=search,
-        search_fields=[Invoice.description, Invoice.status, Invoice.reference],
+        search_fields=[Invoice.description, Invoice.status],
         date_filter=filter,
         date_field=Invoice.created_at,
         start_date=startDate,

@@ -225,7 +225,7 @@ def list_employees(
         limit=limit,
         offset=offset,
         search=search,
-        search_fields=[Employee.full_name, Employee.employee_id, Employee.personal_email, Employee.work_email, Employee.personal_phone, Employee.cnic],
+        search_fields=[Employee.full_name, Employee.employee_id, Employee.personal_email, Employee.work_email, Employee.personal_phone],
         date_filter=filter,
         date_field=Employee.created_at,
         start_date=startDate,
