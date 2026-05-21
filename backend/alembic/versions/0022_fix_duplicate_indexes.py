@@ -3,36 +3,34 @@
 
 Revision ID: 0022_fix_duplicate_indexes
 Revises: 0021_town_module
-Create Date: 2026-05-21 12:14:44
+Create Date: 2026-05-21 12:19:27
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "0022_fix_duplicate_indexes"
- down_revision = "0021_town_module"
+revision = '0022_fix_duplicate_indexes'
+down_revision = '0021_town_module'
 branch_labels = None
 depends_on = None
 
 def upgrade():
-    """Drop potentially duplicate indexes and recreate them safely.
+    """Drop possibly duplicate indexes and recreate them safely.
 
-    The migration is idempotent: it uses ``DROP INDEX IF EXISTS`` (supported by
-    both PostgreSQL and SQLite) and ``CREATE INDEX IF NOT EXISTS`` to ensure the
-    indexes are present without causing duplicate‑index errors.
+    This migration is idempotent: it uses ``DROP INDEX IF EXISTS`` and
+    ``CREATE INDEX IF NOT EXISTS`` which work for both PostgreSQL and SQLite.
     """
     conn = op.get_bind()
 
-    # Helper to drop an index if it exists.
     def drop_if_exists(name: str):
         conn.execute(sa.text(f"DROP INDEX IF EXISTS {name}"))
 
-    # Drop existing possibly‑duplicate indexes.
-    drop_if_exists("ix_blocks_town_id")
-    drop_if_exists("ix_blocks_company_id")
-    drop_if_exists("ix_towns_company_id")
-    drop_if_exists("ix_towns_name")
+    # Drop existing indexes that may already exist.
+    drop_if_exists('ix_blocks_town_id')
+    drop_if_exists('ix_blocks_company_id')
+    drop_if_exists('ix_towns_company_id')
+    drop_if_exists('ix_towns_name')
 
     # Re‑create indexes safely.
     conn.execute(sa.text(
@@ -49,16 +47,14 @@ def upgrade():
     ))
 
 def downgrade():
-    """Revert the ``upgrade`` by dropping the indexes created above.
-
-    The downgrade is also idempotent – it uses ``DROP INDEX IF EXISTS``.
+    """Revert the upgrade by dropping the indexes created above.
     """
     conn = op.get_bind()
     def drop_if_exists(name: str):
         conn.execute(sa.text(f"DROP INDEX IF EXISTS {name}"))
 
-    drop_if_exists("ix_blocks_town_id")
-    drop_if_exists("ix_blocks_company_id")
-    drop_if_exists("ix_towns_company_id")
-    drop_if_exists("ix_towns_name")
+    drop_if_exists('ix_blocks_town_id')
+    drop_if_exists('ix_blocks_company_id')
+    drop_if_exists('ix_towns_company_id')
+    drop_if_exists('ix_towns_name')
 '''
