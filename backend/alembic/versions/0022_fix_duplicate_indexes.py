@@ -1,5 +1,5 @@
-'''python
-"""Alembic migration to fix duplicate index errors.
+"""
+Alembic migration to fix duplicate index errors.
 
 Revision ID: 0022_fix_duplicate_indexes
 Revises: 0021_town_module
@@ -57,4 +57,4 @@ def downgrade():
     drop_if_exists('ix_blocks_company_id')
     drop_if_exists('ix_towns_company_id')
     drop_if_exists('ix_towns_name')
-'''
+
