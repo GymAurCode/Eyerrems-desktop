@@ -159,7 +159,15 @@ class TenantManager:
         
         # Create all tables programmatically
         from app.core.database import Base
-        Base.metadata.create_all(bind=engine)
+        try:
+            Base.metadata.create_all(bind=engine)
+        except Exception as e:
+            # SQLite raises an OperationalError if an index already exists.
+            # We ignore duplicate index errors to make initialization idempotent.
+            if "already exists" in str(e):
+                log.warning(f"[TenantManager] Duplicate index ignored during init: {e}")
+            else:
+                raise
         log.info(f"[TenantManager] Created schema successfully for company '{slug}'")
 
         # Seed data
