@@ -95,7 +95,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     """
     from app.models.company import Company
 
-    # Resolve company
+    # Resolve company in master.db
     company_slug = getattr(payload, "company_slug", None)
     if company_slug:
         company = db.query(Company).filter(Company.slug == company_slug).first()
@@ -106,52 +106,76 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     else:
         company = db.query(Company).filter(Company.slug == "default").first()
 
-    company_id = company.id if company else None
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
-    # Email must be unique per company
-    existing = db.query(User).filter(User.email == payload.email, User.company_id == company_id).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    company_id = company.id
 
-    # Get default Staff role (company-scoped first, then global)
-    staff_role = (
-        db.query(Role).filter(Role.name == "Staff", Role.company_id == company_id).first()
-        or db.query(Role).filter(Role.name == "Staff", Role.company_id.is_(None)).first()
-    )
-    if not staff_role:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Default role not configured. Please run database seed.",
+    # Open tenant database session
+    from app.core.tenant_manager import tenant_manager
+    tenant_db = tenant_manager.get_tenant_session(company.slug)
+    try:
+        # Email must be unique in this company's database
+        existing = tenant_db.query(User).filter(User.email == payload.email, User.company_id == company_id).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+        # Get default Staff role in this company's database
+        staff_role = (
+            tenant_db.query(Role).filter(Role.name == "Staff", Role.company_id == company_id).first()
+        )
+        # Fallback to initialize company DB if default role is not seeded
+        if not staff_role:
+            tenant_manager.initialize_tenant_db(company_id, company.slug)
+            staff_role = (
+                tenant_db.query(Role).filter(Role.name == "Staff", Role.company_id == company_id).first()
+            )
+
+        if not staff_role:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Default role not configured in company database.",
+            )
+
+        user = User(
+            email=payload.email,
+            full_name=payload.full_name,
+            hashed_password=hash_password(payload.password),
+            company_id=company_id,
+            is_super_admin=False,
+            status="pending",
+            is_approved=False,
+            is_active=True,
+            approval_status="pending",
+            role_id=staff_role.id,
+        )
+        user.roles = [staff_role]
+
+        tenant_db.add(user)
+        tenant_db.flush()
+
+        log_create(
+            tenant_db, user_id=user.id, entity_type="user", entity_id=user.id,
+            company_id=company_id, module="Auth",
+            description=f"User {user.email} registered",
+            details={"email": user.email, "full_name": user.full_name},
+            request=request,
         )
 
-    user = User(
-        email=payload.email,
-        full_name=payload.full_name,
-        hashed_password=hash_password(payload.password),
-        company_id=company_id,
-        is_super_admin=False,
-        status="pending",
-        is_approved=False,
-        is_active=True,
-        approval_status="pending",
-        role_id=staff_role.id,
-    )
-    user.roles = [staff_role]
-
-    db.add(user)
-    db.flush()
-
-    log_create(
-        db, user_id=user.id, entity_type="user", entity_id=user.id,
-        company_id=company_id, module="Auth",
-        description=f"User {user.email} registered",
-        details={"email": user.email, "full_name": user.full_name},
-        request=request,
-    )
-
-    db.commit()
-    db.refresh(user)
-    return _user_response(user)
+        tenant_db.commit()
+        tenant_db.refresh(user)
+        return _user_response(user)
+    except HTTPException:
+        tenant_db.rollback()
+        raise
+    except Exception as e:
+        tenant_db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
+    finally:
+        tenant_db.close()
 
 
 @router.get("/pending-users", response_model=list[UserListResponse])
@@ -181,13 +205,58 @@ def list_pending_users_legacy(
 @router.post("/login", response_model=AuthToken)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Login and get access token with tenant context."""
-    # Find user — super-admins have no company_id so search globally by email
+    from app.models.company import Company
+    
+    # 1. Search in master.db first (for super-admins or system-level accounts)
     user = db.query(User).filter(User.email == payload.email).first()
+    target_db = db
+    is_tenant_user = False
+    
+    # If not found in master, or if found but is a regular user (should not be in master.db, but just in case)
+    if not user or (not user.is_super_admin and user.company_id is not None):
+        # Search across all active companies' databases
+        companies = db.query(Company).filter(Company.status == "active").all()
+        found_user = None
+        found_company = None
+        
+        from app.core.tenant_manager import tenant_manager
+        for company in companies:
+            tenant_db = tenant_manager.get_tenant_session(company.slug)
+            try:
+                u = (
+                    tenant_db.query(User)
+                    .options(joinedload(User.roles))
+                    .filter(User.email == payload.email)
+                    .first()
+                )
+                if u:
+                    found_user = u
+                    found_company = company
+                    target_db = tenant_db
+                    is_tenant_user = True
+                    break
+            except Exception as e:
+                import logging
+                logging.getLogger("rems.auth").warning(f"Error querying company {company.slug} during login: {e}")
+                tenant_db.close()
+            else:
+                if not u:
+                    tenant_db.close()
+                    
+        if found_user:
+            user = found_user
+        else:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    if not user or not verify_password(payload.password, user.hashed_password):
+    # Now verify password
+    if not verify_password(payload.password, user.hashed_password):
+        if is_tenant_user:
+            target_db.close()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not user.is_active:
+        if is_tenant_user:
+            target_db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
     user_roles = [r.name.lower() for r in (user.roles or [])]
@@ -196,18 +265,26 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     is_admin = "admin" in user_roles or user.is_super_admin
 
     if not is_admin and (user.status != "active" or not user.is_approved):
+        if is_tenant_user:
+            target_db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is pending admin approval")
 
     # Check company status for non-super-admins
     if not user.is_super_admin and user.company_id:
-        from app.models.company import Company
-        company = db.query(Company).filter(Company.id == user.company_id).first()
-        if company and company.status != "active":
+        if is_tenant_user and found_company and found_company.status != "active":
+            target_db.close()
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company account is suspended")
 
-    user.last_login = datetime.utcnow()
-    log_login(db, user.id, user.email, success=True, company_id=user.company_id, request=request)
-    db.commit()
+    try:
+        user.last_login = datetime.utcnow()
+        log_login(target_db, user.id, user.email, success=True, company_id=user.company_id, request=request)
+        target_db.commit()
+    except Exception as e:
+        target_db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Login session update failed: {str(e)}")
+    finally:
+        if is_tenant_user:
+            target_db.close()
 
     token = create_access_token(
         subject=user.email,

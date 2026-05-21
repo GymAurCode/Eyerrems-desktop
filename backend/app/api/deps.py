@@ -89,7 +89,13 @@ def get_current_user(
     if not user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no company assigned")
 
-    company = db.query(Company).filter(Company.id == user.company_id).first()
+    from app.core.tenant_manager import tenant_manager
+    master_db = tenant_manager.get_master_session()
+    try:
+        company = master_db.query(Company).filter(Company.id == user.company_id).first()
+    finally:
+        master_db.close()
+
     if not company:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company not found")
     if company.status != "active":

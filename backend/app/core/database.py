@@ -1,73 +1,82 @@
 import logging
-from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import declarative_base, sessionmaker
+from typing import Optional
+from fastapi import Request
+from sqlalchemy import text
+from sqlalchemy.orm import declarative_base, Session
 
 from app.core.config import settings
+from app.core.tenant_manager import tenant_manager
 
 log = logging.getLogger("rems.db")
 
-# ── Engine configuration ──────────────────────────────────────────────────────
-# Railway PostgreSQL (and most cloud providers) require SSL.
-# We detect a Railway/cloud URL by checking for common proxy hostnames or
-# the absence of localhost/127.0.0.1, then enforce sslmode=require.
-# The connect_args approach works with both psycopg2 and psycopg3 drivers.
-
-def _build_engine():
-    url = settings.database_url
-    is_local = any(h in url for h in ("localhost", "127.0.0.1", "::1"))
-
-    connect_args: dict = {}
-    if not is_local:
-        # Cloud / Railway PostgreSQL — SSL is mandatory.
-        # psycopg2 accepts sslmode in connect_args; psycopg3 accepts ssl="require".
-        # We set both keys so either driver works.
-        connect_args = {
-            "sslmode": "require",
-        }
-        log.info("[DB] Remote database detected — SSL enabled (sslmode=require)")
-    else:
-        log.info("[DB] Local database detected — SSL disabled")
-
-    engine = create_engine(
-        url,
-        pool_pre_ping=True,       # Detect stale connections before use
-        pool_size=5,              # Keep a small pool for Railway's connection limits
-        max_overflow=10,
-        pool_recycle=300,         # Recycle connections every 5 min to avoid Railway timeouts
-        connect_args=connect_args,
-    )
-
-    # Log first successful connection for diagnostics
-    @event.listens_for(engine, "connect")
-    def on_connect(dbapi_conn, connection_record):
-        log.info("[DB] PostgreSQL connection established successfully")
-
-    return engine
-
-
-engine = _build_engine()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Expose Base and master engine for compatibility with migrations and schemas
 Base = declarative_base()
+engine = tenant_manager.engines["master"]
+SessionLocal = tenant_manager.sessionmakers["master"]
 
+def get_db(request: Optional[Request] = None):
+    """
+    Dynamically resolves database session:
+      - If user is a super admin or no tenant is active, yields master database session.
+      - If tenant is active, yields tenant-isolated company database session.
+    """
+    db = None
+    company_id = None
+    is_super_admin = False
+    
+    if request:
+        company_id = getattr(request.state, "company_id", None)
+        is_super_admin = getattr(request.state, "is_super_admin", False)
+        
+        # If not already determined, try to decode from Authorization header
+        if company_id is None and not is_super_admin:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                try:
+                    from app.core.security import decode_access_token
+                    payload = decode_access_token(token)
+                    if payload:
+                        company_id = payload.get("company_id")
+                        is_super_admin = bool(payload.get("is_super_admin", False))
+                        # Cache on request.state
+                        request.state.company_id = company_id
+                        request.state.is_super_admin = is_super_admin
+                except Exception as e:
+                    log.debug(f"[DB] Could not decode token in get_db: {e}")
 
-def get_db():
-    db = SessionLocal()
+    if is_super_admin or company_id is None:
+        # Use master database
+        db = tenant_manager.get_master_session()
+        log.debug("[DB] Resolved master database session")
+    else:
+        # Use tenant-specific database
+        db = tenant_manager.get_tenant_session_by_id(company_id)
+        if db is None:
+            # Fallback to master database if tenant database fails to open or does not exist
+            log.warning(f"[DB] Company ID {company_id} database session could not be resolved. Falling back to master.db.")
+            db = tenant_manager.get_master_session()
+        else:
+            log.debug(f"[DB] Resolved tenant-isolated database session for company ID {company_id}")
+
     try:
         yield db
     except Exception as exc:
         log.error("[DB] Session error: %s", exc, exc_info=True)
-        db.rollback()
+        if db:
+            db.rollback()
         raise
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 def check_db_connection() -> bool:
-    """Health-check helper — returns True if the database is reachable."""
+    """Health-check helper — returns True if the master database is reachable."""
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True
     except Exception as exc:
-        log.error("[DB] Health check failed: %s", exc)
+        log.error("[DB] Master database health check failed: %s", exc)
         return False
