@@ -228,7 +228,10 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     target_db = db
     is_tenant_user = False
 
-    # If not found in master, or if the found user belongs to a company, search tenant DBs
+    # Load from master DB first if the email exists there.
+    user = db.query(User).options(joinedload(User.roles)).filter(User.email == payload.email).first()
+
+    # If not found in master, or if the master row belongs to a company, search tenant DBs.
     if not user or (user and user.company_id is not None):
         companies = db.query(Company).filter(Company.status == "active").all()
         found_user = None
@@ -260,8 +263,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
         if found_user:
             user = found_user
-      # The rest of the original logic remains unchanged for non-admin users
-    # (If we reached here, the admin case above handled the request)
+
     # Ensure we still have a user object from earlier lookup
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")

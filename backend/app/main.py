@@ -60,6 +60,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    allow_origin_regex=r"https://.*\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
