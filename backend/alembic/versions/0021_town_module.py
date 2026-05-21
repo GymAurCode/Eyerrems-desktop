@@ -46,24 +46,8 @@ def upgrade():
         sa.Column("updated_at",  sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     )
     # ── Safe index creation for towns ───────────────────────────────────────
-    # ix_towns_company_id
-    conn.execute(sa.text("SAVEPOINT sp_ix_towns_company_id"))
-    try:
-        conn.execute(sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_towns_company_id ON towns (company_id)"
-        ))
-        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_towns_company_id"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_towns_company_id"))
-    # ix_towns_name
-    conn.execute(sa.text("SAVEPOINT sp_ix_towns_name"))
-    try:
-        conn.execute(sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_towns_name ON towns (name)"
-        ))
-        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_towns_name"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_towns_name"))
+# Manual index creation for towns removed; indexes are defined in SQLAlchemy models.
+
 
 
     # ── 2. blocks ─────────────────────────────────────────────────────────────
@@ -83,24 +67,8 @@ def upgrade():
     )
     # ── Safe index creation for blocks ────────────────────────────────────────
     conn = op.get_bind()
-    # ix_blocks_town_id
-    conn.execute(sa.text("SAVEPOINT sp_ix_blocks_town_id"))
-    try:
-        conn.execute(sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_blocks_town_id ON blocks (town_id)"
-        ))
-        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_blocks_town_id"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_blocks_town_id"))
-    # ix_blocks_company_id
-    conn.execute(sa.text("SAVEPOINT sp_ix_blocks_company_id"))
-    try:
-        conn.execute(sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_blocks_company_id ON blocks (company_id)"
-        ))
-        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_blocks_company_id"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_blocks_company_id"))
+# Manual index creation for blocks removed; indexes are defined in SQLAlchemy models.
+
 
 
     # ── 3. plots ──────────────────────────────────────────────────────────────

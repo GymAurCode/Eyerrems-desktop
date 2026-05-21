@@ -33,7 +33,7 @@ class Town(Base):
     name        = Column(String(200), nullable=False)
     location    = Column(String(500), nullable=True)
     description = Column(Text, nullable=True)
-    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True)
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -41,6 +41,7 @@ class Town(Base):
 
     __table_args__ = (
         Index("ix_towns_company_id", "company_id"),
+        Index("ix_towns_name", "name"),
     )
 
 
@@ -51,7 +52,7 @@ class Block(Base):
 
     id          = Column(Integer, primary_key=True)
     tid         = Column(String(20), unique=True, nullable=False)   # BLK-0001
-    town_id     = Column(Integer, ForeignKey("towns.id"), nullable=False, index=True)
+    town_id     = Column(Integer, ForeignKey("towns.id"), nullable=False)
     name        = Column(String(200), nullable=False)
     # residential | commercial | mixed | industrial
     block_type  = Column(String(50), nullable=False, default="residential")
@@ -59,7 +60,7 @@ class Block(Base):
     # Construction tracking
     progress_percentage = Column(Float, nullable=False, default=0.0)
     work_type           = Column(String(200), nullable=True)
-    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True)
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
