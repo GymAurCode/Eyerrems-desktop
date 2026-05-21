@@ -43,12 +43,21 @@ class TenantManager:
         
         self.engines: Dict[str, any] = {}
         self.sessionmakers: Dict[str, sessionmaker] = {}
-        self.master_db_path = str(DATABASES_DIR / "master.db")
+        
+        # Resolve master database URL (default to sqlite if not defined/empty)
+        db_url = settings.database_url
+        if not db_url:
+            self.master_db_path = str(DATABASES_DIR / "master.db")
+            db_url = f"sqlite:///{self.master_db_path}"
+        elif db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+            
+        self.master_db_url = db_url
         
         # Build master database engine
-        self._get_or_create_engine("master", f"sqlite:///{self.master_db_path}")
+        self._get_or_create_engine("master", self.master_db_url)
         self._initialized = True
-        log.info(f"[TenantManager] Initialized with master database: {self.master_db_path}")
+        log.info(f"[TenantManager] Initialized master database engine.")
 
     def sanitize_slug(self, slug: str) -> str:
         """Sanitize slug to prevent directory traversal or malformed file names."""
@@ -80,19 +89,24 @@ class TenantManager:
 
             log.info(f"[TenantManager] Creating engine for '{key}' with URL: {db_url}")
             
-            # Enable SQLite foreign key constraints and write-ahead logging (WAL) for concurrency
+            is_sqlite = db_url.startswith("sqlite")
+            connect_args = {}
+            if is_sqlite:
+                connect_args["check_same_thread"] = False
+                
             engine = create_engine(
                 db_url,
-                connect_args={"check_same_thread": False},
+                connect_args=connect_args,
                 pool_pre_ping=True
             )
 
-            @event.listens_for(engine, "connect")
-            def set_sqlite_pragma(dbapi_connection, connection_record):
-                cursor = dbapi_connection.cursor()
-                cursor.execute("PRAGMA foreign_keys=ON")
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.close()
+            if is_sqlite:
+                @event.listens_for(engine, "connect")
+                def set_sqlite_pragma(dbapi_connection, connection_record):
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                    cursor.close()
 
             SessionClass = sessionmaker(autocommit=False, autoflush=False, bind=engine)
             
@@ -102,7 +116,7 @@ class TenantManager:
 
     def get_master_session(self) -> Session:
         """Get a DB session to the master database."""
-        _, SessionClass = self._get_or_create_engine("master", f"sqlite:///{self.master_db_path}")
+        _, SessionClass = self._get_or_create_engine("master", self.master_db_url)
         return SessionClass()
 
     def get_tenant_session(self, slug: str) -> Session:

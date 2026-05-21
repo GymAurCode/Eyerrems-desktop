@@ -14,7 +14,7 @@ Base = declarative_base()
 engine = tenant_manager.engines["master"]
 SessionLocal = tenant_manager.sessionmakers["master"]
 
-def get_db(request: Optional[Request] = None):
+def get_db(request: Request = None):
     """
     Dynamically resolves database session:
       - If user is a super admin or no tenant is active, yields master database session.
