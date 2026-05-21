@@ -78,6 +78,12 @@ def get_current_user(
     if not user.company_id and user.email != "admin@rems.local":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no company assigned")
 
+    if user.email == "admin@rems.local":
+        # Master admin may authenticate with a token that carries no tenant context.
+        request.state.company_id = None
+        request.state.is_super_admin = True
+        return user
+
     from app.core.tenant_manager import tenant_manager
     master_db = tenant_manager.get_master_session()
     try:

@@ -65,7 +65,7 @@ class TenantManager:
             raise ValueError("Company slug cannot be empty")
         # Allow only alphanumeric, hyphens, and underscores
         clean_slug = re.sub(r"[^a-zA-Z0-9_\-]", "", slug)
-        if not clean_slug or clean_slug in ("master", "default"):
+        if not clean_slug or clean_slug == "master":
             raise ValueError(f"Invalid company slug: '{slug}'")
         return clean_slug
 
