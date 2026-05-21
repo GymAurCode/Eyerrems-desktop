@@ -45,8 +45,26 @@ def upgrade():
         sa.Column("created_at",  sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at",  sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     )
-    op.create_index("ix_towns_company_id", "towns", ["company_id"])
-    op.create_index("ix_towns_name",       "towns", ["name"])
+    # ── Safe index creation for towns ───────────────────────────────────────
+    # ix_towns_company_id
+    conn.execute(sa.text("SAVEPOINT sp_ix_towns_company_id"))
+    try:
+        conn.execute(sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_towns_company_id ON towns (company_id)"
+        ))
+        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_towns_company_id"))
+    except Exception:
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_towns_company_id"))
+    # ix_towns_name
+    conn.execute(sa.text("SAVEPOINT sp_ix_towns_name"))
+    try:
+        conn.execute(sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_towns_name ON towns (name)"
+        ))
+        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_towns_name"))
+    except Exception:
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_towns_name"))
+
 
     # ── 2. blocks ─────────────────────────────────────────────────────────────
     op.create_table(
@@ -63,8 +81,27 @@ def upgrade():
         sa.Column("created_at",          sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at",          sa.DateTime(),    nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     )
-    op.create_index("ix_blocks_town_id",    "blocks", ["town_id"])
-    op.create_index("ix_blocks_company_id", "blocks", ["company_id"])
+    # ── Safe index creation for blocks ────────────────────────────────────────
+    conn = op.get_bind()
+    # ix_blocks_town_id
+    conn.execute(sa.text("SAVEPOINT sp_ix_blocks_town_id"))
+    try:
+        conn.execute(sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_blocks_town_id ON blocks (town_id)"
+        ))
+        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_blocks_town_id"))
+    except Exception:
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_blocks_town_id"))
+    # ix_blocks_company_id
+    conn.execute(sa.text("SAVEPOINT sp_ix_blocks_company_id"))
+    try:
+        conn.execute(sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_blocks_company_id ON blocks (company_id)"
+        ))
+        conn.execute(sa.text("RELEASE SAVEPOINT sp_ix_blocks_company_id"))
+    except Exception:
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT sp_ix_blocks_company_id"))
+
 
     # ── 3. plots ──────────────────────────────────────────────────────────────
     op.create_table(
