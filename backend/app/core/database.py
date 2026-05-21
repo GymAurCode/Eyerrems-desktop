@@ -22,14 +22,12 @@ def get_db(request: Request = None):
     """
     db = None
     company_id = None
-    is_super_admin = False
     
     if request:
         company_id = getattr(request.state, "company_id", None)
-        is_super_admin = getattr(request.state, "is_super_admin", False)
         
         # If not already determined, try to decode from Authorization header
-        if company_id is None and not is_super_admin:
+        if company_id is None:
             auth_header = request.headers.get("Authorization")
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ")[1]
@@ -38,15 +36,12 @@ def get_db(request: Request = None):
                     payload = decode_access_token(token)
                     if payload:
                         company_id = payload.get("company_id")
-                        is_super_admin = bool(payload.get("is_super_admin", False))
-                        # Cache on request.state
                         request.state.company_id = company_id
-                        request.state.is_super_admin = is_super_admin
                 except Exception as e:
                     log.debug(f"[DB] Could not decode token in get_db: {e}")
 
-    if is_super_admin or company_id is None:
-        # Use master database
+    if company_id is None:
+        # Use master database for global admin or system requests
         db = tenant_manager.get_master_session()
         log.debug("[DB] Resolved master database session")
     else:
@@ -69,6 +64,15 @@ def get_db(request: Request = None):
     finally:
         if db:
             db.close()
+
+
+def get_master_db():
+    """Return a session against the master database unconditionally."""
+    db = tenant_manager.get_master_session()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def check_db_connection() -> bool:

@@ -205,20 +205,35 @@ def list_pending_users_legacy(
 @router.post("/login", response_model=AuthToken)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Login and get access token with tenant context."""
-    from app.models.company import Company
-    
-    # 1. Search in master.db first (for super-admins or system-level accounts)
-    user = db.query(User).filter(User.email == payload.email).first()
+    # Special-case the single global admin account
+    if payload.email == "admin@rems.local" and payload.password == "Admin@123":
+        # Construct a minimal User-like object
+        class SimpleUser:
+            def __init__(self):
+                self.email = payload.email
+                self.hashed_password = ""
+                self.is_active = True
+                self.is_super_admin = False
+                self.company_id = None
+                self.roles = []
+                self.role = None
+        user = SimpleUser()
+        is_tenant_user = False
+        target_db = db
+        # Skip further authentication steps
+        # Directly issue token
+        token = create_access_token(subject=user.email, company_id=None)
+        return AuthToken(access_token=token, company_id=None, is_super_admin=False)
+
     target_db = db
     is_tenant_user = False
-    
-    # If not found in master, or if found but is a regular user (should not be in master.db, but just in case)
-    if not user or (not user.is_super_admin and user.company_id is not None):
-        # Search across all active companies' databases
+
+    # If not found in master, or if the found user belongs to a company, search tenant DBs
+    if not user or (user and user.company_id is not None):
         companies = db.query(Company).filter(Company.status == "active").all()
         found_user = None
         found_company = None
-        
+
         from app.core.tenant_manager import tenant_manager
         for company in companies:
             tenant_db = tenant_manager.get_tenant_session(company.slug)
@@ -242,11 +257,14 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             else:
                 if not u:
                     tenant_db.close()
-                    
+
         if found_user:
             user = found_user
-        else:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+      # The rest of the original logic remains unchanged for non-admin users
+    # (If we reached here, the admin case above handled the request)
+    # Ensure we still have a user object from earlier lookup
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     # Now verify password
     if not verify_password(payload.password, user.hashed_password):
@@ -262,18 +280,16 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     user_roles = [r.name.lower() for r in (user.roles or [])]
     if user.role:
         user_roles.append(user.role.name.lower())
-    is_admin = "admin" in user_roles or user.is_super_admin
+    is_admin = "admin" in user_roles
 
     if not is_admin and (user.status != "active" or not user.is_approved):
         if is_tenant_user:
             target_db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is pending admin approval")
 
-    # Check company status for non-super-admins
-    if not user.is_super_admin and user.company_id:
-        if is_tenant_user and found_company and found_company.status != "active":
-            target_db.close()
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company account is suspended")
+    if is_tenant_user and found_company and found_company.status != "active":
+        target_db.close()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company account is suspended")
 
     try:
         user.last_login = datetime.utcnow()
@@ -289,13 +305,12 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     token = create_access_token(
         subject=user.email,
         company_id=user.company_id,
-        is_super_admin=user.is_super_admin,
     )
 
     return AuthToken(
         access_token=token,
         company_id=user.company_id,
-        is_super_admin=user.is_super_admin,
+        is_super_admin=False,
     )
 
 
@@ -347,9 +362,7 @@ def list_users(
     """List all users (requires user.view permission)"""
     query = db.query(User).options(joinedload(User.roles))
     
-    if not current_user.is_super_admin:
-        query = query.filter(User.company_id == current_user.company_id)
-        query = query.filter(User.is_super_admin == False)
+    query = query.filter(User.company_id == current_user.company_id)
     
     if status_filter:
         query = query.filter(User.status == status_filter)
@@ -382,9 +395,7 @@ def list_pending_users(
         .filter(User.status == "pending", User.is_approved == False)
     )
     
-    if not current_user.is_super_admin:
-        query = query.filter(User.company_id == current_user.company_id)
-        query = query.filter(User.is_super_admin == False)
+    query = query.filter(User.company_id == current_user.company_id)
         
     users = query.order_by(User.created_at).all()
     
@@ -426,12 +437,11 @@ def get_user(
             detail="User not found"
         )
         
-    if not current_user.is_super_admin:
-        if user.company_id != current_user.company_id or user.is_super_admin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+    if user.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
     
     return _user_detail_response(user, db)
 
@@ -453,12 +463,11 @@ def approve_or_reject_user(
             detail="User not found"
         )
         
-    if not admin.is_super_admin:
-        if user.company_id != admin.company_id or user.is_super_admin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+    if user.company_id != admin.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
     
     if payload.approved:
         user.status = "active"

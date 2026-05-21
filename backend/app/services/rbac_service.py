@@ -389,19 +389,6 @@ class RBACService:
                 "description": "Full system access - ALL PERMISSIONS",
                 "permissions": [p.name for p in all_permissions]  # ALL permissions
             },
-            "Manager": {
-                "description": "Department management access",
-                "permissions": [
-                    "user.view",
-                    "dashboard.view", "dashboard:view",
-                    "hr.view", "hr.create", "hr.update",
-                    "finance.view", "finance.create", "finance.update",
-                    "crm.view", "crm.create", "crm.update",
-                    "property.view", "property.create", "property.update",
-                    "tenant.view", "tenant.create", "tenant.update",
-                    "construction.view", "construction.create", "construction.update",
-                ]
-            },
             "Staff": {
                 "description": "Basic staff access",
                 "permissions": [

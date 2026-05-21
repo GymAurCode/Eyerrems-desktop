@@ -93,7 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       token: data.access_token,
       companyId: data.company_id ?? null,
-      isSuperAdmin: data.is_super_admin ?? false,
+      isSuperAdmin: false,
       _bootstrapFetchedAt: null,
     });
     await useAuthStore.getState().fetchMe();
@@ -107,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         permissions: data.permissions ?? [],
         features: data.features ?? {},
         companyId: data.company_id ?? null,
-        isSuperAdmin: data.is_super_admin ?? false,
+        isSuperAdmin: false,
       });
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -130,7 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         permissions: data.user.permissions ?? [],
         features: data.user.features ?? {},
         companyId: data.user.company_id ?? null,
-        isSuperAdmin: data.user.is_super_admin ?? false,
+        isSuperAdmin: false,
         _bootstrapFetchedAt: Date.now(),
       });
       _bootstrapCache = data;

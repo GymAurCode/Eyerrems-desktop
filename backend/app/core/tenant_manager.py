@@ -196,20 +196,6 @@ class TenantManager:
                     "description": "Full system access — all permissions",
                     "permissions": all_permissions,
                 },
-                "Manager": {
-                    "description": "Department management access",
-                    "permissions": db.query(Permission).filter(
-                        Permission.name.in_([
-                            "user.view", "dashboard.view", "dashboard:view",
-                            "hr.view", "hr.create", "hr.update",
-                            "finance.view", "finance.create", "finance.update",
-                            "crm.view", "crm.create", "crm.update",
-                            "property.view", "property.create", "property.update",
-                            "tenant.view", "tenant.create", "tenant.update",
-                            "construction.view", "construction.create", "construction.update",
-                        ])
-                    ).all(),
-                },
                 "Staff": {
                     "description": "Basic staff access",
                     "permissions": db.query(Permission).filter(

@@ -40,7 +40,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const token        = useAuthStore((s) => s.token);
   const user         = useAuthStore((s) => s.user);
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
 
   // Not authenticated
   if (!token) return <Navigate to="/login" replace />;
@@ -53,9 +52,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       </div>
     );
   }
-
-  // Super-admins must use /super-admin routes — never the company dashboard
-  if (isSuperAdmin) return <Navigate to="/super-admin" replace />;
 
   // If no authorization rules specified, just check authentication
   if (!allowedRoles && !permission && !anyPermissions && !allPermissions) {

@@ -5,9 +5,6 @@ TENANT ISOLATION RULE
 ─────────────────────
 Every protected dependency attaches `request.state.company_id` so route
 handlers can filter queries without repeating the lookup.
-
-Super-admins (is_super_admin=True) bypass company isolation and can access
-all tenants.  They are the ONLY exception.
 """
 from collections.abc import Iterable
 from typing import Optional
@@ -61,8 +58,7 @@ def get_current_user(
     Validate JWT, load user, enforce tenant isolation.
 
     Sets:
-        request.state.company_id   – int | None
-        request.state.is_super_admin – bool
+        request.state.company_id   – int
     """
     payload = decode_access_token(token)
     if not payload:
@@ -70,7 +66,6 @@ def get_current_user(
 
     email: str = payload.get("sub", "")
     token_company_id: Optional[int] = payload.get("company_id")
-    is_super_admin: bool = bool(payload.get("is_super_admin", False))
 
     user = _load_user(db, email)
     if not user:
@@ -79,14 +74,8 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
-    # Super-admin bypass
-    if user.is_super_admin:
-        request.state.company_id    = token_company_id  # may be None
-        request.state.is_super_admin = True
-        return user
-
-    # Regular user — must belong to an active company
-    if not user.company_id:
+    # Regular tenant user — must belong to an active company
+    if not user.company_id and user.email != "admin@rems.local":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no company assigned")
 
     from app.core.tenant_manager import tenant_manager
@@ -119,13 +108,6 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
     return current_user
 
 
-# ── Super-admin guard ─────────────────────────────────────────────────────────
-
-def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Only super-admins may call this route."""
-    if not current_user.is_super_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super-admin access required")
-    return current_user
 
 
 # ── Feature-flag guard ────────────────────────────────────────────────────────
@@ -167,11 +149,11 @@ def require_feature(feature_key: str):
 # ── Permission guards ─────────────────────────────────────────────────────────
 
 def require_permissions(*permission_names: str):
-    """User must have ALL listed permissions.  Admin + super-admin always pass."""
+    """User must have ALL listed permissions.  Admin always passes."""
     required = set(permission_names)
 
     def dep(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.is_super_admin or _is_admin(current_user):
+        if _is_admin(current_user):
             return current_user
         missing = required - current_user.get_all_permissions()
         if missing:
@@ -189,7 +171,7 @@ def require_any_permission(*permission_names: str):
     allowed: Iterable[str] = permission_names
 
     def dep(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.is_super_admin or _is_admin(current_user):
+        if _is_admin(current_user):
             return current_user
         if not current_user.get_all_permissions().intersection(set(allowed)):
             raise HTTPException(
@@ -204,8 +186,6 @@ def require_any_permission(*permission_names: str):
 def require_roles(*roles: str):
     """User must hold one of the specified role names."""
     def dep(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.is_super_admin:
-            return current_user
         user_roles = {r.name for r in current_user.roles}
         if not user_roles and current_user.role:
             user_roles.add(current_user.role.name)

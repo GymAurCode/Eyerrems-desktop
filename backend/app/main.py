@@ -22,7 +22,6 @@ from app.api.routes.reminders import router as reminders_router
 from app.api.routes.hr import router as hr_router
 from app.api.routes.mail import router as mail_router
 # Multi-tenant routes
-from app.api.routes.companies import router as companies_router
 from app.api.routes.company_settings import router as company_settings_router
 from app.api.routes.towns import router as towns_router, town_units_router
 from app.api.routes.ledger import router as ledger_router
@@ -60,8 +59,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Total-Count"],
@@ -89,7 +88,6 @@ app.include_router(reminders_router, prefix="/reminders", tags=["reminders"])
 app.include_router(hr_router, prefix="/hr", tags=["hr"])
 app.include_router(mail_router, prefix="/mail", tags=["mail"])
 # Multi-tenant
-app.include_router(companies_router,        prefix="/super-admin",  tags=["super-admin"])
 app.include_router(company_settings_router,                         tags=["company-settings"])
 # Town / Block / Plot hierarchy
 app.include_router(towns_router, prefix="/towns", tags=["towns"])
@@ -124,6 +122,17 @@ def on_startup():
             print("[REMS] Default Chart of Accounts created.")
     except Exception as e:
         print(f"[REMS] COA seed skipped: {e}")
+    finally:
+        db.close()
+
+    # ── Seed default RBAC & admin account ─────────────────────────────────────
+    db = next(get_db())
+    try:
+        from app.scripts.seed_rbac import seed_rbac
+        seed_rbac(db)
+        print("[REMS] RBAC and Default Admin seeded/verified.")
+    except Exception as e:
+        print(f"[REMS] RBAC and Default Admin seeding failed: {e}")
     finally:
         db.close()
 

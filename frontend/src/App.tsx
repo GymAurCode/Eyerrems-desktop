@@ -7,7 +7,6 @@ import { useUIStore } from "./store/ui";
 import { useCurrencyStore } from "./store/currency";
 import { useRealtimeSocket } from "./hooks/useWebSocket";
 import ProtectedRoute from "./components/ProtectedRoute";
-import SuperAdminRoute from "./components/SuperAdminRoute";
 import FeatureGuard from "./components/FeatureGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
 import { ErrorTrackerPanel } from "./components/ErrorTracker";
@@ -16,7 +15,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
-import SuperAdminLayout from "./layouts/SuperAdminLayout";
 
 // ── Public pages ──────────────────────────────────────────────────────────────
 import LoginPage from "./pages/Login";
@@ -57,15 +55,6 @@ import BookingFormReport from "./pages/reports/BookingFormReport";
 // ── AI Intelligence Center ────────────────────────────────────────────────────
 import AIIntelligencePage from "./pages/AIIntelligence";
 import ImportCenter from "./pages/ImportCenter";
-
-// ── Super Admin pages ─────────────────────────────────────────────────────────
-import SADashboard     from "./pages/superadmin/SADashboard";
-import SACompanies     from "./pages/superadmin/SACompanies";
-import SACreateCompany from "./pages/superadmin/SACreateCompany";
-import SACompanyDetail from "./pages/superadmin/SACompanyDetail";
-import SAFeatures      from "./pages/superadmin/SAFeatures";
-import SAUsers         from "./pages/superadmin/SAUsers";
-import SALogs          from "./pages/superadmin/SALogs";
 
 // ── Page titles ───────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
@@ -115,16 +104,14 @@ function CompanyLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Root redirect — sends super-admin to /super-admin, others to / ────────────
+// ── Root redirect — redirects to dashboard ────────────────────────────────────
 function RootRedirect() {
-  const token        = useAuthStore((s) => s.token);
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
-  const user         = useAuthStore((s) => s.user);
+  const token     = useAuthStore((s) => s.token);
+  const user      = useAuthStore((s) => s.user);
 
   if (!token) return <Navigate to="/login" replace />;
   // Wait for user to load before deciding
   if (!user)  return null;
-  if (isSuperAdmin) return <Navigate to="/super-admin" replace />;
   return <Navigate to="/" replace />;
 }
 
@@ -133,7 +120,7 @@ export default function App() {
   const token    = useAuthStore((s) => s.token);
   const bootstrap = useAuthStore((s) => s.bootstrap);
   const fetchMe  = useAuthStore((s) => s.fetchMe);
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const companyId = useAuthStore((s) => s.companyId);
   const loadCurrency = useCurrencyStore((s) => s.loadCurrency);
 
   useRealtimeSocket(token);
@@ -146,12 +133,12 @@ export default function App() {
     }
   }, [token, bootstrap, fetchMe]);
 
-  // Load currency setting after authentication (skip for super-admin — no company context)
+  // Load currency setting after authentication
   useEffect(() => {
-    if (token && !isSuperAdmin) {
+    if (token && companyId !== null) {
       loadCurrency().catch(() => undefined);
     }
-  }, [token, isSuperAdmin, loadCurrency]);
+  }, [token, companyId, loadCurrency]);
 
   return (
     <>
@@ -159,53 +146,6 @@ export default function App() {
         {/* ── Public ──────────────────────────────────────────────────────── */}
         <Route path="/login"  element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-
-        {/* ── Super Admin — completely separate UI ────────────────────────── */}
-        <Route path="/super-admin" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SADashboard /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/companies" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SACompanies /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/companies/new" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SACreateCompany /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/companies/:id" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SACompanyDetail /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/companies/:id/features" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SAFeatures /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/companies/:id/users" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SACompanyDetail /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/features" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SAFeatures /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/users" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SAUsers /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
-        <Route path="/super-admin/logs" element={
-          <SuperAdminRoute>
-            <SuperAdminLayout><SALogs /></SuperAdminLayout>
-          </SuperAdminRoute>
-        } />
 
         {/* ── Company Dashboard ────────────────────────────────────────────── */}
         <Route path="/" element={

@@ -71,7 +71,7 @@ class User(Base):
     id               = Column(Integer, primary_key=True, index=True)
     # ── Multi-tenant fields ──────────────────────────────────────────────────
     company_id       = Column(Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
-    is_super_admin   = Column(Boolean, nullable=False, default=False)
+    # Removed super admin flag – only a single global admin exists
     # ────────────────────────────────────────────────────────────────────────
     email            = Column(String(255), nullable=False, index=True)
     # NOTE: email is unique *per company* — enforced at application layer
@@ -128,3 +128,8 @@ class User(Base):
     def has_all_permissions(self, *names: str) -> bool:
         perms = self.get_all_permissions()
         return all(n in perms for n in names)
+
+    @property
+    def is_super_admin(self) -> bool:
+        """Legacy compatibility property for removed super-admin support."""
+        return False

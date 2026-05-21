@@ -48,41 +48,103 @@ def seed_rbac(db: Session):
     for role in all_roles:
         print(f"   - {role.name}: {len(role.permissions)} permissions")
     
-    # 3. Create default admin user if not exists
-    print("\n👤 Creating default admin user...")
-    admin_email = "admin@rems.local"
-    existing_admin = db.query(User).filter(User.email == admin_email).first()
+    # 3. Seed Default Company in master
+    print("\n🏢 Ensuring default company exists...")
+    from app.models.company import Company
+    from app.core.tenant_manager import tenant_manager
     
-    if not existing_admin:
-        admin_role = db.query(Role).filter(Role.name == "Admin").first()
-        if not admin_role:
-            print("❌ Admin role not found!")
-            return
+    company = db.query(Company).filter(Company.slug == "default").first()
+    if not company:
+        company = Company(
+            name="Default Company",
+            slug="default",
+            status="active",
+            plan="enterprise",
+            currency_code="PKR"
+        )
+        db.add(company)
+        db.flush()
+        print(f"✅ Created default company: {company.name}")
+    else:
+        print(f"ℹ️  Default company already exists")
+    
+    # 4. Initialize company tenant DB
+    print("\n⚙️  Initializing default company tenant database...")
+    tenant_manager.initialize_tenant_db(company.id, company.slug)
+    
+    # 5. Create default admin user in master if not exists
+    print("\n👤 Creating default admin user in master...")
+    admin_email = "admin@rems.local"
+    existing_admin_master = db.query(User).filter(User.email == admin_email).first()
+    
+    admin_master_role = db.query(Role).filter(Role.name == "Admin").first()
+    if not admin_master_role:
+        print("❌ Admin role not found in master database!")
+        return
         
-        admin_user = User(
+    if not existing_admin_master:
+        admin_user_master = User(
             email=admin_email,
             full_name="System Administrator",
-            hashed_password=hash_password("admin123"),  # Change this in production!
+            hashed_password=hash_password("Admin@123"),
+            company_id=company.id,
             status="active",
             is_approved=True,
             is_active=True,
             approval_status="approved",
-            role_id=admin_role.id,
+            role_id=admin_master_role.id,
         )
-        admin_user.roles = [admin_role]
-        
-        db.add(admin_user)
+        admin_user_master.roles = [admin_master_role]
+        db.add(admin_user_master)
         db.flush()
-        
-        print(f"✅ Created admin user: {admin_email}")
-        print(f"   Password: admin123 (CHANGE THIS IN PRODUCTION!)")
+        print(f"✅ Created admin user in master: {admin_email}")
     else:
-        print(f"ℹ️  Admin user already exists: {admin_email}")
-        # Ensure admin has Admin role
-        admin_role = db.query(Role).filter(Role.name == "Admin").first()
-        if admin_role and admin_role not in existing_admin.roles:
-            existing_admin.roles.append(admin_role)
-            print(f"✅ Added Admin role to existing user")
+        existing_admin_master.company_id = company.id
+        existing_admin_master.hashed_password = hash_password("Admin@123")
+        if admin_master_role not in existing_admin_master.roles:
+            existing_admin_master.roles.append(admin_master_role)
+        db.flush()
+        print(f"ℹ️  Admin user updated/verified in master: {admin_email}")
+        
+    # 6. Create default admin user in tenant database if not exists
+    print("\n👤 Creating default admin user in tenant...")
+    tenant_db = tenant_manager.get_tenant_session(company.slug)
+    try:
+        existing_admin_tenant = tenant_db.query(User).filter(User.email == admin_email).first()
+        admin_tenant_role = tenant_db.query(Role).filter(Role.name == "Admin").first()
+        if not admin_tenant_role:
+            print("❌ Admin role not found in tenant database!")
+            return
+            
+        if not existing_admin_tenant:
+            admin_user_tenant = User(
+                email=admin_email,
+                full_name="System Administrator",
+                hashed_password=hash_password("Admin@123"),
+                company_id=company.id,
+                status="active",
+                is_approved=True,
+                is_active=True,
+                approval_status="approved",
+                role_id=admin_tenant_role.id,
+            )
+            admin_user_tenant.roles = [admin_tenant_role]
+            tenant_db.add(admin_user_tenant)
+            tenant_db.commit()
+            print(f"✅ Created admin user in tenant: {admin_email}")
+        else:
+            existing_admin_tenant.company_id = company.id
+            existing_admin_tenant.hashed_password = hash_password("Admin@123")
+            if admin_tenant_role not in existing_admin_tenant.roles:
+                existing_admin_tenant.roles.append(admin_tenant_role)
+            tenant_db.commit()
+            print(f"ℹ️  Admin user updated/verified in tenant: {admin_email}")
+    except Exception as e:
+        tenant_db.rollback()
+        print(f"❌ Failed to seed tenant admin: {e}")
+        raise e
+    finally:
+        tenant_db.close()
     
     db.commit()
     print("\n✨ RBAC seeding completed successfully!")
@@ -113,7 +175,7 @@ def main():
     print("\n" + "=" * 60)
     print("🎉 All done! You can now login with:")
     print("   Email: admin@rems.local")
-    print("   Password: admin123")
+    print("   Password: Admin@123")
     print("=" * 60)
 
 

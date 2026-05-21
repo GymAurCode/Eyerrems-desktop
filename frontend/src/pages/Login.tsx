@@ -65,9 +65,7 @@ export default function LoginPage() {
     setError(""); setLoading(true);
     try {
       await login(email, password);
-      // Route super-admins to their own panel, everyone else to company dashboard
-      const { isSuperAdmin } = useAuthStore.getState();
-      navigate(isSuperAdmin ? "/super-admin" : "/");
+      navigate("/");
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const detail = err.response?.data?.detail;

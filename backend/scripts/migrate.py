@@ -231,11 +231,18 @@ def seed_data() -> None:
         print(f"[migrate] RBAC seed skipped: {e}")
 
     try:
-        from app.scripts.seed_superadmin import seed_superadmin
-        print("[migrate] Seeding superadmin account...")
-        seed_superadmin()
+        from app.scripts.seed_rbac import seed_rbac
+        print("[migrate] Ensuring default global admin exists...")
+        db = SessionLocal()
+        try:
+            seed_rbac(db)
+        except Exception as e:
+            print(f"[migrate] Default admin seed warning (non-fatal): {e}")
+            db.rollback()
+        finally:
+            db.close()
     except Exception as e:
-        print(f"[migrate] Superadmin seed warning (non-fatal): {e}")
+        print(f"[migrate] Default admin seed skipped: {e}")
 
 
 if __name__ == "__main__":
