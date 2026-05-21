@@ -60,14 +60,14 @@ export default function TableRow<T = any>({
   };
 
   const rowClasses = `
-    border-b border-gray-800 transition-colors
-    ${striped && index % 2 === 1 ? 'bg-gray-900/30' : ''}
-    ${hoverable ? 'hover:bg-gray-800/50' : ''}
-    ${selected ? 'bg-blue-600/10 border-blue-600/30' : ''}
+    border-b border-border transition-colors
+    ${striped && index % 2 === 1 ? 'bg-card/30' : ''}
+    ${hoverable ? 'hover:bg-card/70' : ''}
+    ${selected ? 'bg-card/60 border-border' : ''}
     ${onRowClick ? 'cursor-pointer' : ''}
   `.trim();
 
-  const cellClasses = "px-4 py-3 text-sm text-gray-300 whitespace-nowrap";
+  const cellClasses = "px-4 py-3 text-sm text-foreground whitespace-nowrap";
 
   // Convert row actions to the format expected by RowActions component
   const actionConfigs = rowActions.map(action => ({
@@ -100,7 +100,7 @@ export default function TableRow<T = any>({
               checked={selected}
               onChange={handleSelectChange}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
+              className="w-4 h-4 rounded border-border bg-background text-blue-600 focus:ring-blue-500 focus:ring-2"
             />
           </div>
         </td>

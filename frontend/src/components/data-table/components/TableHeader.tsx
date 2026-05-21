@@ -65,7 +65,7 @@ export default function TableHeader<T = any>({
 
   const headerClasses = `
     px-4 py-3 text-left text-xs font-bold uppercase tracking-wider
-    border-b border-gray-700 bg-gray-800/50 text-gray-400
+    border-b border-border bg-card text-foreground
     ${stickyHeader ? 'sticky top-0 z-10' : ''}
   `.trim();
 
@@ -85,7 +85,7 @@ export default function TableHeader<T = any>({
                   }
                 }}
                 onChange={handleSelectAll}
-                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                className="w-4 h-4 rounded border-border bg-background text-blue-600 focus:ring-blue-500 focus:ring-2"
               />
             </div>
           </th>
@@ -104,7 +104,7 @@ export default function TableHeader<T = any>({
                 ${headerClasses} 
                 ${column.headerClassName || ''} 
                 ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}
-                ${isSortable ? 'cursor-pointer hover:bg-gray-700/50 select-none' : ''}
+                ${isSortable ? 'cursor-pointer hover:bg-background/80 select-none' : ''}
               `.trim()}
               style={{ width }}
               onClick={isSortable ? () => handleSort(column.key) : undefined}

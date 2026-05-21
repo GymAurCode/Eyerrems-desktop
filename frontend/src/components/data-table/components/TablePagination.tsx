@@ -104,9 +104,9 @@ export default function TablePagination({
   }
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
       {/* Left: Item count and rows per page */}
-      <div className="flex items-center gap-6 text-xs text-muted">
+      <div className="flex items-center gap-2 text-xs text-muted">
         <div>
           Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {total.toLocaleString()}
         </div>
@@ -134,7 +134,7 @@ export default function TablePagination({
         <button
           onClick={() => handlePageChange(1)}
           disabled={page === 1 || loading}
-          className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="First page"
         >
           <ChevronsLeft size={14} />
@@ -144,7 +144,7 @@ export default function TablePagination({
         <button
           onClick={() => handlePageChange(page - 1)}
           disabled={page === 1 || loading}
-          className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Previous page"
         >
           <ChevronLeft size={14} />
@@ -163,7 +163,7 @@ export default function TablePagination({
                   className={`px-3 py-1 text-xs rounded-lg transition-colors ${
                     pageNum === page
                       ? 'bg-blue-600 text-white'
-                      : 'hover:bg-gray-700 text-gray-300'
+                      : 'hover:bg-card text-foreground'
                   } ${loading ? 'cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
@@ -177,7 +177,7 @@ export default function TablePagination({
         <button
           onClick={() => handlePageChange(page + 1)}
           disabled={page === totalPages || loading}
-          className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Next page"
         >
           <ChevronRight size={14} />
@@ -187,7 +187,7 @@ export default function TablePagination({
         <button
           onClick={() => handlePageChange(totalPages)}
           disabled={page === totalPages || loading}
-          className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Last page"
         >
           <ChevronsRight size={14} />

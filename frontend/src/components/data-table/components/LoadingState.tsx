@@ -17,11 +17,11 @@ export default function LoadingState({
   showHeader = true,
 }: LoadingStateProps) {
   const SkeletonRow = ({ isHeader = false }: { isHeader?: boolean }) => (
-    <tr className={isHeader ? 'bg-gray-800/50' : ''}>
+    <tr className={isHeader ? 'bg-surface-2' : ''}>
       {Array.from({ length: columns }).map((_, colIndex) => (
         <td key={colIndex} className="px-4 py-3">
           <div 
-            className={`animate-pulse bg-gray-700 rounded ${
+            className={`animate-pulse bg-surface-3 rounded ${
               isHeader ? 'h-4' : 'h-5'
             }`}
             style={{

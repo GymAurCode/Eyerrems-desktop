@@ -166,8 +166,8 @@ export default function TableToolbar<T = any>({
       case 'warning':
         variantClasses = "bg-yellow-600 hover:bg-yellow-700 text-white";
         break;
-      default:
-        variantClasses = "border border-gray-600 hover:bg-gray-700 text-gray-300";
+        default:
+          variantClasses = "border border-border hover:bg-surface text-muted";
     }
 
     return (
@@ -210,14 +210,14 @@ export default function TableToolbar<T = any>({
             <div className="relative">
               <button
                 onClick={() => setShowBulkActions(!showBulkActions)}
-                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-gray-600 hover:bg-gray-700 text-gray-300"
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-border hover:bg-surface text-muted"
               >
                 Bulk Actions
                 <ChevronDown size={12} />
               </button>
               
               {showBulkActions && (
-                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 min-w-48">
+                <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-lg z-50 min-w-48">
                   {bulkActions.map((action) => {
                     const Icon = action.icon;
                     const disabled = action.disabled?.(selectedRows) || false;
@@ -230,7 +230,7 @@ export default function TableToolbar<T = any>({
                           setShowBulkActions(false);
                         }}
                         disabled={disabled}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-700 first:rounded-t-lg last:rounded-b-lg ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-surface first:rounded-t-lg last:rounded-b-lg ${
                           disabled ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       >
@@ -249,7 +249,7 @@ export default function TableToolbar<T = any>({
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="p-2 rounded-lg border border-gray-600 hover:bg-gray-700 text-gray-300 transition-colors"
+              className="p-2 rounded-lg border border-border hover:bg-surface text-foreground transition-colors"
               title="Refresh"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -260,16 +260,16 @@ export default function TableToolbar<T = any>({
           {filters.length > 0 && (
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-colors ${
+              className={`flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-border transition-colors ${
                 hasActiveFilters || showFilters
-                  ? 'border-blue-500 bg-blue-600/20 text-blue-400'
-                  : 'border-gray-600 hover:bg-gray-700 text-gray-300'
+                  ? 'border-primary bg-primary/20 text-primary'
+                  : 'border-border hover:bg-surface text-foreground'
               }`}
             >
               <Filter size={14} />
               Filters
               {hasActiveFilters && (
-                <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                <span className="w-2 h-2 bg-primary rounded-full"></span>
               )}
             </button>
           )}
@@ -300,7 +300,7 @@ export default function TableToolbar<T = any>({
 
       {/* Filters panel */}
       {showFilters && filters.length > 0 && (
-        <div className="p-4 rounded-lg border border-gray-600 bg-gray-800/50 space-y-4">
+        <div className="p-4 rounded-lg border border-border bg-surface space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-primary">Filters</h3>
             <div className="flex items-center gap-2">
@@ -314,7 +314,7 @@ export default function TableToolbar<T = any>({
               )}
               <button
                 onClick={() => setShowFilters(false)}
-                className="p-1 hover:bg-gray-700 rounded"
+                    className="p-1 hover:bg-surface rounded"
               >
                 <X size={14} />
               </button>
