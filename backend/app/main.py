@@ -32,7 +32,7 @@ from app.api.routes.ai_intelligence import router as ai_router
 from app.api.routes.import_routes import router as import_router
 from app.api.routes.chat_routes import router as chat_router
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
 from app.core.tenant_middleware import TenantMiddleware
 from app.services.reminder_scheduler import start_scheduler, stop_scheduler
@@ -115,6 +115,13 @@ def on_startup():
     can cause port-binding timeouts on Railway (health check fails while
     migrations are running, triggering a 502).
     """
+    # ── Ensure master schema exists before seeding ───────────────────────────
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[REMS] Verified database schema before seeding.")
+    except Exception as e:
+        print(f"[REMS] Schema verification skipped: {e}")
+
     # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
     try:

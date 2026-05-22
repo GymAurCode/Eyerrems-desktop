@@ -19,36 +19,7 @@ def seed_rbac(db: Session):
     """Seed RBAC system with default data"""
     print("🌱 Seeding RBAC system...")
     
-    # 1. Seed permissions
-    print("\n📋 Creating permissions...")
-    created_perms = RBACService.seed_default_permissions(db)
-    print(f"✅ Created {len(created_perms)} permissions")
-    
-    # Get all permissions for display
-    all_perms = db.query(Permission).order_by(Permission.module, Permission.name).all()
-    print(f"📊 Total permissions in system: {len(all_perms)}")
-    
-    # Group by module
-    modules = {}
-    for perm in all_perms:
-        if perm.module not in modules:
-            modules[perm.module] = []
-        modules[perm.module].append(perm.name)
-    
-    for module, perms in sorted(modules.items()):
-        print(f"   {module}: {len(perms)} permissions")
-    
-    # 2. Seed roles
-    print("\n👥 Creating roles...")
-    created_roles = RBACService.seed_default_roles(db)
-    print(f"✅ Created {len(created_roles)} roles")
-    
-    # Display roles
-    all_roles = db.query(Role).all()
-    for role in all_roles:
-        print(f"   - {role.name}: {len(role.permissions)} permissions")
-    
-    # 3. Seed Default Company in master
+    # 1. Seed Default Company in master
     print("\n🏢 Ensuring default company exists...")
     from app.models.company import Company
     from app.core.tenant_manager import tenant_manager
@@ -67,6 +38,35 @@ def seed_rbac(db: Session):
         print(f"✅ Created default company: {company.name}")
     else:
         print(f"ℹ️  Default company already exists")
+
+    # 2. Seed permissions
+    print("\n📋 Creating permissions...")
+    created_perms = RBACService.seed_default_permissions(db)
+    print(f"✅ Created {len(created_perms)} permissions")
+    
+    # Get all permissions for display
+    all_perms = db.query(Permission).order_by(Permission.module, Permission.name).all()
+    print(f"📊 Total permissions in system: {len(all_perms)}")
+    
+    # Group by module
+    modules = {}
+    for perm in all_perms:
+        if perm.module not in modules:
+            modules[perm.module] = []
+        modules[perm.module].append(perm.name)
+    
+    for module, perms in sorted(modules.items()):
+        print(f"   {module}: {len(perms)} permissions")
+    
+    # 3. Seed roles
+    print("\n👥 Creating roles...")
+    created_roles = RBACService.seed_default_roles(db)
+    print(f"✅ Created {len(created_roles)} roles")
+    
+    # Display roles
+    all_roles = db.query(Role).all()
+    for role in all_roles:
+        print(f"   - {role.name}: {len(role.permissions)} permissions")
     
     # 4. Initialize company tenant DB
     print("\n⚙️  Initializing default company tenant database...")

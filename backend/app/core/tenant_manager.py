@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.core.config import settings
@@ -179,12 +180,63 @@ class TenantManager:
             if seeded_coa:
                 log.info(f"[TenantManager] Seeded default Chart of Accounts for company '{slug}'")
 
-            # 2. Seed Default Features
-            from app.models.company import CompanyFeature
+            # 2. Ensure the company row exists in the tenant database before feature seeding
+            from app.models.company import Company, CompanyFeature
+            tenant_company = db.query(Company).filter(Company.id == company_id).first()
+            if not tenant_company:
+                master_db = self.get_master_session()
+                try:
+                    master_company = master_db.query(Company).filter(Company.id == company_id).first()
+                    if not master_company:
+                        log.warning(
+                            f"[TenantManager] Company {company_id} not found in master database, skipping tenant initialization"
+                        )
+                        return
+                    tenant_company = Company(
+                        id=master_company.id,
+                        name=master_company.name,
+                        slug=master_company.slug,
+                        status=master_company.status,
+                        plan=master_company.plan,
+                        currency_code=master_company.currency_code,
+                    )
+                    db.add(tenant_company)
+                    try:
+                        db.commit()
+                        log.info(f"[TenantManager] Seeded company row in tenant DB for '{slug}'")
+                    except IntegrityError:
+                        db.rollback()
+                        log.warning(
+                            f"[TenantManager] Company {company_id} already exists in tenant DB, proceeding"
+                        )
+                finally:
+                    master_db.close()
+
+            # 3. Seed Default Features
             for feature_key in CompanyFeature.DEFAULT_FEATURES:
-                db.add(CompanyFeature(company_id=company_id, feature_key=feature_key, enabled=True))
+                existing_feature = db.query(CompanyFeature).filter_by(
+                    company_id=company_id,
+                    feature_key=feature_key,
+                ).first()
+                if existing_feature:
+                    continue
+                db.add(
+                    CompanyFeature(
+                        company_id=company_id,
+                        feature_key=feature_key,
+                        enabled=True,
+                        updated_at=datetime.utcnow(),
+                    )
+                )
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                log.warning(
+                    f"[TenantManager] Skipping feature seed — company {company_id} not ready yet"
+                )
             
-            # 3. Seed Default Permissions and Roles
+            # 4. Seed Default Permissions and Roles
             from app.services.rbac_service import RBACService
             from app.models.auth import Permission, Role
             

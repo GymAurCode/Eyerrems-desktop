@@ -1,12 +1,16 @@
 """
 RBAC Service - Role-Based Access Control Business Logic
 """
+import logging
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.auth import Permission, Role, User
+
+log = logging.getLogger("rems.rbac")
 
 
 class RBACService:
@@ -370,7 +374,13 @@ class RBACService:
                 created_permissions.append(perm)
         
         if created_permissions:
-            db.flush()
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                log.warning(
+                    "Skipping permission seed — integrity constraint failed while flushing default permissions"
+                )
         
         return created_permissions
     
