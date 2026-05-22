@@ -52,17 +52,17 @@ export default function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       {/* Icon */}
-      <div className="w-16 h-16 rounded-full bg-gray-800/50 flex items-center justify-center mb-4">
-        <DisplayIcon size={32} className="text-gray-500" />
+      <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+        <DisplayIcon size={32} style={{ color: "var(--text-muted)" }} />
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-medium text-gray-300 mb-2">
+      <h3 className="text-lg font-medium mb-2" style={{ color: "var(--text-secondary)" }}>
         {displayTitle}
       </h3>
 
       {/* Description */}
-      <p className="text-sm text-gray-500 mb-6 max-w-md">
+      <p className="text-sm mb-6 max-w-md" style={{ color: "var(--text-muted)" }}>
         {displayDescription}
       </p>
 
@@ -72,7 +72,10 @@ export default function EmptyState({
           {hasSearch && onClearSearch && (
             <button
               onClick={onClearSearch}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+              style={{ backgroundColor: "var(--bg-surface2)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--hover-bg)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-surface2)")}
             >
               <Search size={16} />
               Clear search
@@ -82,7 +85,10 @@ export default function EmptyState({
           {hasFilters && onClearFilters && (
             <button
               onClick={onClearFilters}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+              style={{ backgroundColor: "var(--bg-surface2)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--hover-bg)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-surface2)")}
             >
               <Filter size={16} />
               Clear filters

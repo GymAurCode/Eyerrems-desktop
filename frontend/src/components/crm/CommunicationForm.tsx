@@ -32,14 +32,17 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
 
   useEffect(() => {
     if (!open) return;
-    crmApi.getClients().then((r) => {
-      setClients(r.data);
+    crmApi.getClients().then((res) => {
+      const list = Array.isArray(res) ? res : (res?.data ?? res?.items ?? []);
+      setClients(list);
       if (preselectedClient) {
         setClientId(preselectedClient.id);
         setTrackingId(preselectedClient.tracking_id);
       } else {
         setClientId(""); setTrackingId("");
       }
+    }).catch(() => {
+      setClients([]);
     });
     setType("call"); setSubject(""); setMessage("");
     setCommDate(new Date().toISOString().split("T")[0]);
@@ -71,7 +74,7 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
         type, subject: subject.trim(),
         description: message.trim(), comm_date: commDate,
       });
-      onSaved(res.data);
+      onSaved(res);
       onClose();
     } catch (err: any) {
       setErrors({ form: err?.response?.data?.detail ?? "Save failed" });

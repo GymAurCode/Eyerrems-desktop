@@ -157,36 +157,38 @@ export default function AppTable<T = any>({
   };
 
   return (
-    <div className="w-full space-y-4 border border-gray-700/50 bg-gray-800/40 backdrop-blur-md shadow-xl rounded-xl p-4">
+    <div className="w-full space-y-4 rounded-xl p-4 border" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--card-shadow)" }}>
       {/* Header / Toolbar */}
       {(title || subtitle || toolbarActions) && (
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
           <div>
-            {title && <h2 className="text-lg font-semibold text-white">{title}</h2>}
-            {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+            {title && <h2 className="text-lg font-semibold text-primary">{title}</h2>}
+            {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
           </div>
           {toolbarActions && <div className="flex gap-2 items-center">{toolbarActions}</div>}
         </div>
       )}
 
       {/* Filter panel */}
-      <div className="flex flex-wrap items-center gap-3 py-1 border-b border-gray-700/50 pb-4">
+      <div className="flex flex-wrap items-center gap-3 py-1 pb-4" style={{ borderBottom: "1px solid var(--border)" }}>
         {/* Search */}
         <div className="relative min-w-[240px] flex-1 max-w-sm">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
+            <Search className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
           </span>
           <input
             type="text"
             placeholder="Search records..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            className="input-dark w-full pl-9 pr-4 py-1.5 text-xs"
+            style={{ color: "var(--text-primary)" }}
           />
           {searchInput && (
             <button
               onClick={() => setSearchInput('')}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 transition-colors hover:opacity-80"
+              style={{ color: "var(--text-muted)" }}
             >
               <X className="h-3 w-3" />
             </button>
@@ -208,7 +210,8 @@ export default function AppTable<T = any>({
                 }));
                 onPageChange({ page: 1, pageSize: pagination.pageSize });
               }}
-              className="select-dark py-1.5 px-3 text-xs bg-gray-900 border border-gray-700 rounded-lg text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+              className="select-dark py-1.5 px-3 text-xs"
+              style={{ color: "var(--text-primary)" }}
             >
               <option value="">All Time</option>
               <option value="today">Today</option>
@@ -219,7 +222,7 @@ export default function AppTable<T = any>({
             </select>
 
             {state.filter === 'custom' && (
-              <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-0.5 animate-fadeIn">
+              <div className="flex items-center gap-1.5 rounded-lg px-2 py-0.5 animate-fadeIn" style={{ backgroundColor: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
                 <input
                   type="date"
                   value={state.startDate}
@@ -227,9 +230,10 @@ export default function AppTable<T = any>({
                     setState((prev) => ({ ...prev, startDate: e.target.value }));
                     onPageChange({ page: 1, pageSize: pagination.pageSize });
                   }}
-                  className="bg-transparent border-0 text-white text-xs py-1 focus:ring-0 focus:outline-none cursor-pointer"
+                  className="border-0 text-xs py-1 focus:ring-0 focus:outline-none cursor-pointer"
+                  style={{ backgroundColor: "transparent", color: "var(--text-primary)" }}
                 />
-                <span className="text-gray-500 text-xs">-</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>-</span>
                 <input
                   type="date"
                   value={state.endDate}
@@ -237,7 +241,8 @@ export default function AppTable<T = any>({
                     setState((prev) => ({ ...prev, endDate: e.target.value }));
                     onPageChange({ page: 1, pageSize: pagination.pageSize });
                   }}
-                  className="bg-transparent border-0 text-white text-xs py-1 focus:ring-0 focus:outline-none cursor-pointer"
+                  className="border-0 text-xs py-1 focus:ring-0 focus:outline-none cursor-pointer"
+                  style={{ backgroundColor: "transparent", color: "var(--text-primary)" }}
                 />
               </div>
             )}
@@ -252,7 +257,8 @@ export default function AppTable<T = any>({
               setState((prev) => ({ ...prev, propertyType: e.target.value }));
               onPageChange({ page: 1, pageSize: pagination.pageSize });
             }}
-            className="select-dark py-1.5 px-3 text-xs bg-gray-900 border border-gray-700 rounded-lg text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+            className="select-dark py-1.5 px-3 text-xs"
+            style={{ color: "var(--text-primary)" }}
           >
             <option value="">All Property Types</option>
             {typeOptions.map((opt) => (
@@ -271,7 +277,8 @@ export default function AppTable<T = any>({
               setState((prev) => ({ ...prev, status: e.target.value }));
               onPageChange({ page: 1, pageSize: pagination.pageSize });
             }}
-            className="select-dark py-1.5 px-3 text-xs bg-gray-900 border border-gray-700 rounded-lg text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+            className="select-dark py-1.5 px-3 text-xs"
+            style={{ color: "var(--text-primary)" }}
           >
             <option value="">All Statuses</option>
             {statusOptions.map((opt) => (
@@ -301,8 +308,8 @@ export default function AppTable<T = any>({
           <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center text-red-400 mb-3 animate-pulse">
             <AlertTriangle className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-semibold text-white mb-1">Failed to load data</h3>
-          <p className="text-xs text-gray-400 max-w-md mb-4">{error}</p>
+          <h3 className="text-sm font-semibold text-primary mb-1">Failed to load data</h3>
+          <p className="text-xs text-muted max-w-md mb-4">{error}</p>
           {onRetry && (
             <button
               onClick={onRetry}

@@ -78,7 +78,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
       const res = editing
         ? await crmApi.updateDealer(initial!.id, payload)
         : await crmApi.createDealer(payload);
-      onSaved(res.data);
+      onSaved(res);
       onClose();
     } catch (err: any) {
       const d = err?.response?.data?.detail;

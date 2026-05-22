@@ -71,55 +71,60 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl p-6 space-y-4"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <h2 className="text-base font-semibold text-primary">New Construction Project</h2>
-        {error && <p className="text-xs text-red-400 bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>}
+      <div className="modal-content modal-standard w-full max-w-lg p-6 space-y-4"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+        <div className="modal-header">
+          <h2 className="text-base font-semibold text-primary">New Construction Project</h2>
+        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "Project Name *", key: "name", span: 2 },
-            { label: "Location *",     key: "location", span: 2 },
-          ].map(({ label, key, span }) => (
-            <div key={key} className={`flex flex-col gap-1 ${span === 2 ? "col-span-2" : ""}`}>
-              <label className="text-[10px] text-muted uppercase tracking-wider">{label}</label>
-              <input value={(form as any)[key]} onChange={e => set(key as keyof FormState, e.target.value)}
+        <div className="modal-body space-y-4">
+          {error && <p className="text-xs text-red-400 bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>}
+
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Project Name *", key: "name", span: 2 },
+              { label: "Location *",     key: "location", span: 2 },
+            ].map(({ label, key, span }) => (
+              <div key={key} className={`flex flex-col gap-1 ${span === 2 ? "col-span-2" : ""}`}>
+                <label className="text-[10px] text-muted uppercase tracking-wider">{label}</label>
+                <input value={(form as any)[key]} onChange={e => set(key as keyof FormState, e.target.value)}
+                  className="input-dark text-sm px-3 py-2 rounded-lg" />
+              </div>
+            ))}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-muted uppercase tracking-wider">Start Date *</label>
+              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)}
                 className="input-dark text-sm px-3 py-2 rounded-lg" />
             </div>
-          ))}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted uppercase tracking-wider">Start Date *</label>
-            <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)}
-              className="input-dark text-sm px-3 py-2 rounded-lg" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted uppercase tracking-wider">End Date</label>
-            <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)}
-              className="input-dark text-sm px-3 py-2 rounded-lg" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted uppercase tracking-wider">Status</label>
-            <select value={form.status} onChange={e => set("status", e.target.value as ProjectStatus)}
-              className="input-dark text-sm px-3 py-2 rounded-lg">
-              {STATUS_OPTS.filter(s => s.value).map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted uppercase tracking-wider">Total Budget</label>
-            <input type="number" min="0" value={form.total_budget}
-              onChange={e => set("total_budget", e.target.value)}
-              className="input-dark text-sm px-3 py-2 rounded-lg" placeholder="0" />
-          </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-[10px] text-muted uppercase tracking-wider">Description</label>
-            <textarea value={form.description} onChange={e => set("description", e.target.value)}
-              rows={2} className="input-dark text-sm px-3 py-2 rounded-lg resize-none" />
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-muted uppercase tracking-wider">End Date</label>
+              <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)}
+                className="input-dark text-sm px-3 py-2 rounded-lg" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-muted uppercase tracking-wider">Status</label>
+              <select value={form.status} onChange={e => set("status", e.target.value as ProjectStatus)}
+                className="input-dark text-sm px-3 py-2 rounded-lg">
+                {STATUS_OPTS.filter(s => s.value).map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-muted uppercase tracking-wider">Total Budget</label>
+              <input type="number" min="0" value={form.total_budget}
+                onChange={e => set("total_budget", e.target.value)}
+                className="input-dark text-sm px-3 py-2 rounded-lg" placeholder="0" />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <label className="text-[10px] text-muted uppercase tracking-wider">Description</label>
+              <textarea value={form.description} onChange={e => set("description", e.target.value)}
+                rows={2} className="input-dark text-sm px-3 py-2 rounded-lg resize-none" />
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="modal-footer justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-muted hover:text-primary transition-colors">
             Cancel
           </button>

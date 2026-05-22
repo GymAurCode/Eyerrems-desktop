@@ -44,7 +44,10 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
 
   useEffect(() => {
     if (!open) return;
-    crmApi.getDealers().then((r) => setDealers(r.data));
+    crmApi.getDealers().then((res) => {
+      const list = Array.isArray(res) ? res : (res?.data ?? res?.items ?? []);
+      setDealers(list);
+    }).catch(() => setDealers([]));
     if (initial) {
       setName(initial.name); setPhone(initial.phone ?? ""); setEmail(initial.email ?? "");
       setCnic(initial.cnic ?? ""); setStatus(initial.status);
@@ -84,7 +87,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
       const res = editing
         ? await crmApi.updateClient(initial!.id, payload)
         : await crmApi.createClient(payload);
-      onSaved(res.data);
+      onSaved(res);
       onClose();
     } catch (err: any) {
       const d = err?.response?.data?.detail;

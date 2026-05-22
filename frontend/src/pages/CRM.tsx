@@ -264,7 +264,7 @@ export default function CRMPage() {
     setLeadName(""); setLeadPhone(""); setLeadEmail("");
     setLeadSource(""); setLeadNotes(""); setLeadStatus("new");
     setLeadModal(false);
-    await load();
+    refreshLeads();
   };
 
   const doSearch = async () => {
@@ -607,14 +607,14 @@ export default function CRMPage() {
       <ClientForm
         open={clientModal}
         onClose={() => setClientModal(false)}
-        onSaved={() => { setClientModal(false); void load(); }}
+        onSaved={() => { setClientModal(false); refreshClients(); }}
       />
 
       {/* Dealer Modal (new) */}
       <DealerForm
         open={dealerModal}
         onClose={() => setDealerModal(false)}
-        onSaved={() => { setDealerModal(false); void load(); }}
+        onSaved={() => { setDealerModal(false); refreshDealers(); }}
       />
 
       {/* Dealer Edit Modal */}
@@ -622,14 +622,14 @@ export default function CRMPage() {
         open={!!editDealer}
         onClose={() => setEditDealer(null)}
         initial={editDealer}
-        onSaved={() => { setEditDealer(null); void load(); }}
+        onSaved={() => { setEditDealer(null); refreshDealers(); }}
       />
 
       {/* Deal Modal */}
       <DealForm
         open={dealModal}
         onClose={() => setDealModal(false)}
-        onSaved={() => { setDealModal(false); void load(); }}
+        onSaved={() => { setDealModal(false); refreshDeals(); }}
       />
     </div>
   );

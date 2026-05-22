@@ -218,7 +218,7 @@ export default function DataTable<T = any>({
 
   // Container classes based on variant
   const containerClasses = useMemo(() => {
-    const base = "rounded-xl overflow-hidden border border-gray-700 bg-gray-900/50";
+    const base = "rounded-xl overflow-hidden border";
     
     switch (variant) {
       case 'compact':
@@ -230,12 +230,18 @@ export default function DataTable<T = any>({
     }
   }, [variant]);
 
+  // Container style for theme-aware colors
+  const containerStyle = {
+    borderColor: "var(--border)",
+    backgroundColor: "var(--bg-surface)",
+  };
+
   // Show loading state
   if (loading && displayData.length === 0) {
     return (
-      <div className={containerClasses}>
+      <div className={containerClasses} style={containerStyle}>
         {(title || subtitle || customToolbar || searchable || filters.length > 0 || toolbarActions.length > 0) && (
-          <div className="p-4 border-b border-gray-700">
+          <div className="p-4" style={{ borderBottom: "1px solid var(--border)" }}>
             <TableToolbar
               title={title}
               subtitle={subtitle}
@@ -262,20 +268,20 @@ export default function DataTable<T = any>({
   // Show error state
   if (error) {
     return (
-      <div className={containerClasses}>
+      <div className={containerClasses} style={containerStyle}>
         <div className="p-8 text-center">
           <div className="text-red-400 mb-2">Error</div>
-          <div className="text-gray-400 text-sm">{error}</div>
+          <div className="text-sm" style={{ color: "var(--text-muted)" }}>{error}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={containerClasses}>
+    <div className={containerClasses} style={containerStyle}>
       {/* Toolbar */}
       {(title || subtitle || customToolbar || searchable || filters.length > 0 || toolbarActions.length > 0) && (
-        <div className="p-4 border-b border-gray-700">
+        <div className="p-4" style={{ borderBottom: "1px solid var(--border)" }}>
           <TableToolbar
             title={title}
             subtitle={subtitle}
