@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { HelpCircle, LogOut, PanelLeft, Sun, Moon, Settings2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { HelpCircle, LogOut, PanelLeft, Sun, Moon, Settings } from "lucide-react";
 import { useAuthStore } from "../store/auth";
 import { useUIStore } from "../store/ui";
-import AdvancedOptions from "./property/AdvancedOptions";
 import NotificationBell from "./notifications/NotificationBell";
 
 const ROLE_COLORS: Record<string, string> = {
@@ -31,9 +30,9 @@ export default function Topbar({ title }: { title?: string }) {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const toggleTheme   = useUIStore((s) => s.toggleTheme);
   const theme         = useUIStore((s) => s.theme);
-  const roleClass     = user ? (ROLE_COLORS[user.role] ?? ROLE_COLORS.Staff) : "";
+  const roleClass     = user?.role ? (ROLE_COLORS[user.role] ?? ROLE_COLORS.Staff) : "";
 
-  const [advOpen, setAdvOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <>
@@ -53,8 +52,8 @@ export default function Topbar({ title }: { title?: string }) {
             </span>
           )}
 
-          {/* Advanced Options */}
-          <button type="button" onClick={() => setAdvOpen(true)}
+          {/* Adv Options Page */}
+          <button type="button" onClick={() => navigate("/advance-options")}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all duration-200 font-medium"
             style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => {
@@ -65,8 +64,8 @@ export default function Topbar({ title }: { title?: string }) {
               (e.currentTarget as HTMLElement).style.background = "transparent";
               (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
             }}>
-            <Settings2 size={13} />
-            <span>Advanced Options</span>
+            <Settings size={13} />
+            <span>Adv. Options</span>
           </button>
 
           <IconBtn onClick={toggleTheme} label="Toggle theme">
@@ -92,8 +91,6 @@ export default function Topbar({ title }: { title?: string }) {
           </button>
         </div>
       </header>
-
-      <AdvancedOptions open={advOpen} onClose={() => setAdvOpen(false)} />
     </>
   );
 }

@@ -10,6 +10,8 @@ import {
 import { bookingApi, BookingDetail as BookingDetailType, BookingLog, InstallmentPlan, InstallmentItem } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
 import { BookingStatusBadge, BOOKING_STATUS_COLOR, BOOKING_STATUS_LABEL } from "./BookingList";
+import AttachmentPanel from "../../../components/attachments/AttachmentPanel";
+import RecordHistory from "../../../components/RecordHistory";
 import BookingExtendModal from "./BookingExtendModal";
 import BookingConvertModal from "./BookingConvertModal";
 
@@ -570,22 +572,14 @@ export default function BookingDetailPage() {
           )}
 
           {/* Attachments */}
-          {booking.attachments.length > 0 && (
-            <Section title="Attachments" icon={Paperclip}>
-              <div className="space-y-1.5">
-                {booking.attachments.map(a => (
-                  <div
-                    key={a.id}
-                    className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    <Paperclip size={11} />
-                    <span>{a.filename}</span>
-                    <span className="text-muted text-[10px]">· {a.file_type ?? "file"}</span>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
+          <Section title="Attachments" icon={Paperclip}>
+            <AttachmentPanel module="booking" recordId={booking.id} />
+          </Section>
+
+          {/* History */}
+          <Section title="History" icon={Clock}>
+            <RecordHistory module="crm" recordId={String(booking.id)} />
+          </Section>
         </div>
 
         {/* Right col — timeline + dates */}

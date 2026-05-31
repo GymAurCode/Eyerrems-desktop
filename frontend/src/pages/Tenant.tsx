@@ -7,6 +7,7 @@ import {
   Eye, Printer
 } from "lucide-react";
 import { printRecord } from "../components/actions";
+import AttachmentsButton from "../components/attachments/AttachmentsButton";
 import { tenantApi, Tenant, TenantDashboard, TenantAlert, WizardPayload } from "../lib/tenantApi";
 import { propApi, Property, Unit, FloorWithUnits } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
@@ -348,6 +349,7 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0"
           style={{ borderTop: "1px solid var(--border)" }}>
+          <AttachmentsButton module="tenant" />
           <button type="button" onClick={() => setStep(s => s - 1)} disabled={step === 0}
             className="flex items-center gap-1.5 text-sm transition-colors disabled:opacity-30"
             style={{ color: "var(--text-secondary)" }}>

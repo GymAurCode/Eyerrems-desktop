@@ -3,6 +3,8 @@ import Modal from "../Modal";
 import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Deal, Client, Dealer } from "../../lib/crmApi";
 import { propApi } from "../../lib/propertyApi";
+import AttachmentsButton from "../attachments/AttachmentsButton";
+import { useLookup } from "../../hooks/useLookup";
 
 type Props = {
   open: boolean;
@@ -24,6 +26,9 @@ function Divider({ label }: { label: string }) {
 export default function DealForm({ open, onClose, onSaved, initial }: Props) {
   const formId  = useId();
   const editing = !!initial;
+  const { options: CLIENT_ROLE_OPTS } = useLookup('client_role');
+  const { options: DOWN_PAYMENT_STATUS_OPTS } = useLookup('down_payment_status');
+  const { options: DEAL_STATUS_OPTS } = useLookup('deal_status');
 
   const [title, setTitle]                   = useState("");
   const [clientId, setClientId]             = useState<number | "">("");
@@ -125,6 +130,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
 
   const footer = (
     <>
+      <AttachmentsButton module="deal" recordId={initial?.id} />
       <button type="button" onClick={onClose}
         className="px-5 py-2 text-sm rounded-lg transition-colors"
         style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
@@ -203,9 +209,9 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
                 <select className="select-dark w-full px-3 py-2 text-sm" value={role}
                   onChange={(e) => setRole(e.target.value)}>
                   <option value="">— None —</option>
-                  <option value="Buyer">Buyer</option>
-                  <option value="Seller">Seller</option>
-                  <option value="Investor">Investor</option>
+                  {CLIENT_ROLE_OPTS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </FormField>
               <FormField label="Assign Dealer">
@@ -268,8 +274,9 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
               <FormField label="DP Status">
                 <select className="select-dark w-full px-3 py-2 text-sm" value={downPayStatus}
                   onChange={(e) => setDownPayStatus(e.target.value)}>
-                  <option value="pending">Pending</option>
-                  <option value="paid">Paid</option>
+                  {DOWN_PAYMENT_STATUS_OPTS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </FormField>
             </div>
@@ -291,10 +298,9 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
             <FormField label="Deal Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-                <option value="pending">Pending</option>
-                <option value="active">Active</option>
-                <option value="closed">Closed</option>
-                <option value="cancelled">Cancelled</option>
+              {DEAL_STATUS_OPTS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
               </select>
             </FormField>
 

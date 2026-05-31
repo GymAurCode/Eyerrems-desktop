@@ -5,8 +5,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 from app.api.routes.activity import router as activity_router
+from app.api.routes.audit import router as audit_router
 from app.api.routes.tenants import router as tenants_router
 from app.api.routes.construction import router as construction_router
 from app.api.routes.admin import router as admin_router
@@ -31,9 +34,13 @@ from app.api.routes.reports import router as reports_router
 from app.api.routes.ai_intelligence import router as ai_router
 from app.api.routes.import_routes import router as import_router
 from app.api.routes.chat_routes import router as chat_router
+from app.api.routes.superadmin import router as superadmin_router
+from app.api.routes.attachments import router as attachments_router
+from app.api.routes.lookups import router as lookups_router
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
+from app.core.master_db import sync_attachments_table
 from app.core.tenant_middleware import TenantMiddleware
 from app.services.reminder_scheduler import start_scheduler, stop_scheduler
 from app.services.mail.mail_sync_scheduler import register_mail_sync_job
@@ -48,19 +55,26 @@ app = FastAPI(title="REMS API", version="1.0.0")
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all handler — returns JSON instead of uvicorn's bare text/plain 500.
-    Logs the full traceback so it's visible in the server console."""
+    Logs the full traceback so it's visible in the server console.
+    Manually adds CORS headers because exception handler responses bypass the
+    middleware stack (so CORSMiddleware never gets a chance to add them)."""
     import traceback
     log.error("Unhandled exception on %s %s\n%s", request.method, request.url.path,
                traceback.format_exc())
+    origin = request.headers.get("origin", "")
+    cors_headers = {"Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"}
+    if origin:
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        cors_headers["Access-Control-Allow-Credentials"] = "true"
     return JSONResponse(
         status_code=500,
         content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+        headers=cors_headers,
     )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_origin_regex=r"https://.*\.railway\.app",
+    allow_origins=settings.cors_origins if settings.cors_origins else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,6 +89,7 @@ app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 
 app.include_router(auth_router,       prefix="/auth",       tags=["auth"])
 app.include_router(activity_router,   prefix="/activity",   tags=["activity"])
+app.include_router(audit_router,     prefix="/audit",      tags=["audit"])
 app.include_router(dashboard_router,  prefix="/dashboard",  tags=["dashboard"])
 app.include_router(properties_router, prefix="/properties", tags=["properties"])
 app.include_router(crm_router,        prefix="/crm",        tags=["crm"])
@@ -103,6 +118,9 @@ app.include_router(reports_router, prefix="/reports", tags=["reports"])
 app.include_router(ai_router, tags=["ai-intelligence"])
 app.include_router(import_router, prefix="/import", tags=["import"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(superadmin_router)
+app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
+app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 
 
 @app.on_event("startup")
@@ -115,12 +133,121 @@ def on_startup():
     can cause port-binding timeouts on Railway (health check fails while
     migrations are running, triggering a 502).
     """
-    # ── Ensure master schema exists before seeding ───────────────────────────
+    # ── Ensure master schema (superadmin multi-tenant) ──────────────────────
+    try:
+        from app.tenant import get_master_session
+        from app.core.master_db import ensure_master_schema
+        mdb = get_master_session()
+        try:
+            ensure_master_schema(mdb)
+            print("[REMS] Master schema and companies table ensured.")
+        finally:
+            mdb.close()
+    except Exception as e:
+        print(f"[REMS] Master schema setup skipped: {e}")
+
+    # ── Seed superadmin user in public schema ───────────────────────────────
+    try:
+        sa_engine = create_engine(settings.database_url, pool_pre_ping=True)
+        sa_session = sessionmaker(autocommit=False, autoflush=False, bind=sa_engine)()
+        try:
+            from app.core.security import hash_password
+            existing = sa_session.execute(
+                text("SELECT id FROM users WHERE email = :email AND is_super_admin = TRUE"),
+                {"email": settings.superadmin_email},
+            ).fetchone()
+            if not existing:
+                pw_hash = hash_password(settings.superadmin_password)
+                sa_session.execute(
+                    text("""
+                        INSERT INTO users (email, full_name, hashed_password, is_super_admin,
+                                           status, is_approved, is_active, approval_status)
+                        VALUES (:email, :name, :pw, TRUE, 'active', TRUE, TRUE, 'approved')
+                    """),
+                    {"email": settings.superadmin_email, "name": "Super Admin", "pw": pw_hash},
+                )
+                sa_session.commit()
+                print("[REMS] Superadmin user seeded.")
+            else:
+                print("[REMS] Superadmin user already exists.")
+        finally:
+            sa_session.close()
+    except Exception as e:
+        print(f"[REMS] Superadmin seed skipped: {e}")
+
+    # ── Ensure existing database schema ─────────────────────────────────────
     try:
         Base.metadata.create_all(bind=engine)
         print("[REMS] Verified database schema before seeding.")
     except Exception as e:
         print(f"[REMS] Schema verification skipped: {e}")
+
+    # ── Repair missing tables in existing company schemas ──────────────────
+    try:
+        from app.tenant import get_master_session
+        from app.services.rbac_service import RBACService
+        from sqlalchemy.orm import sessionmaker
+
+        mdb = get_master_session()
+        try:
+            rows = mdb.execute(
+                text("SELECT schema_name FROM master.companies")
+            ).fetchall()
+            for (schema_name,) in rows:
+                try:
+                    # Ensure all model tables exist (creates audit_logs if missing)
+                    tenant_engine = create_engine(
+                        settings.database_url,
+                        connect_args={"options": f"-csearch_path={schema_name},public"},
+                        pool_pre_ping=True,
+                    )
+                    # Migrate old audit_logs if needed
+                    try:
+                        with tenant_engine.connect() as conn:
+                            # Check if old audit_logs table exists with company_id column
+                            import sqlalchemy as sa
+                            insp = sa.inspect(tenant_engine)
+                            cols = [c["name"] for c in insp.get_columns("audit_logs")]
+                            if "company_id" in cols:
+                                conn.execute(text("DROP TABLE IF EXISTS audit_logs CASCADE"))
+                                conn.commit()
+                                print(f"[REMS] Dropped old audit_logs in schema '{schema_name}'")
+                    except Exception:
+                        pass
+                    Base.metadata.create_all(bind=tenant_engine)
+                    # Migrate attachment columns for existing tables
+                    sync_attachments_table(tenant_engine)
+                    tenant_engine.dispose()
+
+                    # Seed RBAC data if permissions table is empty
+                    repair_session = sessionmaker(
+                        bind=create_engine(
+                            settings.database_url,
+                            connect_args={"options": f"-csearch_path={schema_name},public"},
+                            pool_pre_ping=True,
+                        )
+                    )()
+                    try:
+                        existing = repair_session.execute(
+                            text("SELECT COUNT(*) FROM permissions")
+                        ).scalar()
+                        if existing == 0:
+                            RBACService.seed_default_permissions(repair_session)
+                            RBACService.seed_default_roles(repair_session)
+                            repair_session.commit()
+                            print(f"[REMS] Seeded RBAC in schema '{schema_name}'")
+                        else:
+                            print(f"[REMS] RBAC already present in schema '{schema_name}'")
+                    finally:
+                        repair_session.close()
+
+                    print(f"[REMS] Repaired tables in schema '{schema_name}'")
+                except Exception as e:
+                    print(f"[REMS] Skipping schema '{schema_name}' repair: {e}")
+        finally:
+            mdb.close()
+    except Exception as e:
+        print(f"[REMS] Company schema repair skipped: {e}")
 
     # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
@@ -143,6 +270,37 @@ def on_startup():
         print(f"[REMS] RBAC and Default Admin seeding failed: {e}")
     finally:
         db.close()
+
+    # ── Seed default lookup values (public schema + all company schemas) ──────
+    try:
+        from sqlalchemy.orm import sessionmaker
+        # Seed in public schema
+        public_engine = create_engine(settings.database_url, pool_pre_ping=True)
+        pub_session = sessionmaker(bind=public_engine)()
+        try:
+            Base.metadata.create_all(bind=public_engine)
+            from app.core.seed_lookups import seed_lookup_values
+            seeded = seed_lookup_values(pub_session)
+            if seeded > 0:
+                print(f"[REMS] Seeded {seeded} lookup values in public schema.")
+        finally:
+            pub_session.close()
+            public_engine.dispose()
+    except Exception as e:
+        print(f"[REMS] Public lookup seed skipped: {e}")
+
+    # Seed in each company schema via get_db() (tenant-aware)
+    try:
+        db = next(get_db())
+        try:
+            from app.core.seed_lookups import seed_lookup_values
+            seeded = seed_lookup_values(db)
+            if seeded > 0:
+                print(f"[REMS] Seeded {seeded} lookup values in tenant schema.")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[REMS] Tenant lookup seed skipped: {e}")
 
     # ── Sync TownUnit columns for the enhanced Town Management module ─────────
     db = next(get_db())

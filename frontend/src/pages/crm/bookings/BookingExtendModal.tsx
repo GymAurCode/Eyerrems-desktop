@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, AlertCircle, Timer } from "lucide-react";
+import AttachmentsButton from "../../../components/attachments/AttachmentsButton";
 import { bookingApi } from "../../../lib/bookingApi";
 
 type Props = {
@@ -144,6 +145,7 @@ export default function BookingExtendModal({ bookingId, bookingRef, onClose, onD
           className="flex items-center justify-end gap-3 px-5 py-4"
           style={{ borderTop: "1px solid var(--border)" }}
         >
+          <AttachmentsButton module="booking" recordId={bookingId} />
           <button
             type="button"
             onClick={onClose}

@@ -8,6 +8,8 @@ from pydantic import BaseModel, EmailStr, Field
 class LoginRequest(BaseModel):
     email: str  # Changed from EmailStr to str for compatibility
     password: str
+    company_slug: Optional[str] = None
+    company_code: Optional[str] = None
 
 
 class RegisterRequest(BaseModel):
@@ -20,9 +22,9 @@ class RegisterRequest(BaseModel):
 class AuthToken(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    # Multi-tenant fields returned on login so frontend can store them
-    company_id: Optional[int] = None
-    is_super_admin: bool = False
+    role: str = "company_admin"
+    company_id: Optional[str] = None
+    company_name: Optional[str] = None
 
 
 class UserResponse(BaseModel):

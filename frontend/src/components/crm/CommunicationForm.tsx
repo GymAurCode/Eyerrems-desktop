@@ -33,8 +33,7 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
   useEffect(() => {
     if (!open) return;
     crmApi.getClients().then((res) => {
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.items ?? []);
-      setClients(list);
+      setClients(res);
       if (preselectedClient) {
         setClientId(preselectedClient.id);
         setTrackingId(preselectedClient.tracking_id);
@@ -70,10 +69,10 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
     setSaving(true);
     try {
       const res = await crmApi.createCommunication({
-        tracking_id: trackingId, client_id: clientId,
-        type, subject: subject.trim(),
+        tracking_id: trackingId,
+        type: type as Communication["type"], subject: subject.trim(),
         description: message.trim(), comm_date: commDate,
-      });
+      } as any);
       onSaved(res);
       onClose();
     } catch (err: any) {

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_permissions
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.models.auth import User
 from app.models.master_options import MasterSettingOption
@@ -30,7 +31,7 @@ def list_options(
 def create_option(
     payload: MasterSettingOptionCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("settings:manage")),
+    current_user: User = Depends(require_permissions("settings:manage")),
 ):
     exists = (
         db.query(MasterSettingOption)
@@ -46,6 +47,12 @@ def create_option(
     db.add(row)
     db.commit()
     db.refresh(row)
+    log_action(
+        db=db, module="settings", action="CREATE",
+        record_id=str(row.id), record_label=f"Option: {row.code} ({row.category})",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in row.__dict__.items() if not k.startswith('_')},
+    )
     return row
 
 
@@ -54,14 +61,22 @@ def update_option(
     option_id: int,
     payload: MasterSettingOptionUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permissions("settings:manage")),
+    current_user: User = Depends(require_permissions("settings:manage")),
 ):
     row = db.query(MasterSettingOption).filter(MasterSettingOption.id == option_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Option not found")
+    old_data = {k: str(v) for k, v in row.__dict__.items() if not k.startswith('_')}
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(row, k, v)
     db.commit()
     db.refresh(row)
+    new_data = {k: str(v) for k, v in row.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="settings", action="UPDATE",
+        record_id=str(option_id), record_label=f"Option: {row.code} ({row.category})",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return row

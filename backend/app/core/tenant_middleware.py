@@ -37,5 +37,6 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 is_super_admin = bool(payload.get("is_super_admin", False))
 
         request.state.company_id = company_id
+        request.state.is_super_admin = is_super_admin
 
         return await call_next(request)

@@ -4,6 +4,7 @@ import {
   X, AlertCircle, CheckCircle2, Building2, User,
   ChevronDown, Search, Calendar, DollarSign, FileText,
 } from "lucide-react";
+import AttachmentsButton from "../../../components/attachments/AttachmentsButton";
 import { bookingApi, BookingCreatePayload } from "../../../lib/bookingApi";
 import { crmApi, Client, Dealer } from "../../../lib/crmApi";
 import { propApi, Property, FloorWithUnits, Unit } from "../../../lib/propertyApi";
@@ -640,6 +641,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             )}
           </div>
           <div className="flex items-center gap-3">
+            <AttachmentsButton module="booking" />
             <button
               type="button"
               onClick={onClose}

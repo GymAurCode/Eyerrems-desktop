@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.tid import next_tid
 from app.models.auth import User
@@ -52,7 +53,7 @@ def list_departments(
 def create_department(
     payload: DepartmentCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if db.query(Department).filter(Department.code == payload.code).first():
         raise HTTPException(400, "Department code already exists")
@@ -61,6 +62,12 @@ def create_department(
     db.add(dept)
     db.commit()
     db.refresh(dept)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(dept.id), record_label=f"Department: {dept.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')},
+    )
     return dept
 
 
@@ -69,16 +76,24 @@ def update_department(
     dept_id: int,
     payload: DepartmentUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
         raise HTTPException(404, "Department not found")
+    old_data = {k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(dept, k, v)
     dept.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(dept)
+    new_data = {k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(dept_id), record_label=f"Department: {dept.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return dept
 
 
@@ -86,13 +101,20 @@ def update_department(
 def delete_department(
     dept_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
         raise HTTPException(404, "Department not found")
     if db.query(Employee).filter(Employee.department_id == dept_id, Employee.is_active.is_(True)).count():
         raise HTTPException(400, "Cannot delete department with active employees")
+    old_data = {k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="DELETE",
+        record_id=str(dept_id), record_label=f"Department: {dept.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     dept.is_active = False
     dept.updated_at = datetime.utcnow()
     db.commit()
@@ -116,7 +138,7 @@ def list_positions(
 def create_position(
     payload: PositionCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if db.query(Position).filter(Position.code == payload.code).first():
         raise HTTPException(400, "Position code already exists")
@@ -125,6 +147,12 @@ def create_position(
     db.add(pos)
     db.commit()
     db.refresh(pos)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(pos.id), record_label=f"Position: {pos.title}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')},
+    )
     return pos
 
 
@@ -133,16 +161,24 @@ def update_position(
     pos_id: int,
     payload: PositionUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
         raise HTTPException(404, "Position not found")
+    old_data = {k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(pos, k, v)
     pos.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(pos)
+    new_data = {k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(pos_id), record_label=f"Position: {pos.title}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return pos
 
 
@@ -164,7 +200,7 @@ def list_branches(
 def create_branch(
     payload: BranchCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if db.query(Branch).filter(Branch.code == payload.code).first():
         raise HTTPException(400, "Branch code already exists")
@@ -173,6 +209,37 @@ def create_branch(
     db.add(branch)
     db.commit()
     db.refresh(branch)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(branch.id), record_label=f"Branch: {branch.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')},
+    )
+    return branch
+
+@router.put("/branches/{branch_id}", response_model=BranchResponse)
+def update_branch(
+    branch_id: int,
+    payload: BranchUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin")),
+):
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(404, "Branch not found")
+    old_data = {k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')}
+    for k, v in payload.model_dump(exclude_none=True).items():
+        setattr(branch, k, v)
+    branch.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(branch)
+    new_data = {k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(branch_id), record_label=f"Branch: {branch.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return branch
 
 
@@ -239,7 +306,7 @@ def list_employees(
 def create_employee(
     payload: EmployeeCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     now = datetime.utcnow()
     parts = [payload.first_name]
@@ -252,13 +319,19 @@ def create_employee(
         **payload.model_dump(),
         employee_id=next_tid(db, Employee, "EMP"),
         full_name=full_name,
-        created_by=user.id,
+        created_by=current_user.id,
         created_at=now,
         updated_at=now,
     )
     db.add(emp)
     db.commit()
     db.refresh(emp)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(emp.id), record_label=f"Employee: {emp.full_name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')},
+    )
     return emp
 
 
@@ -290,11 +363,12 @@ def update_employee(
     emp_id: int,
     payload: EmployeeUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     emp = db.query(Employee).filter(Employee.id == emp_id).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
+    old_data = {k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')}
     data = payload.model_dump(exclude_none=True)
     for k, v in data.items():
         setattr(emp, k, v)
@@ -308,6 +382,13 @@ def update_employee(
     emp.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(emp)
+    new_data = {k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(emp_id), record_label=f"Employee: {emp.full_name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return emp
 
 
@@ -315,11 +396,18 @@ def update_employee(
 def deactivate_employee(
     emp_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     emp = db.query(Employee).filter(Employee.id == emp_id).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
+    old_data = {k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="DELETE",
+        record_id=str(emp_id), record_label=f"Employee: {emp.full_name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     emp.is_active = False
     emp.employment_status = "Inactive"
     emp.updated_at = datetime.utcnow()
@@ -347,7 +435,7 @@ def create_salary_structure(
     emp_id: int,
     payload: SalaryStructureCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if not db.query(Employee).filter(Employee.id == emp_id).first():
         raise HTTPException(404, "Employee not found")
@@ -367,6 +455,7 @@ def create_salary_structure(
         SalaryStructure.employee_id == emp_id,
     ).first()
     if existing:
+        old_data = {k: str(v) for k, v in existing.__dict__.items() if not k.startswith('_')}
         for k, v in payload.model_dump(exclude={"employee_id"}).items():
             setattr(existing, k, v)
         existing.gross_salary = gross
@@ -376,6 +465,12 @@ def create_salary_structure(
         existing.updated_at = now
         db.commit()
         db.refresh(existing)
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            old_data=old_data, new_data={k: str(v) for k, v in existing.__dict__.items() if not k.startswith('_')},
+        )
         return existing
 
     salary = SalaryStructure(
@@ -390,6 +485,12 @@ def create_salary_structure(
     db.add(salary)
     db.commit()
     db.refresh(salary)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')},
+    )
     return salary
 
 
@@ -398,13 +499,14 @@ def update_salary_structure(
     emp_id: int,
     payload: SalaryStructureUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     salary = db.query(SalaryStructure).filter(
         SalaryStructure.employee_id == emp_id,
     ).first()
     if not salary:
         raise HTTPException(404, "Salary structure not found")
+    old_data = {k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(salary, k, v)
     # Recompute totals
@@ -420,6 +522,13 @@ def update_salary_structure(
     salary.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(salary)
+    new_data = {k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return salary
 
 
@@ -447,7 +556,7 @@ def list_attendance(
 def mark_attendance(
     payload: AttendanceCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
 ):
     if not db.query(Employee).filter(Employee.id == payload.employee_id, Employee.is_active.is_(True)).first():
         raise HTTPException(404, "Employee not found")
@@ -461,39 +570,58 @@ def mark_attendance(
         notes=payload.notes,
         is_manual_correction=payload.is_manual_correction,
         correction_reason=payload.correction_reason,
-        corrected_by=user.id if payload.is_manual_correction else None,
+        corrected_by=current_user.id if payload.is_manual_correction else None,
+    )
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(record.id) if record else payload.employee_id,
+        record_label=f"Attendance: Employee {payload.employee_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={"employee_id": payload.employee_id, "date": str(payload.attendance_date)},
     )
     return record
-
 
 @router.put("/attendance/{att_id}", response_model=AttendanceResponse)
 def update_attendance(
     att_id: int,
     payload: AttendanceUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     record = db.query(Attendance).filter(Attendance.id == att_id).first()
     if not record:
         raise HTTPException(404, "Attendance record not found")
+    old_data = {k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(record, k, v)
     record.is_manual_correction = True
-    record.corrected_by = user.id
+    record.corrected_by = current_user.id
     record.is_approved = False  # Requires re-approval after correction
     record.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(record)
+    new_data = {k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(att_id), record_label=f"Attendance: {att_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return record
-
 
 @router.post("/attendance/{att_id}/approve", response_model=AttendanceResponse)
 def approve_attendance_correction(
     att_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
-    return AttendanceService.approve_correction(db, att_id, user.id)
+    result = AttendanceService.approve_correction(db, att_id, current_user.id)
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(att_id), record_label=f"Attendance approved: {att_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.get("/attendance/report/daily")
@@ -533,7 +661,7 @@ def list_leave_types(
 def create_leave_type(
     payload: LeaveTypeCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if db.query(LeaveType).filter(LeaveType.code == payload.code).first():
         raise HTTPException(400, "Leave type code already exists")
@@ -542,6 +670,12 @@ def create_leave_type(
     db.add(lt)
     db.commit()
     db.refresh(lt)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(lt.id), record_label=f"Leave Type: {lt.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in lt.__dict__.items() if not k.startswith('_')},
+    )
     return lt
 
 
@@ -572,7 +706,7 @@ def list_leaves(
 def request_leave(
     payload: LeaveCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
 ):
     try:
         leave = LeaveService.request_leave(
@@ -582,8 +716,15 @@ def request_leave(
             start_date=payload.start_date,
             end_date=payload.end_date,
             reason=payload.reason,
-            requested_by=user.id,
+            requested_by=current_user.id,
             medical_certificate=payload.medical_certificate,
+        )
+        log_action(
+            db=db, module="hr", action="CREATE",
+            record_id=str(leave.id) if leave else "",
+            record_label=f"Leave: Employee {payload.employee_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            new_data={"employee_id": payload.employee_id, "start": str(payload.start_date), "end": str(payload.end_date)},
         )
         return leave
     except ValueError as e:
@@ -611,10 +752,16 @@ def get_leave(
 def approve_leave(
     leave_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     try:
-        return LeaveService.approve_leave(db, leave_id, user.id)
+        result = LeaveService.approve_leave(db, leave_id, current_user.id)
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(leave_id), record_label=f"Leave approved: {leave_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -624,10 +771,16 @@ def reject_leave(
     leave_id: int,
     rejection_reason: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     try:
-        return LeaveService.reject_leave(db, leave_id, user.id, rejection_reason)
+        result = LeaveService.reject_leave(db, leave_id, current_user.id, rejection_reason)
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(leave_id), record_label=f"Leave rejected: {leave_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -636,10 +789,16 @@ def reject_leave(
 def cancel_leave(
     leave_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
 ):
     try:
-        return LeaveService.cancel_leave(db, leave_id, user.id)
+        result = LeaveService.cancel_leave(db, leave_id, current_user.id)
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(leave_id), record_label=f"Leave cancelled: {leave_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -681,7 +840,7 @@ def calculate_payroll(
     employee_id: int,
     payroll_period: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_roles("Admin", "Manager")),
 ):
     # Check for duplicate
     existing = db.query(Payroll).filter(
@@ -691,7 +850,15 @@ def calculate_payroll(
     if existing:
         raise HTTPException(400, f"Payroll already exists for this employee and period (id={existing.id})")
     try:
-        return PayrollService.calculate_payroll(db, employee_id, payroll_period, user)
+        result = PayrollService.calculate_payroll(db, employee_id, payroll_period, current_user)
+        log_action(
+            db=db, module="hr", action="CREATE",
+            record_id=str(result.id) if result else "",
+            record_label=f"Payroll: Employee {employee_id} ({payroll_period})",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            new_data={"employee_id": employee_id, "period": payroll_period},
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -701,7 +868,7 @@ def calculate_all_payroll(
     payroll_period: str,
     department_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     """Bulk calculate payroll for all active employees in a period."""
     q = db.query(Employee).filter(
@@ -723,11 +890,17 @@ def calculate_all_payroll(
             results.append(existing)
             continue
         try:
-            p = PayrollService.calculate_payroll(db, emp.id, payroll_period, user)
+            p = PayrollService.calculate_payroll(db, emp.id, payroll_period, current_user)
             results.append(p)
         except ValueError as e:
             errors.append({"employee_id": emp.id, "error": str(e)})
 
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=f"bulk-{payroll_period}", record_label=f"Payroll bulk: {payroll_period}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={"period": payroll_period, "count": len(results), "department_id": department_id},
+    )
     return results
 
 
@@ -747,10 +920,16 @@ def get_payroll(
 def approve_payroll(
     payroll_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     try:
-        return PayrollService.approve_payroll(db, payroll_id, user)
+        result = PayrollService.approve_payroll(db, payroll_id, current_user)
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(payroll_id), record_label=f"Payroll approved: {payroll_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -773,12 +952,12 @@ def mark_payroll_paid(
     payroll_id: int,
     payload: PayrollUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if not payload.payment_date or not payload.payment_method:
         raise HTTPException(400, "payment_date and payment_method are required")
     try:
-        return PayrollService.mark_as_paid(
+        result = PayrollService.mark_as_paid(
             db,
             payroll_id,
             payload.payment_date,
@@ -786,6 +965,12 @@ def mark_payroll_paid(
             payload.transaction_reference,
             payload.bank_account,
         )
+        log_action(
+            db=db, module="hr", action="UPDATE",
+            record_id=str(payroll_id), record_label=f"Payroll paid: {payroll_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        )
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -832,7 +1017,7 @@ def list_holidays(
 def create_holiday(
     payload: HolidayCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     if db.query(Holiday).filter(Holiday.holiday_date == payload.holiday_date).first():
         raise HTTPException(400, "Holiday already exists for this date")
@@ -841,6 +1026,12 @@ def create_holiday(
     db.add(h)
     db.commit()
     db.refresh(h)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(h.id), record_label=f"Holiday: {h.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in h.__dict__.items() if not k.startswith('_')},
+    )
     return h
 
 
@@ -848,11 +1039,18 @@ def create_holiday(
 def delete_holiday(
     holiday_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     h = db.query(Holiday).filter(Holiday.id == holiday_id).first()
     if not h:
         raise HTTPException(404, "Holiday not found")
+    old_data = {k: str(v) for k, v in h.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="DELETE",
+        record_id=str(holiday_id), record_label=f"Holiday: {h.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     h.is_active = False
     h.updated_at = datetime.utcnow()
     db.commit()
@@ -872,17 +1070,23 @@ def list_allowance_types(
 def create_allowance_type(
     payload: AllowanceTypeCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     now = datetime.utcnow()
     at = AllowanceType(**payload.model_dump(), created_at=now, updated_at=now)
     db.add(at)
     db.commit()
     db.refresh(at)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(at.id), record_label=f"Allowance Type: {at.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in at.__dict__.items() if not k.startswith('_')},
+    )
     return at
 
 
-@router.get("/deduction-types", response_model=List[DeductionTypeResponse])
+@router.get("/deduction-types", response_model=list[DeductionTypeResponse])
 def list_deduction_types(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("Admin", "Manager")),
@@ -894,11 +1098,17 @@ def list_deduction_types(
 def create_deduction_type(
     payload: DeductionTypeCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     now = datetime.utcnow()
     dt = DeductionType(**payload.model_dump(), created_at=now, updated_at=now)
     db.add(dt)
     db.commit()
     db.refresh(dt)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(dt.id), record_label=f"Deduction Type: {dt.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in dt.__dict__.items() if not k.startswith('_')},
+    )
     return dt

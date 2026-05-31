@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Phone, Mail, Building, MapPin, MessageSquare, Briefcase, Edit2, Plus, User, Info, Zap } from "lucide-react";
+import { Phone, Mail, Building, MapPin, MessageSquare, Briefcase, Edit2, Plus, User, Info, Zap, Clock, Paperclip } from "lucide-react";
 import { crmApi, Client, Deal, Communication } from "../../lib/crmApi";
 import ClientForm from "../../components/crm/ClientForm";
 import CommunicationForm from "../../components/crm/CommunicationForm";
 import QuickActionsPanel from "../../components/crm/QuickActionsPanel";
+import AttachmentPanel from "../../components/attachments/AttachmentPanel";
+import RecordHistory from "../../components/RecordHistory";
 import {
   DetailPage, DetailHeader, DetailBody, DetailSection,
   InfoGrid, DataTable, StatusBadge, MonoId,
@@ -14,7 +16,7 @@ const COMM_COLORS: Record<string, string> = {
   call: "#3b82f6", sms: "#8b5cf6", email: "#f59e0b", meeting: "#10b981",
 };
 
-const TABS = ["Overview", "Quick Actions"] as const;
+const TABS = ["Overview", "Quick Actions", "History"] as const;
 type Tab = typeof TABS[number];
 
 export default function ClientDetail() {
@@ -82,6 +84,7 @@ export default function ClientDetail() {
             >
               {tab === "Quick Actions" && <Zap size={11} />}
               {tab === "Overview" && <Info size={11} />}
+              {tab === "History" && <Clock size={11} />}
               {tab}
             </button>
           ))}
@@ -97,6 +100,13 @@ export default function ClientDetail() {
               phone={client.phone}
               email={client.email}
             />
+          </div>
+        )}
+
+        {/* ── History Tab ── */}
+        {activeTab === "History" && (
+          <div className="px-6 py-5">
+            <RecordHistory module="crm" recordId={String(client.id)} />
           </div>
         )}
 
@@ -214,6 +224,11 @@ export default function ClientDetail() {
                   </div>
                 </div>
               )}
+            </DetailSection>
+
+            {/* ── Section 4: Attachments ── */}
+            <DetailSection title="Attachments" icon={Paperclip}>
+              <AttachmentPanel module="client" recordId={client.id} />
             </DetailSection>
           </>
         )}

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permissions, require_any_permission
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.websocket_manager import ws_manager
@@ -113,6 +114,12 @@ async def create_revenue(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Revenue: {payload.sub_type}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": op.type, "sub_type": op.sub_type, "amount": str(op.amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "revenue_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:
@@ -180,6 +187,12 @@ async def create_expense_op(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Expense Op: {payload.sub_type}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": op.type, "sub_type": op.sub_type, "amount": str(op.amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "expense_op_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:
@@ -272,6 +285,12 @@ async def create_refund(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Refund: {payload.sub_type}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": "REFUND", "amount": str(payload.refund_amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "refund_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:
@@ -342,6 +361,12 @@ async def create_transfer(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Transfer: {op.id}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": "TRANSFER", "amount": str(payload.amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "transfer_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:
@@ -409,6 +434,12 @@ async def create_adjustment(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Adjustment: {payload.sub_type}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": "ADJUSTMENT", "sub_type": payload.sub_type, "amount": str(payload.amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "adjustment_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:
@@ -502,6 +533,12 @@ async def create_merge(
         db.commit()
         db.refresh(op)
 
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(op.id), record_label=f"Merge: {op.id}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"type": "MERGE", "amount": str(op.amount)},
+        )
         await ws_manager.broadcast("finance_updated", {"type": "merge_created", "operation_id": op.id})
         return _op_to_response(op)
     except HTTPException:

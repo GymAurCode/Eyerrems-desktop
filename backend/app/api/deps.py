@@ -9,8 +9,11 @@ handlers can filter queries without repeating the lookup.
 from collections.abc import Iterable
 from typing import Optional
 
+import logging
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
@@ -19,6 +22,8 @@ from app.models.auth import Role, User
 from app.models.company import Company
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+log = logging.getLogger("rems.auth")
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -34,17 +39,32 @@ def _is_admin(user: User) -> bool:
 
 
 def _load_user(db: Session, email: str) -> User:
-    return (
-        db.query(User)
-        .options(
-            joinedload(User.roles).joinedload(Role.permissions),
-            joinedload(User.direct_permissions),
-            joinedload(User.role).joinedload(Role.permissions),
-            joinedload(User.company),
-        )
-        .filter(User.email == email)
-        .first()
+    query = db.query(User).options(
+        joinedload(User.roles).joinedload(Role.permissions),
+        joinedload(User.direct_permissions),
+        joinedload(User.role).joinedload(Role.permissions),
+        joinedload(User.company),
     )
+    try:
+        return query.filter(User.email == email).first()
+    except SQLAlchemyError as exc:
+        error_text = str(exc).lower()
+        if "companies_1." in error_text and "does not exist" in error_text:
+            db.rollback()
+            log.warning(
+                "User load failed due to missing company columns in the master DB; retrying without eager company load."
+            )
+            return (
+                db.query(User)
+                .options(
+                    joinedload(User.roles).joinedload(Role.permissions),
+                    joinedload(User.direct_permissions),
+                    joinedload(User.role).joinedload(Role.permissions),
+                )
+                .filter(User.email == email)
+                .first()
+            )
+        raise
 
 
 # ── Core auth dependency ──────────────────────────────────────────────────────
@@ -66,6 +86,7 @@ def get_current_user(
 
     email: str = payload.get("sub", "")
     token_company_id: Optional[int] = payload.get("company_id")
+    token_is_super_admin: bool = bool(payload.get("is_super_admin", False))
 
     user = _load_user(db, email)
     if not user:
@@ -74,13 +95,13 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
-    # Regular tenant user — must belong to an active company
-    if not user.company_id and user.email != "admin@rems.local":
+    # Regular tenant user — must belong to an active company.
+    if not user.company_id and not token_is_super_admin and user.email != "admin@rems.local":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no company assigned")
 
-    if user.email == "admin@rems.local":
+    if user.email == "admin@rems.local" or token_is_super_admin:
         # Master admin may authenticate with a token that carries no tenant context.
-        request.state.company_id = None
+        request.state.company_id = token_company_id if token_company_id is not None else 1
         request.state.is_super_admin = True
         return user
 
@@ -170,6 +191,16 @@ def require_permissions(*permission_names: str):
         return current_user
 
     return dep
+
+
+def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Require the current user to be a Super Admin."""
+    if not current_user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super Admin access required.",
+        )
+    return current_user
 
 
 def require_any_permission(*permission_names: str):

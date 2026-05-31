@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useId, useState } from "react";
 import Modal from "../Modal";
 import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Dealer } from "../../lib/crmApi";
+import AttachmentsButton from "../attachments/AttachmentsButton";
+import { useLookup } from "../../hooks/useLookup";
 
 const CNIC_RE  = /^\d{5}-\d{7}-\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,6 +28,7 @@ function Divider({ label }: { label: string }) {
 export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
   const formId  = useId();
   const editing = !!initial;
+  const { options: COMMISSION_TYPE_OPTS } = useLookup('commission_type');
 
   const [name, setName]         = useState("");
   const [email, setEmail]       = useState("");
@@ -42,10 +45,11 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
   useEffect(() => {
     if (!open) return;
     if (initial) {
-      setName(initial.name); setEmail(initial.email ?? ""); setPhone(initial.phone ?? "");
-      setCompany(initial.company ?? ""); setCommType(initial.commission_type);
-      setCommRate(initial.commission_rate ?? ""); setCnic(initial.cnic ?? "");
-      setAddress(initial.address ?? ""); setNotes(initial.notes ?? "");
+      const i = initial as any;
+      setName(i.name); setEmail(i.email ?? ""); setPhone(i.phone ?? "");
+      setCompany(i.company ?? ""); setCommType(i.commission_type);
+      setCommRate(i.commission_rate ?? ""); setCnic(i.cnic ?? "");
+      setAddress(i.address ?? ""); setNotes(i.notes ?? "");
     } else {
       setName(""); setEmail(""); setPhone(""); setCompany("");
       setCommType("percentage"); setCommRate(""); setCnic(""); setAddress(""); setNotes("");
@@ -69,15 +73,15 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         name: name.trim(), email: email || null, phone: phone.trim(),
         company: company || null, commission_type: commType,
         commission_rate: commRate ? Number(commRate) : null,
         cnic: cnic || null, address: address || null, notes: notes || null,
       };
       const res = editing
-        ? await crmApi.updateDealer(initial!.id, payload)
-        : await crmApi.createDealer(payload);
+        ? await crmApi.updateDealer(initial!.id, payload as any)
+        : await crmApi.createDealer(payload as any);
       onSaved(res);
       onClose();
     } catch (err: any) {
@@ -92,6 +96,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
 
   const footer = (
     <>
+      <AttachmentsButton module="dealer" recordId={initial?.id} />
       <button type="button" onClick={onClose}
         className="px-5 py-2 text-sm rounded-lg transition-colors"
         style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
@@ -163,8 +168,9 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
           <FormField label="Type">
             <select className="select-dark w-full px-3 py-2 text-sm" value={commType}
               onChange={(e) => setCommType(e.target.value)}>
-              <option value="percentage">Percentage (%)</option>
-              <option value="fixed">Fixed Amount</option>
+              {COMMISSION_TYPE_OPTS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </FormField>
 

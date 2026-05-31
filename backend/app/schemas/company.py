@@ -32,7 +32,11 @@ class AdminUserCreate(BaseModel):
 class CompanyCreate(BaseModel):
     name: str
     slug: str
+    email: EmailStr
+    phone: str
     plan: str = "free"
+    currency_code: str = "PKR"
+    expiry_days: int = 365
     admin_user: AdminUserCreate  # required — every company must have an admin
 
     @field_validator("slug")
@@ -42,6 +46,14 @@ class CompanyCreate(BaseModel):
         v = v.lower().strip()
         if not re.match(r"^[a-z0-9-]+$", v):
             raise ValueError("Slug may only contain lowercase letters, digits, and hyphens")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def phone_format(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Phone cannot be empty")
         return v
 
 
@@ -78,9 +90,13 @@ class CompanyResponse(BaseModel):
     id: int
     name: str
     slug: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
     status: str
     plan: str
     currency_code: str
+    expiry_date: Optional[datetime] = None
+    db_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -92,13 +108,37 @@ class CompanyCreateResponse(BaseModel):
     id: int
     name: str
     slug: str
+    email: EmailStr
+    phone: str
     status: str
     plan: str
+    currency_code: str
+    expiry_date: datetime
     created_at: datetime
     updated_at: datetime
     admin_user: "CompanyUserResponse"
 
     model_config = {"from_attributes": True}
+
+
+class CompanySummaryResponse(CompanyResponse):
+    user_count: int
+    active_user_count: int
+    db_size_bytes: Optional[int] = None
+    is_expired: bool = False
+
+
+class CompanyExpiryUpdate(BaseModel):
+    expiry_date: Optional[datetime] = None
+    extend_days: Optional[int] = None
+    extend_months: Optional[int] = None
+
+    @field_validator("extend_days", "extend_months")
+    @classmethod
+    def non_negative(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("Extension values must be non-negative")
+        return v
 
 
 # ── CompanyFeature ────────────────────────────────────────────────────────────

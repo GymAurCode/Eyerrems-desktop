@@ -13,7 +13,7 @@ import {
 import { importApi } from "../lib/importApi";
 import { useBulkImport } from "../hooks/useBulkImport";
 import MasterImportModal from "../components/import/MasterImportModal";
-import SingleImportModal from "../components/import/SingleImportModal";
+// import SingleImportModal from "../components/import/SingleImportModal";
 
 // Import card configuration
 const IMPORT_CARDS = [
@@ -473,13 +473,13 @@ export default function ImportCenter() {
         />
       )}
       
-      {selectedCard && (
+      {/* {selectedCard && (
         <SingleImportModal
           card={IMPORT_CARDS.find(c => c.id === selectedCard)!}
           onClose={() => setSelectedCard(null)}
           onSuccess={loadData}
         />
-      )}
+      )} */}
     </div>
   );
 }

@@ -38,7 +38,7 @@ export default function DataTable<T = any>({
   selectable = false,
   selectedRows: controlledSelectedRows,
   onSelectionChange,
-  getRowId = (row: T, index: number) => (row as any).id || index,
+  getRowId = (row: T) => (row as any).id,
   
   // Sorting
   sortable = true,
@@ -329,10 +329,10 @@ export default function DataTable<T = any>({
             />
             <tbody>
               {displayData.map((row, index) => {
-                const rowId = getRowId(row, index);
-                const isSelected = currentSelectedRows.some(selected => 
-                  getRowId(selected) === rowId
-                );
+                const rowId = getRowId(row);
+  const isSelected = currentSelectedRows.some(selected => 
+        String(getRowId(selected)) === String(rowId)
+      );
                 
                 return (
                   <TableRow

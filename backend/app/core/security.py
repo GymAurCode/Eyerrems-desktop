@@ -28,23 +28,26 @@ def hash_password(password: str) -> str:
 
 def create_access_token(
     subject: str,
-    company_id: Optional[int] = None,
+    company_id: Optional[str] = None,
     is_super_admin: bool = False,
 ) -> str:
     """
     Create a signed JWT.
 
     Payload:
-        sub            – user email (legacy compat)
-        company_id     – tenant identifier (None for super-admins)
-        is_super_admin – bool flag
+        sub            – user email
+        role           – "superadmin" | "company_admin"
+        company_id     – company UUID (None for super-admins)
+        is_super_admin – bool flag (legacy compat)
         exp            – expiry
     """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.jwt_access_token_expire_minutes
     )
+    role = "superadmin" if is_super_admin else "company_admin"
     payload: dict = {
         "sub": subject,
+        "role": role,
         "company_id": company_id,
         "is_super_admin": is_super_admin,
         "exp": expire,

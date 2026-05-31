@@ -2,6 +2,7 @@ import { FormEvent, useState, useEffect } from "react";
 import { AlertCircle, Plus, Trash2 } from "lucide-react";
 import Modal from "../Modal";
 import { accountsApi, type Account } from "../../lib/financeApi";
+import { useLookup } from "../../hooks/useLookup";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ interface CreateAccountDialogProps {
 }
 
 export function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: CreateAccountDialogProps) {
+  const { options: ACCOUNT_TYPE_OPTS } = useLookup('account_type');
   const [code, setCode]     = useState("");
   const [name, setName]     = useState("");
   const [type, setType]     = useState("Asset");
@@ -86,7 +88,7 @@ export function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
         </Field>
         <Field label="Account Type">
           <select className={selectCls} value={type} onChange={e => setType(e.target.value)} disabled={isLoading}>
-            {["Asset","Liability","Income","Expense","Equity"].map(t => <option key={t}>{t}</option>)}
+            {ACCOUNT_TYPE_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </Field>
         <Field label="Parent Account (Optional)">
@@ -176,6 +178,7 @@ interface MakePaymentDialogProps {
 }
 
 export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, preselectedInvoiceId, isLoading }: MakePaymentDialogProps) {
+  const { options: PAYMENT_METHOD_OPTS } = useLookup('payment_method');
   const [invoiceId, setInvoiceId] = useState(preselectedInvoiceId ? String(preselectedInvoiceId) : "");
   const [method,    setMethod]    = useState("bank");
   const [amount,    setAmount]    = useState("");
@@ -227,8 +230,9 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
         )}
         <Field label="Payment Method">
           <select className={selectCls} value={method} onChange={e => setMethod(e.target.value)} disabled={isLoading}>
-            <option value="bank">Bank Transfer</option>
-            <option value="cash">Cash</option>
+            {PAYMENT_METHOD_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </Field>
         <Field label="Amount">

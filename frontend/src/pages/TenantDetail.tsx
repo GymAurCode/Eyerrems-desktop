@@ -8,12 +8,16 @@ import {
 import { tenantApi, TenantDetail, RentRecord, TenantLease } from "../lib/tenantApi";
 import { formatCurrency } from "../lib/currency";
 import { StatusBadge } from "../components/detail";
+import AttachmentPanel from "../components/attachments/AttachmentPanel";
+import RecordHistory from "../components/RecordHistory";
+import { useLookup } from "../hooks/useLookup";
 
 // ── Payment Dialog ────────────────────────────────────────────────────────────
 
 function PaymentDialog({ tenantId, records, onClose, onSaved }: {
   tenantId: number; records: RentRecord[]; onClose: () => void; onSaved: () => void;
 }) {
+  const { options: PAYMENT_METHOD_OPTS } = useLookup('payment_method');
   const [form, setForm] = useState({
     rent_record_id: "", amount: "",
     payment_date: new Date().toISOString().split("T")[0],
@@ -98,10 +102,9 @@ function PaymentDialog({ tenantId, records, onClose, onSaved }: {
             <label className="text-xs text-muted uppercase tracking-wider font-semibold">Payment Method</label>
             <select className="select-dark w-full px-3 py-2.5 text-sm" value={form.payment_method}
               onChange={e => setForm(p => ({ ...p, payment_method: e.target.value }))}>
-              <option value="cash">Cash</option>
-              <option value="bank">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="online">Online</option>
+              {PAYMENT_METHOD_OPTS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -109,6 +112,9 @@ function PaymentDialog({ tenantId, records, onClose, onSaved }: {
             <textarea className="input-dark w-full px-3 py-2.5 text-sm resize-none" rows={2}
               value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
+        </div>
+        <div className="px-5 pb-3">
+          <AttachmentPanel module="payment" recordId={tenantId} title="Payment Attachments" />
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 shrink-0"
           style={{ borderTop: "1px solid var(--border)" }}>
@@ -236,7 +242,7 @@ export default function TenantDetailPage() {
   const [loading, setLoading]       = useState(true);
   const [showPayment, setPayment]   = useState(false);
   const [showIncrease, setIncrease] = useState(false);
-  const [activeTab, setTab]         = useState<"rent" | "payments" | "leases">("rent");
+  const [activeTab, setTab]         = useState<"rent" | "payments" | "leases" | "history">("rent");
 
   const load = async () => {
     setLoading(true);
@@ -268,6 +274,7 @@ export default function TenantDetailPage() {
     { key: "rent" as const,     label: "Rent History" },
     { key: "payments" as const, label: "Payments" },
     { key: "leases" as const,   label: "All Leases" },
+    { key: "history" as const,  label: "History" },
   ];
 
   return (
@@ -478,8 +485,16 @@ export default function TenantDetailPage() {
               )}
             </div>
           )}
+
+          {activeTab === "history" && (
+            <div className="px-6 py-5">
+              <RecordHistory module="tenant" recordId={String(tenant.id)} />
+            </div>
+          )}
         </div>
       </div>
+
+      <AttachmentPanel module="tenant" recordId={tenant.id} />
 
       {showPayment && (
         <PaymentDialog tenantId={tenant.id} records={tenant.rent_records}

@@ -88,6 +88,7 @@ def seed_rbac(db: Session):
             full_name="System Administrator",
             hashed_password=hash_password("Admin@123"),
             company_id=company.id,
+            is_super_admin=True,
             status="active",
             is_approved=True,
             is_active=True,

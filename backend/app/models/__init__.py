@@ -40,3 +40,5 @@ from app.models.ai_intelligence import (
     AIAnomaly, AIRiskScore, AIAlert, AIDuplicateMatch, AIQuery, AIInsight,
 )
 from app.models.import_batch import ImportBatch, ImportRowLog
+from app.models.attachment import Attachment  # noqa: F401
+from app.models.lookup import LookupValue  # noqa: F401

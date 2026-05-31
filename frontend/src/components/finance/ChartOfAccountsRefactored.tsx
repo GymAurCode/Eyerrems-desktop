@@ -50,7 +50,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
   // State
   const [accounts, setAccounts] = useState<AccountTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<AccountTreeNode | null>(null);
   const [panelView, setPanelView] = useState<AccountPanelView>("summary");
   const [showInactive, setShowInactive] = useState(false);
@@ -81,7 +81,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
   // Load accounts
   const loadAccounts = async () => {
     setLoading(true);
-    setError(null);
+    setError(undefined);
     try {
       const data = await accountsApi.tree();
       setAccounts(data);
@@ -313,7 +313,6 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
           rowActions={readOnly ? [] : rowActions}
           toolbarActions={toolbarActions}
           onRowClick={handleRowClick}
-          onRefresh={loadAccounts}
           striped={true}
           hoverable={true}
           stickyHeader={true}

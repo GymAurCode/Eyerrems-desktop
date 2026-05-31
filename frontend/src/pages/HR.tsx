@@ -14,6 +14,8 @@ import { formatCurrency } from "../lib/currency";
 import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 import { SmartTable } from "../components/data-table";
 import { api } from "../lib/api";
+import AttachmentPanel from "../components/attachments/AttachmentPanel";
+import AttachmentsButton from "../components/attachments/AttachmentsButton";
 import {
   departmentsApi, positionsApi, branchesApi, employeesApi,
   attendanceApi, leaveTypesApi, leavesApi, payrollApi, holidaysApi,
@@ -21,6 +23,7 @@ import {
   type Attendance, type LeaveType, type Leave, type LeaveBalance,
   type Payroll, type Holiday, type SalaryStructure, type PayslipData,
 } from "../lib/hrApi";
+import { useLookup } from "../hooks/useLookup";
 
 type Tab = "dashboard" | "employees" | "attendance" | "leaves" | "payroll" | "setup";
 
@@ -242,6 +245,8 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
   employees: Employee[]; departments: Department[]; positions: Position[];
   branches: Branch[]; onRefresh: () => void;
 }) {
+  const { options: EMPLOYMENT_TYPE_OPTS } = useLookup('employment_type');
+  const { options: EMPLOYEE_STATUS_OPTS } = useLookup('employee_status');
   const [emps, setEmps] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -409,17 +414,18 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
           <Field label="Joining Date *"><input type="date" value={empForm.joining_date ?? ""} onChange={ef("joining_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Employment Type">
             <select value={empForm.employment_type ?? "Permanent"} onChange={ef("employment_type")} className={inputCls} style={inputStyle}>
-              {["Permanent","Contract","Probation","Intern"].map(t => <option key={t}>{t}</option>)}
+              {EMPLOYMENT_TYPE_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </Field>
           <Field label="Status">
             <select value={empForm.employment_status ?? "Active"} onChange={ef("employment_status")} className={inputCls} style={inputStyle}>
-              {["Active","Inactive","Resigned","Terminated"].map(s => <option key={s}>{s}</option>)}
+              {EMPLOYEE_STATUS_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </Field>
         </div>
         {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
         <div className="flex justify-end gap-2 pt-3">
+          <AttachmentsButton module="employee" />
           <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveEmployee} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save Employee"}</button>
         </div>
@@ -453,6 +459,9 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
               if (salary) setSalForm({ basic_salary: salary.basic_salary, house_rent_allowance: salary.house_rent_allowance, conveyance_allowance: salary.conveyance_allowance, medical_allowance: salary.medical_allowance, special_allowance: salary.special_allowance, other_allowances: salary.other_allowances, provident_fund: salary.provident_fund, professional_tax: salary.professional_tax, income_tax: salary.income_tax, other_deductions: salary.other_deductions, overtime_hourly_rate: salary.overtime_hourly_rate, effective_from: salary.effective_from });
               setShowSalary(true);
             }} className="btn-primary px-3 py-1.5 text-xs">{salary ? "Edit Salary" : "Set Salary"}</button>
+          <div className="pt-2 border-t border-gray-700/50">
+            <AttachmentPanel module="employee" recordId={selected.id} title="Documents" />
+          </div>
           </div>
         )}
       </Modal>
@@ -852,6 +861,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
 
 // ── Payroll Tab ───────────────────────────────────────────────────────────────
 function PayrollTab({ employees, departments }: { employees: Employee[]; departments: Department[] }) {
+  const { options: PAYMENT_METHOD_OPTS } = useLookup('payment_method');
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const [period, setPeriod]       = useState(currentPeriod);
   const [payrolls, setPayrolls]   = useState<Payroll[]>([]);
@@ -1089,7 +1099,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
           <Field label="Payment Date *"><input type="date" value={paidForm.payment_date} onChange={pf("payment_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Payment Method *">
             <select value={paidForm.payment_method} onChange={pf("payment_method")} className={inputCls} style={inputStyle}>
-              {["Bank Transfer","Cash","Cheque"].map(m => <option key={m}>{m}</option>)}
+              {PAYMENT_METHOD_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </Field>
           <Field label="Transaction Reference"><input value={paidForm.transaction_reference} onChange={pf("transaction_reference")} className={inputCls} style={inputStyle} /></Field>

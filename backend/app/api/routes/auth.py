@@ -1,13 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_permissions
-from app.core.audit import log_create, log_login, log_update, log_user_action
+from app.core.audit import log_create, log_update, log_user_action
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.auth import Permission, Role, User
+from app.models.company import Company
 from app.schemas.auth import (
     AssignPermissionsRequest,
     AssignRolesRequest,
@@ -204,115 +205,81 @@ def list_pending_users_legacy(
 
 @router.post("/login", response_model=AuthToken)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """Login and get access token with tenant context."""
-    # Special-case the single global admin account
-    if payload.email == "admin@rems.local" and payload.password == "Admin@123":
-        # Construct a minimal User-like object
-        class SimpleUser:
-            def __init__(self):
-                self.email = payload.email
-                self.hashed_password = ""
-                self.is_active = True
-                self.is_super_admin = False
-                self.company_id = None
-                self.roles = []
-                self.role = None
-        user = SimpleUser()
-        is_tenant_user = False
-        target_db = db
-        # Skip further authentication steps
-        # Directly issue token
-        token = create_access_token(subject=user.email, company_id=None)
-        return AuthToken(access_token=token, company_id=None, is_super_admin=False)
+    """
+    Login with role-aware response.
 
-    target_db = db
-    is_tenant_user = False
+    Flow:
+      1. If email matches SUPERADMIN_EMAIL → validate password → return role="superadmin"
+      2. Else look up company in master.companies by admin_email
+         → validate password, status, expiry → return role="company_admin"
+    """
+    from app.core.config import settings as app_settings
+    from app.core.master_db import ensure_master_schema
+    from app.tenant import get_master_session
+    from sqlalchemy import text
 
-    # Load from master DB first if the email exists there.
-    user = db.query(User).options(joinedload(User.roles)).filter(User.email == payload.email).first()
+    # ── 1. Check superadmin ───────────────────────────────────────────────
+    if payload.email == app_settings.superadmin_email:
+        # Verify against the superadmin user in the public schema
+        sa_user = db.query(User).filter(
+            User.email == payload.email,
+            User.is_super_admin == True,
+        ).first()
+        if not sa_user or not verify_password(payload.password, sa_user.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # If not found in master, or if the master row belongs to a company, search tenant DBs.
-    if not user or (user and user.company_id is not None):
-        companies = db.query(Company).filter(Company.status == "active").all()
-        found_user = None
-        found_company = None
+        if not sa_user.is_active or not sa_user.is_approved:
+            raise HTTPException(status_code=403, detail="Super Admin account is not active")
 
-        from app.core.tenant_manager import tenant_manager
-        for company in companies:
-            tenant_db = tenant_manager.get_tenant_session(company.slug)
-            try:
-                u = (
-                    tenant_db.query(User)
-                    .options(joinedload(User.roles))
-                    .filter(User.email == payload.email)
-                    .first()
-                )
-                if u:
-                    found_user = u
-                    found_company = company
-                    target_db = tenant_db
-                    is_tenant_user = True
-                    break
-            except Exception as e:
-                import logging
-                logging.getLogger("rems.auth").warning(f"Error querying company {company.slug} during login: {e}")
-                tenant_db.close()
-            else:
-                if not u:
-                    tenant_db.close()
+        sa_user.last_login = datetime.utcnow()
+        db.commit()
 
-        if found_user:
-            user = found_user
+        token = create_access_token(subject=sa_user.email, company_id=None, is_super_admin=True)
+        return AuthToken(
+            access_token=token,
+            role="superadmin",
+            company_id=None,
+            company_name=None,
+        )
 
-    # Ensure we still have a user object from earlier lookup
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
-    # Now verify password
-    if not verify_password(payload.password, user.hashed_password):
-        if is_tenant_user:
-            target_db.close()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
-    if not user.is_active:
-        if is_tenant_user:
-            target_db.close()
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
-
-    user_roles = [r.name.lower() for r in (user.roles or [])]
-    if user.role:
-        user_roles.append(user.role.name.lower())
-    is_admin = "admin" in user_roles
-
-    if not is_admin and (user.status != "active" or not user.is_approved):
-        if is_tenant_user:
-            target_db.close()
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is pending admin approval")
-
-    if is_tenant_user and found_company and found_company.status != "active":
-        target_db.close()
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company account is suspended")
-
+    # ── 2. Check company admin in master.companies ────────────────────────
+    master_db = get_master_session()
     try:
-        user.last_login = datetime.utcnow()
-        log_login(target_db, user.id, user.email, success=True, company_id=user.company_id, request=request)
-        target_db.commit()
-    except Exception as e:
-        target_db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Login session update failed: {str(e)}")
+        ensure_master_schema(master_db)
+        company = master_db.execute(
+            text("""
+                SELECT id, name, admin_email, admin_password_hash, status, expiry_date, schema_name
+                FROM master.companies
+                WHERE admin_email = :email
+            """),
+            {"email": payload.email},
+        ).fetchone()
     finally:
-        if is_tenant_user:
-            target_db.close()
+        master_db.close()
+
+    if not company:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not verify_password(payload.password, company[3]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if company[4] == "suspended":
+        raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
+
+    if company[5] and company[5] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=403, detail="License expired. Contact your administrator.")
 
     token = create_access_token(
-        subject=user.email,
-        company_id=user.company_id,
+        subject=payload.email,
+        company_id=str(company[0]),
+        is_super_admin=False,
     )
 
     return AuthToken(
         access_token=token,
-        company_id=user.company_id,
-        is_super_admin=False,
+        role="company_admin",
+        company_id=str(company[0]),
+        company_name=company[1],
     )
 
 

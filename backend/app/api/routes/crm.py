@@ -10,12 +10,14 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Respons
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import require_any_permission
+from app.api.deps import get_current_user, require_any_permission
+from app.core.audit import log_action
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.table_query import apply_table_filters
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.websocket_manager import ws_manager
+from app.models.auth import User
 from app.models.crm import (
     Client, ClientAttachment, Communication, Deal, DealAttachment,
     Dealer, DealerAttachment, Installment, InstallmentPayment, InstallmentPlan,
@@ -142,11 +144,17 @@ def list_leads(
 
 @router.post("/leads", response_model=LeadOut)
 def create_lead(payload: LeadCreate, db: Session = Depends(get_db),
-                _=Depends(require_any_permission(*PERM_MANAGE))):
+                current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     lead = Lead(lead_id=_next_lead_id(db), **payload.model_dump())
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(lead.id), record_label=f"Lead: {lead.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')},
+    )
     d = LeadOut.model_validate(lead).model_dump()
     d["is_converted"] = False
     return d
@@ -165,14 +173,22 @@ def get_lead(lead_id: int, db: Session = Depends(get_db),
 
 @router.patch("/leads/{lead_id}", response_model=LeadOut)
 def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db),
-                _=Depends(require_any_permission(*PERM_MANAGE))):
+                current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     lead = db.query(Lead).options(joinedload(Lead.client)).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
+    old_data = {k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(lead, k, v)
     db.commit()
     db.refresh(lead)
+    new_data = {k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(lead_id), record_label=f"Lead: {lead.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     d = LeadOut.model_validate(lead).model_dump()
     d["is_converted"] = lead.client is not None
     return d
@@ -180,12 +196,19 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
 
 @router.delete("/leads/{lead_id}", status_code=204)
 def delete_lead(lead_id: int, db: Session = Depends(get_db),
-                _=Depends(require_any_permission(*PERM_MANAGE))):
+                current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
     if lead.client:
         raise HTTPException(400, "Cannot delete a converted lead")
+    old_data = {k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="DELETE",
+        record_id=str(lead_id), record_label=f"Lead: {lead.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(lead)
     db.commit()
 
@@ -248,7 +271,7 @@ def list_clients(
 
 @router.post("/clients", response_model=ClientOut)
 def create_client(payload: ClientCreate, db: Session = Depends(get_db),
-                  _=Depends(require_any_permission(*PERM_MANAGE))):
+                  current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     client = Client(
         client_id=_next_client_id(db, converted=False),
         tracking_id=_next_tracking_id(db),
@@ -257,13 +280,19 @@ def create_client(payload: ClientCreate, db: Session = Depends(get_db),
     db.add(client)
     db.commit()
     db.refresh(client)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(client.id), record_label=f"Client: {client.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
+    )
     return _client_out(_load_client(db, client.id))
 
 
 @router.post("/leads/{lead_id}/convert", response_model=ClientOut)
 def convert_lead_to_client(lead_id: int, payload: ConvertLeadToClient,
                             db: Session = Depends(get_db),
-                            _=Depends(require_any_permission(*PERM_MANAGE))):
+                            current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -279,6 +308,12 @@ def convert_lead_to_client(lead_id: int, payload: ConvertLeadToClient,
     db.add(client)
     db.commit()
     db.refresh(client)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(client.id), record_label=f"Client (converted): {client.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
+    )
     return _client_out(_load_client(db, client.id))
 
 
@@ -290,12 +325,20 @@ def get_client(client_id: int, db: Session = Depends(get_db),
 
 @router.patch("/clients/{client_id}", response_model=ClientOut)
 def update_client(client_id: int, payload: ClientUpdate, db: Session = Depends(get_db),
-                  _=Depends(require_any_permission(*PERM_MANAGE))):
+                  current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     client = _load_client(db, client_id)
+    old_data = {k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(client, k, v)
     db.commit()
     db.refresh(client)
+    new_data = {k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(client_id), record_label=f"Client: {client.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return _client_out(_load_client(db, client_id))
 
 
@@ -360,11 +403,17 @@ def list_dealers(
 
 @router.post("/dealers", response_model=DealerOut)
 def create_dealer(payload: DealerCreate, db: Session = Depends(get_db),
-                  _=Depends(require_any_permission(*PERM_MANAGE))):
+                  current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     dealer = Dealer(dealer_id=_next_dealer_id(db), **payload.model_dump())
     db.add(dealer)
     db.commit()
     db.refresh(dealer)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(dealer.id), record_label=f"Dealer: {dealer.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')},
+    )
     return _load_dealer(db, dealer.id)
 
 
@@ -376,12 +425,20 @@ def get_dealer(dealer_id: int, db: Session = Depends(get_db),
 
 @router.patch("/dealers/{dealer_id}", response_model=DealerOut)
 def update_dealer(dealer_id: int, payload: DealerUpdate, db: Session = Depends(get_db),
-                  _=Depends(require_any_permission(*PERM_MANAGE))):
+                  current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     dealer = _load_dealer(db, dealer_id)
+    old_data = {k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(dealer, k, v)
     db.commit()
     db.refresh(dealer)
+    new_data = {k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(dealer_id), record_label=f"Dealer: {dealer.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return _load_dealer(db, dealer_id)
 
 
@@ -408,7 +465,7 @@ def list_installment_types(db: Session = Depends(get_db),
 
 @router.post("/installment-types", response_model=InstallmentTypeOut)
 def create_installment_type(payload: InstallmentTypeCreate, db: Session = Depends(get_db),
-                             _=Depends(require_any_permission(*PERM_MANAGE))):
+                             current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     existing = db.query(InstallmentType).filter(InstallmentType.name == payload.name).first()
     if existing:
         return existing
@@ -416,15 +473,27 @@ def create_installment_type(payload: InstallmentTypeCreate, db: Session = Depend
     db.add(it)
     db.commit()
     db.refresh(it)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(it.id), record_label=f"Installment Type: {it.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={"name": it.name, "id": it.id},
+    )
     return it
 
 
 @router.delete("/installment-types/{type_id}", status_code=204)
 def delete_installment_type(type_id: int, db: Session = Depends(get_db),
-                             _=Depends(require_any_permission(*PERM_MANAGE))):
+                             current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     it = db.query(InstallmentType).filter(InstallmentType.id == type_id).first()
     if not it:
         raise HTTPException(404, "Installment type not found")
+    log_action(
+        db=db, module="crm", action="DELETE",
+        record_id=str(type_id), record_label=f"Installment Type: {it.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data={"name": it.name, "id": it.id},
+    )
     db.delete(it)
     db.commit()
 
@@ -490,7 +559,7 @@ def list_deals(
 
 @router.post("/deals", response_model=DealOut)
 async def create_deal(payload: DealCreate, db: Session = Depends(get_db),
-                      _=Depends(require_any_permission(*PERM_MANAGE))):
+                      current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     client = db.query(Client).filter(Client.id == payload.client_id).first()
     if not client:
         raise HTTPException(404, "Client not found")
@@ -502,6 +571,12 @@ async def create_deal(payload: DealCreate, db: Session = Depends(get_db),
     db.add(deal)
     db.commit()
     db.refresh(deal)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(deal.id), record_label=f"Deal: {deal.deal_title or deal.id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in deal.__dict__.items() if not k.startswith('_')},
+    )
     await ws_manager.broadcast("new_deal", {"deal_id": deal.id})
     await ws_manager.broadcast("dashboard_refresh", {})
     return _deal_out(_load_deal(db, deal.id))
@@ -515,12 +590,20 @@ def get_deal(deal_id: int, db: Session = Depends(get_db),
 
 @router.patch("/deals/{deal_id}", response_model=DealOut)
 def update_deal(deal_id: int, payload: DealUpdate, db: Session = Depends(get_db),
-                _=Depends(require_any_permission(*PERM_MANAGE))):
+                current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     deal = _load_deal(db, deal_id)
+    old_data = {k: str(v) for k, v in deal.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(deal, k, v)
     db.commit()
     db.refresh(deal)
+    new_data = {k: str(v) for k, v in deal.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(deal_id), record_label=f"Deal: {deal.deal_title or deal.id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return _deal_out(_load_deal(db, deal_id))
 
 
@@ -604,7 +687,7 @@ def get_installments_for_deal(deal_id: int, db: Session = Depends(get_db),
 @router.post("/deals/{deal_id}/installment-plan", response_model=InstallmentPlanOut)
 def create_installment_plan(deal_id: int, payload: InstallmentPlanCreate,
                              db: Session = Depends(get_db),
-                             _=Depends(require_any_permission(*PERM_MANAGE))):
+                             current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     deal = db.query(Deal).filter(Deal.id == deal_id).first()
     if not deal:
         raise HTTPException(404, "Deal not found")
@@ -661,6 +744,12 @@ def create_installment_plan(deal_id: int, payload: InstallmentPlanCreate,
 
     db.commit()
     db.refresh(plan)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(plan.id), record_label=f"Installment Plan: Deal {deal_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in plan.__dict__.items() if not k.startswith('_')},
+    )
     return (
         db.query(InstallmentPlan)
         .options(joinedload(InstallmentPlan.installments))
@@ -672,11 +761,12 @@ def create_installment_plan(deal_id: int, payload: InstallmentPlanCreate,
 @router.patch("/installments/{inst_id}", response_model=None)
 def update_installment(inst_id: int, payload: InstallmentUpdate,
                         db: Session = Depends(get_db),
-                        _=Depends(require_any_permission(*PERM_MANAGE))):
+                        current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     """Update installment status or reschedule due_date."""
     inst = db.query(Installment).filter(Installment.id == inst_id).first()
     if not inst:
         raise HTTPException(404, "Installment not found")
+    old_data = {k: str(v) for k, v in inst.__dict__.items() if not k.startswith('_')}
     if payload.status is not None:
         inst.status = payload.status
     if payload.paid_amount is not None:
@@ -684,13 +774,19 @@ def update_installment(inst_id: int, payload: InstallmentUpdate,
     if payload.due_date is not None:
         inst.due_date = payload.due_date
     db.commit()
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(inst_id), record_label=f"Installment: {inst_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data={k: str(v) for k, v in inst.__dict__.items() if not k.startswith('_')},
+    )
     return {"ok": True}
 
 
 @router.post("/installments/{inst_id}/pay", response_model=InstallmentPaymentOut)
 def pay_installment(inst_id: int, payload: InstallmentPaymentCreate,
                     db: Session = Depends(get_db),
-                    _=Depends(require_any_permission(*PERM_MANAGE))):
+                    current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     """
     Record payment against an installment.
     - Updates paid_amount + status (partial/paid)
@@ -754,6 +850,12 @@ def pay_installment(inst_id: int, payload: InstallmentPaymentCreate,
 
         db.commit()
         db.refresh(payment)
+        log_action(
+            db=db, module="crm", action="CREATE",
+            record_id=str(payment.id), record_label=f"Installment Payment: {inst_id}",
+            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            new_data={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
+        )
         return payment
     except ValueError as e:
         db.rollback()
@@ -773,7 +875,7 @@ def list_communications(tracking_id: str | None = None, db: Session = Depends(ge
 
 @router.post("/communications", response_model=CommunicationOut)
 def create_communication(payload: CommunicationCreate, db: Session = Depends(get_db),
-                          _=Depends(require_any_permission(*PERM_MANAGE))):
+                          current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     client = db.query(Client).filter(Client.tracking_id == payload.tracking_id).first()
     if not client:
         raise HTTPException(404, "No client found with this tracking_id")
@@ -781,6 +883,12 @@ def create_communication(payload: CommunicationCreate, db: Session = Depends(get
     db.add(comm)
     db.commit()
     db.refresh(comm)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(comm.id), record_label=f"Communication: {comm.type}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in comm.__dict__.items() if not k.startswith('_')},
+    )
     return comm
 
 
@@ -865,7 +973,7 @@ def list_activities(
 def create_activity(
     body: ActivityCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     """Log a new activity (call, whatsapp, followup, note, email)."""
     activity = LeadActivity(
@@ -879,6 +987,12 @@ def create_activity(
     db.add(activity)
     db.commit()
     db.refresh(activity)
+    log_action(
+        db=db, module="crm", action="CREATE",
+        record_id=str(activity.id), record_label=f"Activity: {activity.type}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in activity.__dict__.items() if not k.startswith('_')},
+    )
     return activity
 
 
@@ -910,12 +1024,13 @@ def update_activity(
     activity_id: int,
     body: ActivityUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     """Update activity status (e.g. mark call completed/missed, follow-up done)."""
     activity = db.query(LeadActivity).filter(LeadActivity.id == activity_id).first()
     if not activity:
         raise HTTPException(404, "Activity not found")
+    old_data = {k: str(v) for k, v in activity.__dict__.items() if not k.startswith('_')}
     if body.status is not None:
         activity.status = body.status
     if body.message is not None:
@@ -925,6 +1040,12 @@ def update_activity(
     activity.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(activity)
+    log_action(
+        db=db, module="crm", action="UPDATE",
+        record_id=str(activity_id), record_label=f"Activity: {activity.type}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data={k: str(v) for k, v in activity.__dict__.items() if not k.startswith('_')},
+    )
     return activity
 
 
@@ -932,10 +1053,17 @@ def update_activity(
 def delete_activity(
     activity_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     activity = db.query(LeadActivity).filter(LeadActivity.id == activity_id).first()
     if not activity:
         raise HTTPException(404, "Activity not found")
+    old_data = {k: str(v) for k, v in activity.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="crm", action="DELETE",
+        record_id=str(activity_id), record_label=f"Activity: {activity.type}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(activity)
     db.commit()

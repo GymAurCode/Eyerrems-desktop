@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_permissions
-from app.core.audit import log_create, log_delete, log_update
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.models.audit import AuditLog
 from app.models.auth import Permission, Role, User
@@ -75,22 +75,15 @@ def create_role(
         permission_ids=payload.permission_ids
     )
     
-    # Log role creation
-    log_create(
-        db,
-        user_id=admin.id,
-        entity_type="role",
-        entity_id=role.id,
-        module="Admin",
-        description=f"Role '{role.name}' created",
-        details={
-            "role_name": role.name,
-            "permission_count": len(role.permissions)
-        },
-        request=request,
-    )
-    
     db.commit()
+
+    log_action(
+        db=db, module="user", action="CREATE",
+        record_id=str(role.id), record_label=f"Role: {role.name}",
+        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        new_data={"role_name": role.name, "permission_count": len(role.permissions)},
+        ip_address=request.client.host if request.client else None,
+    )
     db.refresh(role)
     
     return RoleDetailResponse(
@@ -129,22 +122,15 @@ def update_role(
         permission_ids=payload.permission_ids
     )
     
-    # Log role update
-    log_update(
-        db,
-        user_id=admin.id,
-        entity_type="role",
-        entity_id=role.id,
-        module="Admin",
-        description=f"Role '{role.name}' updated",
-        details={
-            "role_name": role.name,
-            "permission_count": len(role.permissions)
-        },
-        request=request,
-    )
-    
     db.commit()
+
+    log_action(
+        db=db, module="user", action="UPDATE",
+        record_id=str(role.id), record_label=f"Role: {role.name}",
+        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        new_data={"role_name": role.name, "permission_count": len(role.permissions)},
+        ip_address=request.client.host if request.client else None,
+    )
     db.refresh(role)
     
     return RoleDetailResponse(
@@ -185,19 +171,15 @@ def delete_role(
     
     RBACService.delete_role(db, role_id)
     
-    # Log role deletion
-    log_delete(
-        db,
-        user_id=admin.id,
-        entity_type="role",
-        entity_id=role_id,
-        module="Admin",
-        description=f"Role '{role_name}' deleted",
-        details={"role_name": role_name},
-        request=request,
-    )
-    
     db.commit()
+
+    log_action(
+        db=db, module="user", action="DELETE",
+        record_id=str(role_id), record_label=f"Role: {role_name}",
+        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        old_data={"role_name": role_name},
+        ip_address=request.client.host if request.client else None,
+    )
 
 
 @router.get("/roles", response_model=list[RolePermissionResponse])
@@ -231,22 +213,15 @@ def create_permission(
         description=payload.description
     )
     
-    # Log permission creation
-    log_create(
-        db,
-        user_id=admin.id,
-        entity_type="permission",
-        entity_id=permission.id,
-        module="Admin",
-        description=f"Permission '{permission.name}' created",
-        details={
-            "permission_name": permission.name,
-            "module": permission.module
-        },
-        request=request,
-    )
-    
     db.commit()
+
+    log_action(
+        db=db, module="user", action="CREATE",
+        record_id=str(permission.id), record_label=f"Permission: {permission.name}",
+        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        new_data={"permission_name": permission.name, "module": permission.module},
+        ip_address=request.client.host if request.client else None,
+    )
     db.refresh(permission)
     
     return PermissionResponse(
@@ -280,9 +255,14 @@ def delete_permission(
     if not perm:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
     perm_name = perm.name
+    log_action(
+        db=db, module="user", action="DELETE",
+        record_id=str(permission_id), record_label=f"Permission: {perm_name}",
+        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        old_data={"permission_name": perm_name},
+        ip_address=request.client.host if request.client else None,
+    )
     db.delete(perm)
-    log_delete(db, user_id=admin.id, entity_type="permission", entity_id=permission_id,
-               module="Admin", description=f"Permission '{perm_name}' deleted", request=request)
     db.commit()
 
 
@@ -298,17 +278,14 @@ def seed_permissions(
     created = RBACService.seed_default_permissions(db)
     
     if created:
-        log_create(
-            db,
-            user_id=admin.id,
-            entity_type="permission",
-            entity_id=None,
-            module="Admin",
-            description=f"Seeded {len(created)} default permissions",
-            details={"count": len(created)},
-            request=request,
-        )
         db.commit()
+        log_action(
+            db=db, module="user", action="CREATE",
+            record_id="seed", record_label="Seeded default permissions",
+            changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+            new_data={"count": len(created)},
+            ip_address=request.client.host if request.client else None,
+        )
     
     return {"message": f"Seeded {len(created)} permissions", "count": len(created)}
 
@@ -323,17 +300,14 @@ def seed_roles(
     created = RBACService.seed_default_roles(db)
     
     if created:
-        log_create(
-            db,
-            user_id=admin.id,
-            entity_type="role",
-            entity_id=None,
-            module="Admin",
-            description=f"Seeded {len(created)} default roles",
-            details={"count": len(created), "roles": [r.name for r in created]},
-            request=request,
-        )
         db.commit()
+        log_action(
+            db=db, module="user", action="CREATE",
+            record_id="seed", record_label="Seeded default roles",
+            changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+            new_data={"count": len(created), "roles": [r.name for r in created]},
+            ip_address=request.client.host if request.client else None,
+        )
     
     return {
         "message": f"Seeded {len(created)} roles",

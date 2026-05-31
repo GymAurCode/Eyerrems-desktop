@@ -10,10 +10,12 @@ import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../acti
 import Modal from "../../Modal";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
+import AttachmentsButton from "../../attachments/AttachmentsButton";
 import { propApi, Property, PropertyCategory } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
+import { useLookup } from "../../../hooks/useLookup";
 
 type Props = { onView: (id: number) => void; refresh: number; onRefresh: () => void };
 
@@ -50,6 +52,7 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
 
 export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const navigate = useNavigate();
+  const { options: PROP_STATUS_OPTS } = useLookup('property_status');
   const [properties, setProperties]   = useState<Property[]>([]);
   const [categories, setCategories]   = useState<PropertyCategory[]>([]);
   const [total, setTotal]             = useState(0);
@@ -411,8 +414,8 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
                     <div>
                       <label className="block text-xs text-muted mb-1">Status</label>
                       <select className="select-dark w-full px-3 py-2.5 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
-                        {["available","reserved","rented","sold","maintenance"].map((s) => (
-                          <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                        {PROP_STATUS_OPTS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
                     </div>
@@ -580,8 +583,8 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
                                     onChange={(e) => updateUnit(floor._key, unit._key, "rent_amount", e.target.value)} placeholder="Rent (Rs)" />
                                   <select className="select-dark px-1.5 py-1.5 text-xs" value={unit.status}
                                     onChange={(e) => updateUnit(floor._key, unit._key, "status", e.target.value)}>
-                                    {["available","reserved","rented","sold","maintenance"].map((s) => (
-                                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                                    {PROP_STATUS_OPTS.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                                     ))}
                                   </select>
                                   <button type="button" onClick={() => removeUnit(floor._key, unit._key)} className="text-muted hover:text-red-400 transition-colors">
@@ -606,6 +609,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
             </div>
           </div>
 
+          <AttachmentsButton module="property" />
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
             <button type="submit" disabled={submitting || !!tidError}
               className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2">

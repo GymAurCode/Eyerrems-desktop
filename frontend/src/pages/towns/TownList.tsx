@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Building2, MapPin, Edit2, Trash2, Search } from "lucide-react";
+import AttachmentsButton from "../../components/attachments/AttachmentsButton";
 import { QuickRowActions, printRecord } from "../../components/actions";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
@@ -110,13 +111,16 @@ function TownFormModal({
           />
         </FormField>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary w-full py-3 text-sm"
-        >
-          {saving ? "Saving…" : initial?.id ? "Update Town" : "Create Town"}
-        </button>
+        <div className="flex items-center gap-3">
+          <AttachmentsButton module="town" recordId={initial?.id} />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary flex-1 py-3 text-sm"
+          >
+            {saving ? "Saving…" : initial?.id ? "Update Town" : "Create Town"}
+          </button>
+        </div>
       </div>
     </Modal>
   );

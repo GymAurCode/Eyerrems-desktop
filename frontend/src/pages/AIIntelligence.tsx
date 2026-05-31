@@ -1,3 +1,4 @@
+import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import {
   Brain, Shield, AlertTriangle, Users, Copy, Search,
@@ -92,7 +93,7 @@ function TrendChart({ data }: { data: AIDashboardStats["risk_trend"] }) {
 }
 // ── Dashboard Tab ─────────────────────────────────────────────────────────────
 
-function DashboardTab({ stats, onRefresh }: { stats: AIDashboardStats | null; onRefresh: () => void }) {
+function DashboardTab({ stats, onRefresh, error }: { stats: AIDashboardStats | null; onRefresh: () => void; error?: string | null }) {
   const [scanning, setScanning] = useState(false);
 
   const runScan = async () => {
@@ -102,6 +103,7 @@ function DashboardTab({ stats, onRefresh }: { stats: AIDashboardStats | null; on
     finally { setScanning(false); }
   };
 
+  if (error) return <div className="p-10 text-center text-red-400 text-sm">{error}</div>;
   if (!stats) return <div className="p-10 text-center text-muted text-sm">Loading dashboard...</div>;
 
   return (
@@ -213,15 +215,23 @@ function DashboardTab({ stats, onRefresh }: { stats: AIDashboardStats | null; on
 function AnomaliesTab() {
   const [items, setItems] = useState<AIAnomaly[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState("");
   const [resolved, setResolved] = useState<boolean | undefined>(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       setItems(await aiApi.getAnomalies({ severity: severity || undefined, is_resolved: resolved, limit: 100 }));
-    } catch { setItems([]); }
-    finally { setLoading(false); }
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        setError("Access denied: No company context. Please contact your administrator.");
+      } else {
+        setError("Unable to load anomalies. Please try again later.");
+      }
+      setItems([]);
+    } finally { setLoading(false); }
   }, [severity, resolved]);
 
   useEffect(() => { void load(); }, [load]);
@@ -247,6 +257,7 @@ function AnomaliesTab() {
       </div>
       <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         {loading ? <div className="p-10 text-center text-muted text-sm">Loading...</div>
+        : error ? <div className="p-10 text-center text-red-400 text-sm">{error}</div>
         : items.length === 0 ? (
           <div className="p-10 text-center">
             <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2" />
@@ -898,12 +909,23 @@ export default function AIIntelligencePage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [stats, setStats] = useState<AIDashboardStats | null>(null);
   const [statsLoading, setSL] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setSL(true);
-    try { setStats(await aiApi.getDashboard()); }
-    catch { setStats(null); }
-    finally { setSL(false); }
+    setStatsError(null);
+    try {
+      setStats(await aiApi.getDashboard());
+    } catch (err) {
+      setStats(null);
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        setStatsError("Access denied: No company context. Please contact your administrator.");
+      } else {
+        setStatsError("Unable to load the AI dashboard. Please try again later.");
+      }
+    } finally {
+      setSL(false);
+    }
   }, []);
 
   useEffect(() => { void loadStats(); }, [loadStats]);
@@ -955,7 +977,7 @@ export default function AIIntelligencePage() {
         ))}
       </div>
 
-      {tab === "dashboard"  && <DashboardTab stats={stats} onRefresh={loadStats} />}
+      {tab === "dashboard"  && <DashboardTab stats={stats} onRefresh={loadStats} error={statsError} />}
       {tab === "anomalies"  && <AnomaliesTab />}
       {tab === "alerts"     && <AlertsTab />}
       {tab === "risk"       && <RiskTab />}

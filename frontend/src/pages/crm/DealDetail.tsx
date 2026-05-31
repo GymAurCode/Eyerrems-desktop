@@ -2,15 +2,18 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2, Clock, AlertCircle, Building2,
-  Edit2, Plus, CreditCard, DollarSign, Info, Calendar,
+  Edit2, Plus, CreditCard, DollarSign, Info, Calendar, Paperclip,
 } from "lucide-react";
 import { crmApi, Deal, InstallmentPlan, Installment } from "../../lib/crmApi";
 import { propApi } from "../../lib/propertyApi";
 import DealForm from "../../components/crm/DealForm";
+import AttachmentPanel from "../../components/attachments/AttachmentPanel";
+import RecordHistory from "../../components/RecordHistory";
 import {
   DetailPage, DetailHeader, DetailBody, DetailSection,
   InfoGrid, DataTable, SummaryCards, StatusBadge, MonoId,
 } from "../../components/detail";
+import { useLookup } from "../../hooks/useLookup";
 
 const INST_STATUS: Record<string, { icon: React.ReactNode; color: string }> = {
   paid:    { icon: <CheckCircle2 size={13} />, color: "#10b981" },
@@ -21,7 +24,8 @@ const INST_STATUS: Record<string, { icon: React.ReactNode; color: string }> = {
 
 // ── Pay Dialog ────────────────────────────────────────────────────────────────
 function PayDialog({ inst, onClose, onPaid }: { inst: Installment; onClose: () => void; onPaid: () => void }) {
-  const [method, setMethod] = useState<"cash" | "bank">("bank");
+  const { options: PAYMENT_METHOD_OPTS } = useLookup('payment_method');
+  const [method, setMethod] = useState("bank");
   const [amount, setAmount] = useState(String(Number(inst.amount) - Number(inst.paid_amount)));
   const [ref, setRef]       = useState("");
   const [saving, setSaving] = useState(false);
@@ -47,9 +51,10 @@ function PayDialog({ inst, onClose, onPaid }: { inst: Installment; onClose: () =
         <div>
           <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: "var(--text-muted)" }}>Method</label>
           <select className="select-dark w-full px-3 py-2 text-sm" value={method}
-            onChange={e => setMethod(e.target.value as "cash" | "bank")}>
-            <option value="bank">Bank</option>
-            <option value="cash">Cash</option>
+            onChange={e => setMethod(e.target.value)}>
+            {PAYMENT_METHOD_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -313,6 +318,16 @@ export default function DealDetail() {
             </div>
           </DetailSection>
         )}
+
+        {/* ── Section 7: Attachments ── */}
+        <DetailSection title="Attachments" icon={Paperclip}>
+          <AttachmentPanel module="deal" recordId={deal.id} />
+        </DetailSection>
+
+        {/* ── Section 8: History ── */}
+        <DetailSection title="History" icon={Clock}>
+          <RecordHistory module="crm" recordId={String(deal.id)} />
+        </DetailSection>
       </DetailBody>
 
       <DealForm open={editOpen} onClose={() => setEditOpen(false)}

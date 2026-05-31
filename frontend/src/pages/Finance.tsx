@@ -27,6 +27,7 @@ import ChartOfAccounts from "../components/finance/ChartOfAccountsSimple";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import UnifiedLedgersTab from "../components/finance/UnifiedLedgersTab";
 import OperationsTab from "../components/finance/OperationsTab";
+import AttachmentPanel from "../components/attachments/AttachmentPanel";
 
 type Tab = "dashboard" | "accounts" | "journals" | "invoices" | "payments"
          | "bank" | "cash" | "commissions" | "expenses" | "ledger" | "reports" | "operations";
@@ -822,6 +823,9 @@ function InvoicesTab({
                   <span className="text-xs font-medium text-primary">{String(value)}</span>
                 </div>
               ))}
+            </div>
+            <div className="px-5 py-4 border-t border-gray-700">
+              <AttachmentPanel module="invoice" recordId={viewInv.id} />
             </div>
             <div className="px-5 py-4 flex justify-end gap-2"
               style={{ borderTop: "1px solid var(--border)" }}>

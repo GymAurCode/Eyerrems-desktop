@@ -40,7 +40,7 @@
  *     deletePermission="finance:manage"
  *   />
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ElementType } from "react";
 import type { ActionConfig, RowActionsProps, QuickRowActionsProps } from "./types";
 import { ACTION_DEFAULTS } from "./actionConfig";
 import { ACTION_ICONS } from "./actionIcons";

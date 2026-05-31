@@ -6,26 +6,41 @@ from sqlalchemy.orm import declarative_base, Session
 
 from app.core.config import settings
 from app.core.tenant_manager import tenant_manager
+from app.tenant import get_master_session as get_pg_master_session
 
 log = logging.getLogger("rems.db")
 
 # Expose Base and master engine for compatibility with migrations and schemas
 Base = declarative_base()
-engine = tenant_manager.engines["master"]
-SessionLocal = tenant_manager.sessionmakers["master"]
+
+def _get_master_engine():
+    """Lazy-load the master engine to avoid import-time crash."""
+    if not hasattr(_get_master_engine, "_engine"):
+        _get_master_engine._engine = tenant_manager.engines["master"]
+    return _get_master_engine._engine
+
+def _get_master_sessionmaker():
+    if not hasattr(_get_master_sessionmaker, "_sm"):
+        _get_master_sessionmaker._sm = tenant_manager.sessionmakers["master"]
+    return _get_master_sessionmaker._sm
+
+engine = _get_master_engine()
+SessionLocal = _get_master_sessionmaker()
+
 
 def get_db(request: Request = None):
     """
     Dynamically resolves database session:
       - If user is a super admin or no tenant is active, yields master database session.
-      - If tenant is active, yields tenant-isolated company database session.
+      - If tenant is active (via X-Company-Id or JWT claim), yields tenant-isolated session
+        using PostgreSQL schema-per-company approach.
     """
     db = None
     company_id = None
-    
+
     if request:
         company_id = getattr(request.state, "company_id", None)
-        
+
         # If not already determined, try to decode from Authorization header
         if company_id is None:
             auth_header = request.headers.get("Authorization")
@@ -40,19 +55,47 @@ def get_db(request: Request = None):
                 except Exception as e:
                     log.debug(f"[DB] Could not decode token in get_db: {e}")
 
+        # Also check X-Company-Id header (for company_admin API calls)
+        if company_id is None:
+            try:
+                x_company_id = request.headers.get("X-Company-Id")
+                if x_company_id:
+                    company_id = x_company_id
+                    request.state.company_id = x_company_id
+            except Exception:
+                pass
+
     if company_id is None:
         # Use master database for global admin or system requests
         db = tenant_manager.get_master_session()
         log.debug("[DB] Resolved master database session")
     else:
-        # Use tenant-specific database
-        db = tenant_manager.get_tenant_session_by_id(company_id)
-        if db is None:
-            # Fallback to master database if tenant database fails to open or does not exist
-            log.warning(f"[DB] Company ID {company_id} database session could not be resolved. Falling back to master.db.")
-            db = tenant_manager.get_master_session()
-        else:
-            log.debug(f"[DB] Resolved tenant-isolated database session for company ID {company_id}")
+        # Try PostgreSQL schema-based tenant first
+        try:
+            from app.tenant import lookup_company, get_schema_engine
+            company_info = lookup_company(str(company_id))
+            if company_info:
+                _, SessionClass = get_schema_engine(company_info["schema_name"])
+                db = SessionClass()
+                log.debug(f"[DB] Resolved schema-based tenant session for schema '{company_info['schema_name']}'")
+            else:
+                # Fallback to SQLite tenant
+                numeric_id = int(company_id) if isinstance(company_id, (int, str)) and str(company_id).isdigit() else None
+                db = tenant_manager.get_tenant_session_by_id(numeric_id)
+                if db is None:
+                    log.warning(f"[DB] Could not resolve tenant. Falling back to master.")
+                    db = tenant_manager.get_master_session()
+                else:
+                    log.debug(f"[DB] Resolved SQLite tenant session for company ID {company_id}")
+        except Exception as e:
+            log.warning(f"[DB] Schema-based tenant resolution failed ({e}), falling back to SQLite.")
+            try:
+                numeric_id = int(company_id) if isinstance(company_id, (int, str)) and str(company_id).isdigit() else None
+                db = tenant_manager.get_tenant_session_by_id(numeric_id)
+            except Exception:
+                db = None
+            if db is None:
+                db = tenant_manager.get_master_session()
 
     try:
         yield db

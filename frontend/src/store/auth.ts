@@ -27,11 +27,13 @@ type AuthState = {
   features: Record<string, boolean>;
   companyId: number | null;
   isSuperAdmin: boolean;
+  companyPermissions: Record<string, { enabled: boolean; tabs: Record<string, boolean> }> | null;
 
   // Bootstrap cache — avoids re-fetching on every route change
   _bootstrapFetchedAt: number | null;
 
   login: (email: string, password: string) => Promise<void>;
+  loginSuperAdmin: (email: string, password: string) => Promise<void>;
   fetchMe: () => Promise<void>;
   /** Full bootstrap: user + stats + activity + unread count. Cached 30s. */
   bootstrap: () => Promise<BootstrapData | null>;
@@ -59,6 +61,7 @@ export type BootstrapData = {
   };
   activity: { type: string; title: string; amount: number | null; timestamp: string }[];
   unread_count: number;
+  permissions: Record<string, { enabled: boolean; tabs: Record<string, boolean> }>;
   from_cache: boolean;
 };
 
@@ -76,15 +79,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   features: {},
   companyId: null,
   isSuperAdmin: false,
+  companyPermissions: null,
   _bootstrapFetchedAt: null,
 
   login: async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     setAuthToken(data.access_token);
+    const role = data.role ?? "company_admin";
+    const isSuperAdmin = role === "superadmin";
     if (data.company_id != null) {
       try {
         localStorage.setItem("company_id", String(data.company_id));
         sessionStorage.setItem("company_id", String(data.company_id));
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem("company_id");
+        sessionStorage.removeItem("company_id");
       } catch {}
     }
     // Invalidate bootstrap cache on login
@@ -93,10 +104,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       token: data.access_token,
       companyId: data.company_id ?? null,
-      isSuperAdmin: false,
+      isSuperAdmin,
       _bootstrapFetchedAt: null,
     });
-    await useAuthStore.getState().fetchMe();
+    if (!isSuperAdmin) {
+      await useAuthStore.getState().fetchMe();
+    }
+  },
+  loginSuperAdmin: async (email, password) => {
+    const { data } = await api.post("/auth/login", { email, password });
+    setAuthToken(data.access_token);
+    try {
+      localStorage.removeItem("company_id");
+      sessionStorage.removeItem("company_id");
+    } catch {}
+    _bootstrapCache = null;
+    _bootstrapCacheAt = 0;
+    set({
+      token: data.access_token,
+      companyId: null,
+      isSuperAdmin: true,
+      _bootstrapFetchedAt: null,
+    });
   },
 
   fetchMe: async () => {
@@ -107,7 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         permissions: data.permissions ?? [],
         features: data.features ?? {},
         companyId: data.company_id ?? null,
-        isSuperAdmin: false,
+        isSuperAdmin: data.is_super_admin ?? false,
       });
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -131,6 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         features: data.user.features ?? {},
         companyId: data.user.company_id ?? null,
         isSuperAdmin: false,
+        companyPermissions: data.permissions ?? null,
         _bootstrapFetchedAt: Date.now(),
       });
       _bootstrapCache = data;

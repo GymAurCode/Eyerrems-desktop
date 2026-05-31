@@ -3,13 +3,13 @@
  * Premium enterprise feature for importing multiple modules together
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
   Users, Building2, UserCheck, Shield, Zap, RotateCcw, ArrowRight,
   FileText, AlertCircle, RefreshCw
 } from "lucide-react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, DropzoneOptions } from "react-dropzone";
 import { importApi } from "../../lib/importApi";
 
 interface FileGroup {
@@ -78,7 +78,7 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[], groupType: FileGroup['type']) => {
+  const onDrop = useCallback((acceptedFiles: File[], groupType: FileGroup['type']) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       setFileGroups(prev => ({
@@ -92,18 +92,15 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
     }
   }, []);
 
-  const createDropzone = (groupType: FileGroup['type']) => {
-    return useDropzone({
-      onDrop: (accepted, rejected) => onDrop(accepted, rejected, groupType),
-      accept: {
-        'text/csv': ['.csv'],
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-        'application/vnd.ms-excel': ['.xls']
-      },
-      maxFiles: 1,
-      multiple: false
-    });
-  };
+  const dropzoneOptions = useMemo((): DropzoneOptions => ({
+    accept: {
+      'text/csv': ['.csv'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls']
+    },
+    maxFiles: 1,
+    multiple: false
+  }), []);
 
   const downloadAllTemplates = async () => {
     try {
@@ -127,12 +124,10 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
       const validationPromises = Object.entries(fileGroups)
         .filter(([_, group]) => group.file)
         .map(async ([key, group]) => {
-          const formData = new FormData();
-          formData.append('file', group.file!);
-          formData.append('module_key', FILE_GROUPS.find(g => g.type === group.type)?.templateKey || '');
+          const moduleKey = FILE_GROUPS.find(g => g.type === group.type)?.templateKey || '';
           
           try {
-            const result = await importApi.validate(formData);
+            const result = await importApi.validate(moduleKey, group.file!, "skip");
             return { key, result };
           } catch (error) {
             return { key, error };
@@ -144,18 +139,23 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
       const updatedGroups = { ...fileGroups };
       let hasErrors = false;
 
-      results.forEach(({ key, result, error }) => {
+      results.forEach(({ key, result, error }: { key: string; result?: typeof importApi extends { validate: (...args: any[]) => Promise<infer R> } ? R : never; error?: any }) => {
         if (error) {
           updatedGroups[key] = {
             ...updatedGroups[key],
             status: 'error'
           };
           hasErrors = true;
-        } else {
+        } else if (result) {
           updatedGroups[key] = {
             ...updatedGroups[key],
             status: 'validated',
-            validation: result
+            validation: {
+              total_rows: result.total_rows,
+              valid_count: result.valid_count,
+              invalid_count: result.invalid_count,
+              errors: result.rows?.filter((r: any) => r.status === "invalid").flatMap((r: any) => r.errors) ?? [],
+            }
           };
         }
       });
@@ -183,12 +183,12 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
       
       for (const [key, group] of Object.entries(fileGroups)) {
         if (group.file && group.status === 'validated') {
-          const formData = new FormData();
-          formData.append('file', group.file);
-          formData.append('module_key', FILE_GROUPS.find(g => g.type === group.type)?.templateKey || '');
-          formData.append('duplicate_mode', 'skip');
-          
-          const result = await importApi.execute(formData);
+          const moduleKey = FILE_GROUPS.find(g => g.type === group.type)?.templateKey || '';
+          const result = await importApi.execute({
+            module_key: moduleKey,
+            duplicate_mode: "skip",
+            batch_id: null,
+          });
           results.push({ type: group.type, result });
         }
       }
@@ -298,9 +298,12 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
               {/* File Upload Areas */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {FILE_GROUPS.map((group) => {
-                  const dropzone = createDropzone(group.type);
                   const fileGroup = fileGroups[group.type];
                   const Icon = group.icon;
+                  const dz = useDropzone({
+                    ...dropzoneOptions,
+                    onDrop: (accepted: File[]) => onDrop(accepted, group.type),
+                  });
 
                   return (
                     <div key={group.type} className="space-y-3">
@@ -320,14 +323,14 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
                       </div>
 
                       <div 
-                        {...dropzone.getRootProps()}
+                        {...dz.getRootProps()}
                         className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors"
                         style={{ 
                           borderColor: fileGroup.file ? group.color : "var(--border)",
                           background: fileGroup.file ? group.bgColor : "var(--hover-bg)"
                         }}
                       >
-                        <input {...dropzone.getInputProps()} />
+                        <input {...dz.getInputProps()} />
                         {fileGroup.file ? (
                           <div>
                             <CheckCircle2 size={24} className="mx-auto mb-2" style={{ color: group.color }} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Building2, MapPin, Tag, Layers, Paperclip,
+  Building2, MapPin, Tag, Layers, Paperclip, Clock,
   Plus, ChevronDown, ChevronRight, ImagePlus,
   Calendar, Ruler, DollarSign, Edit2, Trash2,
 } from "lucide-react";
@@ -9,10 +9,14 @@ import { propApi, PropertyDetail, Location, Amenity } from "../lib/propertyApi";
 import { uploadsUrl } from "../lib/config";
 import { formatCurrency } from "../lib/currency";
 import Modal from "../components/Modal";
+import RecordHistory from "../components/RecordHistory";
 import {
   DetailPage, DetailHeader, DetailBody, DetailSection,
-  InfoGrid, DataTable, TagList, AttachmentList, StatusBadge,
+  InfoGrid, DataTable, TagList, StatusBadge,
 } from "../components/detail";
+import AttachmentPanel from "../components/attachments/AttachmentPanel";
+import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import { useLookup } from "../hooks/useLookup";
 
 const STATUS_COLOR: Record<string, string> = {
   available: "#10b981", sold: "#ef4444", rented: "#f59e0b",
@@ -23,6 +27,7 @@ export default function PropertyViewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const propId = Number(id);
+  const { options: UNIT_STATUS_OPTS } = useLookup('unit_status');
 
   const [prop, setProp]           = useState<PropertyDetail | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -279,20 +284,12 @@ export default function PropertyViewPage() {
 
         {/* ── Section 4: Attachments ── */}
         <DetailSection title="Attachments" icon={Paperclip}>
-          <AttachmentList
-            attachments={prop.attachments}
-            urlFn={uploadsUrl}
-            onUpload={async (file) => {
-              const input = document.createElement("input");
-              input.type = "file";
-              const e = { target: { files: [file], value: "" } } as any;
-              await uploadAttachment(e);
-            }}
-          />
-          <label className="flex items-center gap-1.5 text-xs cursor-pointer mt-3" style={{ color: "#60a5fa" }}>
-            <Plus size={12} /> Upload attachment
-            <input type="file" className="hidden" onChange={(e) => void uploadAttachment(e)} />
-          </label>
+          <AttachmentPanel module="property" recordId={prop.id} />
+        </DetailSection>
+
+        {/* ── Section 5: History ── */}
+        <DetailSection title="History" icon={Clock}>
+          <RecordHistory module="property" recordId={String(prop.id)} />
         </DetailSection>
       </DetailBody>
 
@@ -301,6 +298,7 @@ export default function PropertyViewPage() {
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" type="number"
             value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
+          <AttachmentsButton module="property" recordId={propId} />
           <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addFloor()}>
             Add Floor
           </button>
@@ -317,10 +315,11 @@ export default function PropertyViewPage() {
             onChange={(e) => setUnitRent(e.target.value)} placeholder="Monthly rent" />
           <select className="select-dark w-full px-4 py-3 text-sm" value={unitStatus}
             onChange={(e) => setUnitStatus(e.target.value)}>
-            {["available","reserved","rented","sold","maintenance"].map((s) => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            {UNIT_STATUS_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+          <AttachmentsButton module="property" recordId={propId} />
           <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addUnit()}>
             Add Unit
           </button>

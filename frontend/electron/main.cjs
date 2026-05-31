@@ -92,11 +92,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      // webSecurity must be false for file:// protocol.
-      // With webSecurity: true, Electron treats local file requests as cross-origin
-      // and blocks the JS/CSS bundles (the crossorigin attribute on <script>/<link>
-      // triggers a CORS preflight that always fails under file://).
-      webSecurity: false,
+      webSecurity: true,
     },
   });
 
@@ -327,26 +323,30 @@ ipcMain.handle("pdf:print", async (event, filePath) => {
       show: false,
       webPreferences: {
         plugins: true,
+        contextIsolation: true,
+        nodeIntegration: false,
       },
     });
 
     await printWindow.loadFile(filePath);
 
-    // Print
-    printWindow.webContents.print(
-      {
-        silent: false,
-        printBackground: true,
-      },
-      (success, errorType) => {
-        if (!success) {
-          console.error("Print failed:", errorType);
+    // Print — return a Promise that resolves from the print callback
+    return await new Promise((resolve) => {
+      printWindow.webContents.print(
+        {
+          silent: false,
+          printBackground: true,
+        },
+        (success, errorType) => {
+          printWindow.close();
+          if (success) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: errorType || "Print failed" });
+          }
         }
-        printWindow.close();
-      }
-    );
-
-    return { success: true };
+      );
+    });
   } catch (err) {
     console.error("Failed to print PDF:", err);
     return {

@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 // ── Auth / guards ─────────────────────────────────────────────────────────────
 import { useAuthStore } from "./store/auth";
@@ -15,10 +15,12 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
+import SuperAdminApp from "./superadmin/SuperAdminApp";
 
 // ── Public pages ──────────────────────────────────────────────────────────────
 import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
+import SuperAdminLoginPage from "./pages/SuperAdminLogin";
 
 // ── Company pages ─────────────────────────────────────────────────────────────
 import DashboardPage from "./pages/Dashboard";
@@ -55,6 +57,8 @@ import BookingFormReport from "./pages/reports/BookingFormReport";
 // ── AI Intelligence Center ────────────────────────────────────────────────────
 import AIIntelligencePage from "./pages/AIIntelligence";
 import ImportCenter from "./pages/ImportCenter";
+import HistoryPage from "./pages/History";
+import AdvanceOptionsPage from "./pages/AdvanceOptions";
 
 // ── Page titles ───────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
@@ -76,6 +80,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/ledger":       "Ledger Management",
   "/reports":      "Reports",
   "/ai":           "AI Intelligence",
+  "/history":      "Activity History",
+  "/advance-options": "Advance Options",
 };
 
 function DisabledModule() {
@@ -93,6 +99,10 @@ function CompanyLayout({ children }: { children: React.ReactNode }) {
   const theme    = useUIStore((s) => s.theme);
   const base     = "/" + location.pathname.split("/")[1];
   const title    = PAGE_TITLES[base] ?? PAGE_TITLES[location.pathname] ?? "";
+  const { isSuperAdmin } = useAuthStore.getState();
+  if (isSuperAdmin) {
+    return <Navigate to="/superadmin" replace />;
+  }
   return (
     <div className="app-shell flex h-screen overflow-hidden bg-base" data-theme={theme}>
       <Sidebar />
@@ -112,7 +122,18 @@ function RootRedirect() {
   if (!token) return <Navigate to="/login" replace />;
   // Wait for user to load before deciding
   if (!user)  return null;
-  return <Navigate to="/" replace />;
+  return user?.is_super_admin ? <Navigate to="/superadmin" replace /> : <Navigate to="/" replace />;
+}
+
+function SuperAdminRoute({ children }: { children: ReactNode }) {
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+
+  if (!token) return <Navigate to="/superadmin/login" replace />;
+  if (!user && !isSuperAdmin) return null;
+  if (!isSuperAdmin && (!user || !user.is_super_admin)) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -146,6 +167,12 @@ export default function App() {
         {/* ── Public ──────────────────────────────────────────────────────── */}
         <Route path="/login"  element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/superadmin/login" element={<SuperAdminLoginPage />} />
+        <Route path="/superadmin/*" element={
+          <SuperAdminRoute>
+            <SuperAdminApp />
+          </SuperAdminRoute>
+        } />
 
         {/* ── Company Dashboard ────────────────────────────────────────────── */}
         <Route path="/" element={
@@ -351,6 +378,13 @@ export default function App() {
           </ProtectedRoute>
         } />
 
+        {/* ── Advance Options ──────────────────────────────────────────────── */}
+        <Route path="/advance-options" element={
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <CompanyLayout><AdvanceOptionsPage /></CompanyLayout>
+          </ProtectedRoute>
+        } />
+
         {/* ── Reminders module ─────────────────────────────────────────────── */}
         <Route path="/reminders" element={
           <ProtectedRoute>
@@ -421,6 +455,13 @@ export default function App() {
         <Route path="/ai" element={
           <ProtectedRoute allowedRoles={["Admin"]}>
             <CompanyLayout><AIIntelligencePage /></CompanyLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* ── Activity History ────────────────────────────────────────────── */}
+        <Route path="/history" element={
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <CompanyLayout><HistoryPage /></CompanyLayout>
           </ProtectedRoute>
         } />
 

@@ -119,11 +119,15 @@ def unread_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    count = (
-        db.query(Notification)
-        .filter(Notification.user_id == current_user.id, Notification.is_read == False)
-        .count()
-    )
+    try:
+        count = (
+            db.query(Notification)
+            .filter(Notification.user_id == current_user.id, Notification.is_read == False)
+            .count()
+        )
+    except Exception:
+        count = 0
+        db.rollback()
     return {"count": count}
 
 

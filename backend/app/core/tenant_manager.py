@@ -143,6 +143,16 @@ class TenantManager:
         finally:
             master_db.close()
 
+    def remove_tenant(self, slug: str) -> None:
+        """Dispose and remove cached tenant engine/sessionmaker."""
+        if slug in self.engines:
+            try:
+                self.engines[slug].dispose()
+            except Exception:
+                log.exception(f"[TenantManager] Failed to dispose engine for tenant '{slug}'")
+            self.engines.pop(slug, None)
+            self.sessionmakers.pop(slug, None)
+
     def initialize_tenant_db(self, company_id: int, slug: str):
         """
         Creates SQLite database file, creates all tables from metadata,
@@ -151,14 +161,22 @@ class TenantManager:
         db_path = self.get_tenant_db_path(slug)
         log.info(f"[TenantManager] Creating/initializing isolated tenant database: {db_path}")
 
-        # Ensure directory exists
-        DATABASES_DIR.mkdir(parents=True, exist_ok=True)
+        # Ensure any existing tenant DB file is removed to avoid schema mismatches
+        tenant_path = Path(db_path)
+        if tenant_path.exists():
+            try:
+                # Dispose any existing engine for this slug if present
+                if slug in self.engines:
+                    self.remove_tenant(slug)
+                tenant_path.unlink()
+                log.info(f"[TenantManager] Existing tenant DB at {db_path} removed before initialization.")
+            except Exception as exc:
+                log.warning(f"[TenantManager] Could not remove existing tenant DB at {db_path}: {exc}")
         
-        # Get engine & session maker for tenant
+        # Create engine and sessionmaker for this tenant
         db_url = f"sqlite:///{db_path}"
         engine, SessionClass = self._get_or_create_engine(slug, db_url)
-        
-        # Create all tables programmatically
+
         from app.core.database import Base
         try:
             Base.metadata.create_all(bind=engine)
@@ -196,9 +214,13 @@ class TenantManager:
                         id=master_company.id,
                         name=master_company.name,
                         slug=master_company.slug,
+                        email=master_company.email,
+                        phone=master_company.phone,
                         status=master_company.status,
                         plan=master_company.plan,
                         currency_code=master_company.currency_code,
+                        expiry_date=master_company.expiry_date,
+                        db_path=master_company.db_path,
                     )
                     db.add(tenant_company)
                     try:

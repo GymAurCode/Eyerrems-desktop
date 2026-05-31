@@ -1,7 +1,9 @@
 import { useState, useEffect, FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, X } from "lucide-react";
+import AttachmentsButton from "../attachments/AttachmentsButton";
 import { accountsApi, type AccountTreeNode, type Account } from "../../lib/financeApi";
+import { useLookup } from "../../hooks/useLookup";
 
 function getPortalRoot(): HTMLElement {
   let el = document.getElementById("modal-portal-root");
@@ -63,6 +65,7 @@ export function AccountDialog({
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
 }) {
+  const { options: ACCOUNT_TYPE_OPTS } = useLookup('account_type');
   const [code, setCode]         = useState(initial?.code ?? "");
   const [name, setName]         = useState(initial?.name ?? "");
   const [type, setType]         = useState(initial?.account_type ?? "Asset");
@@ -75,7 +78,7 @@ export function AccountDialog({
   const [err, setErr]           = useState("");
 
   useEffect(() => {
-    accountsApi.list(false).then(setAccounts).catch(() => {});
+    accountsApi.list().then(setAccounts).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -123,8 +126,8 @@ export function AccountDialog({
             <Field label="Account Type">
               <select className="select-dark w-full px-3 py-2 text-sm"
                 value={type} onChange={e => setType(e.target.value)}>
-                {["Asset", "Liability", "Income", "Expense", "Equity"].map(t => (
-                  <option key={t} value={t}>{t}</option>
+                {ACCOUNT_TYPE_OPTS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </Field>
@@ -162,6 +165,7 @@ export function AccountDialog({
           )}
 
           <div className="flex gap-2 pt-1">
+            <AttachmentsButton module="account" recordId={initial?.id} />
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
@@ -202,7 +206,7 @@ export function ConfirmDeleteDialog({
         <div className="space-y-4">
           <div className="flex items-start gap-3 px-3 py-3 rounded-lg"
             style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <AlertCircle size={16} style={{ color: "#f87171", shrink: 0, marginTop: 1 }} />
+            <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0, marginTop: 1 }} />
             <div>
               <p className="text-sm font-semibold" style={{ color: "#f87171" }}>This cannot be undone</p>
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>

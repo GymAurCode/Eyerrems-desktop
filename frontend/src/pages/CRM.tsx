@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer } from "lucide-react";
+import { useLookup } from "../hooks/useLookup";
 import { QuickRowActions, printRecord } from "../components/actions";
 import { crmApi, Lead, Client, Dealer, Deal } from "../lib/crmApi";
 import ClientForm from "../components/crm/ClientForm";
@@ -44,6 +45,7 @@ function Badge({ status }: { status: string }) {
 
 export default function CRMPage() {
   const navigate = useNavigate();
+  const { options: LEAD_STATUS_OPTS } = useLookup('lead_status');
   const [tab, setTab] = useState(0);
   const [leads, setLeads]     = useState<Lead[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -589,10 +591,10 @@ export default function CRMPage() {
           <FormField label="Status">
             <select className="select-dark w-full px-3 py-2.5 text-sm" value={leadStatus}
               onChange={(e) => setLeadStatus(e.target.value)}>
-              <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="qualified">Qualified</option>
-              <option value="lost">Lost</option>
+              <option value="">Select status...</option>
+              {LEAD_STATUS_OPTS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </FormField>
           <FormField label="Notes">

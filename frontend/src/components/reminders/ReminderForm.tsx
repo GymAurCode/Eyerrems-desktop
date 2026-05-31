@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { remindersApi, type ReminderCreate, type Template } from "../../lib/remindersApi";
+import AttachmentsButton from "../attachments/AttachmentsButton";
+import { remindersApi, type Template } from "../../lib/remindersApi";
+import type { Reminder } from "../../store/notifications";
+type ReminderCreate = Reminder;
 
 type Props = {
   open: boolean;
@@ -18,7 +21,7 @@ export default function ReminderForm({ open, onClose, onSaved, prefill, editId }
     title: "",
     description: "",
     module_name: prefill?.module_name ?? "",
-    record_id: prefill?.record_id,
+    record_id: prefill?.record_id ?? null,
     due_time: new Date(Date.now() + 3600_000).toISOString().slice(0, 16),
     recurrence: "none",
     priority: "medium",
@@ -33,7 +36,7 @@ export default function ReminderForm({ open, onClose, onSaved, prefill, editId }
   useEffect(() => {
     remindersApi.templates()
       .then((r) => {
-        const data = Array.isArray(r.data) ? r.data : [];
+        const data = Array.isArray(r) ? r : [];
         setTemplates(data);
       })
       .catch(() => setTemplates([]));
@@ -208,6 +211,7 @@ export default function ReminderForm({ open, onClose, onSaved, prefill, editId }
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
+            <AttachmentsButton module="reminder" recordId={editId} />
             <button type="button" onClick={onClose} className="btn-secondary text-sm px-4 py-2">
               Cancel
             </button>

@@ -64,8 +64,10 @@ router = APIRouter(prefix="/ai", tags=["AI Intelligence"])
 
 def _company_id(request: Request) -> int:
     cid = request.state.company_id
-    if not cid:
-        raise HTTPException(status_code=403, detail="No company context")
+    if cid is None:
+        if getattr(request.state, "is_super_admin", False):
+            return 1
+        raise HTTPException(status_code=403, detail="User has no company assigned. Contact admin.")
     return cid
 
 

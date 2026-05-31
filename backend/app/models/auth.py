@@ -1,5 +1,5 @@
 """Auth models — User, Role, Permission with full multi-tenant support."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
@@ -71,8 +71,7 @@ class User(Base):
     id               = Column(Integer, primary_key=True, index=True)
     # ── Multi-tenant fields ──────────────────────────────────────────────────
     company_id       = Column(Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
-    # Removed super admin flag – only a single global admin exists
-    # ────────────────────────────────────────────────────────────────────────
+    is_super_admin   = Column(Boolean, nullable=False, default=False)
     email            = Column(String(255), nullable=False, index=True)
     # NOTE: email is unique *per company* — enforced at application layer
     full_name        = Column(String(120), nullable=False)
@@ -128,8 +127,3 @@ class User(Base):
     def has_all_permissions(self, *names: str) -> bool:
         perms = self.get_all_permissions()
         return all(n in perms for n in names)
-
-    @property
-    def is_super_admin(self) -> bool:
-        """Legacy compatibility property for removed super-admin support."""
-        return False

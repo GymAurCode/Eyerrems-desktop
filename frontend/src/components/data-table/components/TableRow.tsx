@@ -79,7 +79,7 @@ export default function TableRow<T = any>({
            action.variant === 'warning' ? '#f59e0b' :
            action.variant === 'primary' ? '#3b82f6' : '#6b7280',
     handler: () => action.onClick(row),
-    disabled: action.disabled?.(row),
+    disabled: () => action.disabled?.(row) ?? false,
     hidden: action.hidden?.(row),
     permission: action.permission,
     tooltip: action.label,

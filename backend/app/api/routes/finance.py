@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_permissions, require_any_permission
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.default_coa import SYSTEM_ACCOUNT_CODES
 from app.core.journal_service import JournalService, JournalEntryData
@@ -54,6 +55,12 @@ async def create_account(
     db.add(account)
     db.commit()
     db.refresh(account)
+    log_action(
+        db=db, module="finance", action="CREATE",
+        record_id=str(account.id), record_label=f"Account: {account.code} - {account.name}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        new_data={k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')},
+    )
     await ws_manager.broadcast("finance_updated", {"type": "account_created", "account_id": account.id})
     return account
 
@@ -153,6 +160,7 @@ async def update_account(
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    old_data = {k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')}
     if payload.is_active is False:
         if db.query(JournalEntry).filter(JournalEntry.account_id == account_id).count() > 0:
             raise HTTPException(status_code=400, detail="Cannot deactivate account with journal entries")
@@ -160,6 +168,13 @@ async def update_account(
         setattr(account, field, value)
     db.commit()
     db.refresh(account)
+    new_data = {k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="finance", action="UPDATE",
+        record_id=str(account_id), record_label=f"Account: {account.code} - {account.name}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     await ws_manager.broadcast("finance_updated", {"type": "account_updated", "account_id": account.id})
     return account
 
@@ -173,12 +188,19 @@ async def delete_account(
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    old_data = {k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')}
     if account.code in SYSTEM_ACCOUNT_CODES:
         raise HTTPException(status_code=400, detail="Cannot delete a system account")
     if db.query(JournalEntry).filter(JournalEntry.account_id == account_id).count() > 0:
         raise HTTPException(status_code=400, detail="Cannot delete account with journal entries")
     if db.query(Account).filter(Account.parent_id == account_id).count() > 0:
         raise HTTPException(status_code=400, detail="Cannot delete account with sub-accounts")
+    log_action(
+        db=db, module="finance", action="DELETE",
+        record_id=str(account_id), record_label=f"Account: {account.code} - {account.name}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(account)
     db.commit()
     await ws_manager.broadcast("finance_updated", {"type": "account_deleted", "account_id": account_id})
@@ -214,6 +236,12 @@ async def create_journal(
         )
         db.commit()
         db.refresh(journal)
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(journal.id), record_label=f"Journal: {journal.description}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={"id": journal.id, "reference": journal.reference_type, "description": journal.description},
+        )
         await ws_manager.broadcast("journal_created", {"journal_id": journal.id})
         return journal
     except ValueError as e:
@@ -311,6 +339,12 @@ async def create_invoice(
             user=user,
         )
         db.commit()
+        log_action(
+            db=db, module="invoice", action="CREATE",
+            record_id=str(invoice.id), record_label=f"Invoice: {invoice.id}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')},
+        )
         await ws_manager.broadcast("invoice_created", {"invoice_id": invoice.id})
         return invoice
     except Exception as e:
@@ -387,10 +421,18 @@ async def update_invoice(
     invoice = query.filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    old_data = {k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')}
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(invoice, field, value)
     db.commit()
     db.refresh(invoice)
+    new_data = {k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="invoice", action="UPDATE",
+        record_id=str(invoice_id), record_label=f"Invoice: {invoice_id}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     await ws_manager.broadcast("invoice_updated", {"invoice_id": invoice.id})
     return invoice
 
@@ -450,6 +492,12 @@ async def create_payment(
             invoice.status = "partial"
 
         db.commit()
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(payment.id), record_label=f"Payment: Invoice {payload.invoice_id}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
+        )
         await ws_manager.broadcast("payment_processed", {"invoice_id": payload.invoice_id, "payment_id": payment.id})
         return payment
     except Exception as e:
@@ -662,6 +710,12 @@ async def create_commission(
 
         db.commit()
         db.refresh(commission)
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(commission.id), record_label=f"Commission: {commission.id}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={k: str(v) for k, v in commission.__dict__.items() if not k.startswith('_')},
+        )
         await ws_manager.broadcast("journal_created", {"type": "commission", "commission_id": commission.id})
         return _commission_to_response(db, commission)
     except HTTPException:
@@ -759,6 +813,11 @@ async def mark_commission_paid(
     )
     db.commit()
     db.refresh(commission)
+    log_action(
+        db=db, module="finance", action="UPDATE",
+        record_id=str(commission_id), record_label=f"Commission paid: {commission_id}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+    )
     return _commission_to_response(db, commission)
 
 
@@ -809,6 +868,12 @@ async def create_expense(
             user=user,
         )
         db.commit()
+        log_action(
+            db=db, module="finance", action="CREATE",
+            record_id=str(expense.id), record_label=f"Expense: {expense.description}",
+            changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+            new_data={k: str(v) for k, v in expense.__dict__.items() if not k.startswith('_')},
+        )
         await ws_manager.broadcast("journal_created", {"type": "expense", "expense_id": expense.id})
         return ExpenseResponse(
             id=expense.id,

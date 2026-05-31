@@ -47,7 +47,7 @@ export interface ElectronAPI {
       success: boolean;
       error?: string;
     }>;
-    showInFolder: (filePath: string) => Promise<void>;
+    showInFolder: (filePath: string) => Promise<{ success: boolean; error?: string }>;
   };
 
   temp: {

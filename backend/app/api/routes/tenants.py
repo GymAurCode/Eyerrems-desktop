@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
-from app.core.audit import log_create, log_update, log_delete
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.tid import next_tid
@@ -302,7 +302,7 @@ def tenant_dashboard(
 def create_tenant_wizard(
     payload: TenantWizardCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Staff")),
 ):
     prop = db.query(Property).filter(Property.id == payload.lease.property_id).first()
     if not prop:
@@ -320,6 +320,12 @@ def create_tenant_wizard(
     _generate_rent_records(db, lease)
     db.commit()
     db.refresh(tenant)
+    log_action(
+        db=db, module="tenant", action="CREATE",
+        record_id=str(tenant.id), record_label=f"Tenant: {tenant.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')},
+    )
     return _build_detail(db, tenant)
 
 
@@ -380,7 +386,7 @@ def get_alerts(
 def record_payment(
     payload: PaymentCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Accountant", "Staff")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == payload.tenant_id).first()
     if not tenant:
@@ -398,6 +404,12 @@ def record_payment(
                          f"Rent payment from {tenant.name} ({tenant.tenant_id})", tenant)
     db.commit()
     db.refresh(payment)
+    log_action(
+        db=db, module="tenant", action="CREATE",
+        record_id=str(payment.id), record_label=f"Payment: {tenant.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
+    )
     return payment
 
 
@@ -614,10 +626,15 @@ def create_maintenance(
         created_at=datetime.utcnow(),
     ))
 
-    log_create(db, user_id=current_user.id, entity_type="maintenance",
-               entity_id=record.id, module="Maintenance",
-               description=f"Maintenance request created: {payload.description[:80]}",
-               request=request)
+    log_action(
+        db=db, module="maintenance", action="CREATE",
+        record_id=str(record.id),
+        record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
+        changed_by=current_user.email,
+        changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')},
+        ip_address=request.client.host if request.client else None,
+    )
 
     db.commit()
     db.refresh(record)
@@ -688,10 +705,14 @@ def update_maintenance(
                     _post_property_ledger(db, record, final_cost, current_user.id)
                     record.ledger_posted = True
 
-    log_update(db, user_id=current_user.id, entity_type="maintenance",
-               entity_id=record.id, module="Maintenance",
-               description=f"Maintenance #{record_id} updated",
-               request=request)
+    log_action(
+        db=db, module="maintenance", action="UPDATE",
+        record_id=str(record_id),
+        record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
+        changed_by=current_user.email,
+        changed_by_role=getattr(current_user, 'role', None),
+        ip_address=request.client.host if request.client else None,
+    )
 
     db.commit()
     db.refresh(record)
@@ -712,10 +733,14 @@ def delete_maintenance(
     if not record:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
 
-    log_delete(db, user_id=current_user.id, entity_type="maintenance",
-               entity_id=record_id, module="Maintenance",
-               description=f"Maintenance record #{record_id} deleted",
-               request=request)
+    log_action(
+        db=db, module="maintenance", action="DELETE",
+        record_id=str(record_id),
+        record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
+        changed_by=current_user.email,
+        changed_by_role=getattr(current_user, 'role', None),
+        ip_address=request.client.host if request.client else None,
+    )
 
     db.delete(record)
     db.commit()
@@ -742,15 +767,23 @@ def update_tenant(
     tenant_id: int,
     payload: TenantUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Staff")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    old_data = {k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(tenant, k, v)
     db.commit()
     db.refresh(tenant)
+    new_data = {k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="tenant", action="UPDATE",
+        record_id=str(tenant_id), record_label=f"Tenant: {tenant.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return tenant
 
 
@@ -758,11 +791,18 @@ def update_tenant(
 def delete_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    old_data = {k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="tenant", action="DELETE",
+        record_id=str(tenant_id), record_label=f"Tenant: {tenant.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(tenant)
     db.commit()
 
@@ -791,7 +831,7 @@ def end_lease(
     tenant_id: int,
     lease_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Staff")),
 ):
     lease = db.query(TenantLease).filter(
         TenantLease.id == lease_id,
@@ -799,10 +839,18 @@ def end_lease(
     ).first()
     if not lease:
         raise HTTPException(status_code=404, detail="Lease not found")
+    old_data = {k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')}
     lease.status    = "ended"
     lease.lease_end = date.today()
     db.commit()
     db.refresh(lease)
+    new_data = {k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="tenant", action="UPDATE",
+        record_id=str(lease_id), record_label=f"Lease ended: {lease_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     d = LeaseOut.model_validate(lease).model_dump()
     d["property_name"] = lease.property_rel.name if lease.property_rel else None
     d["unit_number"]   = lease.unit_rel.unit_number if lease.unit_rel else None
@@ -839,7 +887,7 @@ def increase_rent(
     lease_id: int,
     payload: RentIncreaseCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_roles("Admin", "Staff")),
 ):
     lease = db.query(TenantLease).filter(
         TenantLease.id == lease_id,
@@ -861,6 +909,12 @@ def increase_rent(
     ).update({"amount_due": payload.new_amount})
     db.commit()
     db.refresh(increase)
+    log_action(
+        db=db, module="tenant", action="CREATE",
+        record_id=str(increase.id), record_label=f"Rent Increase: Lease {lease_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in increase.__dict__.items() if not k.startswith('_')},
+    )
     return increase
 
 

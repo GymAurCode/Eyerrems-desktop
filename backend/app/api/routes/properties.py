@@ -7,10 +7,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Respons
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
-from app.api.deps import require_any_permission
+from app.api.deps import get_current_user, require_any_permission
+from app.core.audit import log_action
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.tid import next_tid
+from app.models.auth import User
 from app.core.websocket_manager import ws_manager
 from app.models.property import (
     Amenity, Buyer, Floor, Lease, Location,
@@ -77,7 +79,7 @@ def list_categories(db: Session = Depends(get_db), _=Depends(require_any_permiss
 def create_category(
     payload: CategoryCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     existing = db.query(PropertyCategory).filter(PropertyCategory.name == payload.name).first()
     if existing:
@@ -86,6 +88,12 @@ def create_category(
     db.add(cat)
     db.commit()
     db.refresh(cat)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(cat.id), record_label=f"Property Category: {cat.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={"name": cat.name, "id": cat.id},
+    )
     return cat
 
 
@@ -93,11 +101,17 @@ def create_category(
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     cat = db.query(PropertyCategory).filter(PropertyCategory.id == category_id).first()
     if not cat:
         raise HTTPException(404, "Category not found")
+    log_action(
+        db=db, module="property", action="DELETE",
+        record_id=str(category_id), record_label=f"Property Category: {cat.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data={"name": cat.name, "id": cat.id},
+    )
     db.delete(cat)
     db.commit()
 
@@ -119,7 +133,7 @@ def list_locations(db: Session = Depends(get_db), _=Depends(require_any_permissi
 def create_location(
     payload: LocationCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if payload.parent_id:
         if not db.query(Location).filter(Location.id == payload.parent_id).first():
@@ -129,6 +143,12 @@ def create_location(
     db.add(loc)
     db.commit()
     db.refresh(loc)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(loc.id), record_label=f"Location: {loc.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in loc.__dict__.items() if not k.startswith('_')},
+    )
     out = LocationOut.model_validate(loc)
     out.has_children = False
     return out
@@ -145,7 +165,7 @@ def list_amenities(db: Session = Depends(get_db), _=Depends(require_any_permissi
 def create_amenity(
     payload: AmenityCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     existing = db.query(Amenity).filter(Amenity.name == payload.name).first()
     if existing:
@@ -154,6 +174,12 @@ def create_amenity(
     db.add(a)
     db.commit()
     db.refresh(a)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(a.id), record_label=f"Amenity: {a.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={"name": a.name, "id": a.id},
+    )
     return a
 
 
@@ -223,7 +249,7 @@ def list_properties(
 async def create_property(
     payload: PropertyCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if payload.for_sale and payload.sale_price is None:
         raise HTTPException(400, "sale_price is required when for_sale is true")
@@ -253,6 +279,12 @@ async def create_property(
     db.add(prop)
     db.commit()
     db.refresh(prop)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(prop.id), record_label=f"Property: {prop.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')},
+    )
     await ws_manager.broadcast("dashboard_refresh", {})
     return _prop_out(prop)
 
@@ -285,7 +317,7 @@ async def update_property(
     property_id: int,
     payload: PropertyUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     prop = (
         db.query(Property)
@@ -295,6 +327,8 @@ async def update_property(
     )
     if not prop:
         raise HTTPException(404, "Property not found")
+
+    old_data = {k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')}
 
     # TID uniqueness check if changing
     if payload.tid and payload.tid != prop.tid:
@@ -313,6 +347,13 @@ async def update_property(
 
     db.commit()
     db.refresh(prop)
+    new_data = {k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="property", action="UPDATE",
+        record_id=str(property_id), record_label=f"Property: {prop.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     return _prop_out(prop)
 
 
@@ -320,11 +361,18 @@ async def update_property(
 async def delete_property(
     property_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(404, "Property not found")
+    old_data = {k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="property", action="DELETE",
+        record_id=str(property_id), record_label=f"Property: {prop.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(prop)
     db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
@@ -345,7 +393,7 @@ def list_floors(
 async def create_floor(
     payload: FloorCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if not db.query(Property).filter(Property.id == payload.property_id).first():
         raise HTTPException(404, "Property not found")
@@ -354,6 +402,12 @@ async def create_floor(
     db.add(floor)
     db.commit()
     db.refresh(floor)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(floor.id), record_label=f"Floor: {floor.floor_number}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in floor.__dict__.items() if not k.startswith('_')},
+    )
     return floor
 
 
@@ -361,11 +415,18 @@ async def create_floor(
 def delete_floor(
     floor_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     floor = db.query(Floor).filter(Floor.id == floor_id).first()
     if not floor:
         raise HTTPException(404, "Floor not found")
+    old_data = {k: str(v) for k, v in floor.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="property", action="DELETE",
+        record_id=str(floor_id), record_label=f"Floor: {floor.floor_number}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data,
+    )
     db.delete(floor)
     db.commit()
 
@@ -421,7 +482,7 @@ def list_property_units(
 async def create_unit(
     payload: UnitCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if not db.query(Floor).filter(Floor.id == payload.floor_id).first():
         raise HTTPException(404, "Floor not found")
@@ -430,6 +491,12 @@ async def create_unit(
     db.add(unit)
     db.commit()
     db.refresh(unit)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(unit.id), record_label=f"Unit: {unit.unit_number}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in unit.__dict__.items() if not k.startswith('_')},
+    )
     await ws_manager.broadcast("dashboard_refresh", {})
     return unit
 
@@ -439,15 +506,23 @@ async def update_unit(
     unit_id: int,
     payload: UnitUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(404, "Unit not found")
+    old_data = {k: str(v) for k, v in unit.__dict__.items() if not k.startswith('_')}
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(unit, k, v)
     db.commit()
     db.refresh(unit)
+    new_data = {k: str(v) for k, v in unit.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="property", action="UPDATE",
+        record_id=str(unit_id), record_label=f"Unit: {unit.unit_number}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data=old_data, new_data=new_data,
+    )
     await ws_manager.broadcast("dashboard_refresh", {})
     return unit
 
@@ -553,7 +628,7 @@ def list_leases(
 async def create_lease(
     payload: LeaseCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if not db.query(Unit).filter(Unit.id == payload.unit_id).first():
         raise HTTPException(404, "Unit not found")
@@ -564,6 +639,12 @@ async def create_lease(
     db.add(lease)
     db.commit()
     db.refresh(lease)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(lease.id), record_label=f"Lease: {lease.tenant_name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')},
+    )
     return lease
 
 
@@ -602,13 +683,19 @@ def list_buyers(
 def create_buyer(
     payload: BuyerCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     tid   = next_tid(db, Buyer, "BUY")
     buyer = Buyer(tid=tid, **payload.model_dump())
     db.add(buyer)
     db.commit()
     db.refresh(buyer)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(buyer.id), record_label=f"Buyer: {buyer.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in buyer.__dict__.items() if not k.startswith('_')},
+    )
     return buyer
 
 
@@ -647,13 +734,19 @@ def list_sellers(
 def create_seller(
     payload: SellerCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     tid    = next_tid(db, Seller, "SEL")
     seller = Seller(tid=tid, **payload.model_dump())
     db.add(seller)
     db.commit()
     db.refresh(seller)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(seller.id), record_label=f"Seller: {seller.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in seller.__dict__.items() if not k.startswith('_')},
+    )
     return seller
 
 
@@ -692,7 +785,7 @@ def list_sales(
 async def create_sale(
     payload: PropertySaleCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_MANAGE)),
+    current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
     if not payload.property_id and not payload.unit_id:
         raise HTTPException(400, "Either property_id or unit_id is required")
@@ -715,5 +808,11 @@ async def create_sale(
     db.add(sale)
     db.commit()
     db.refresh(sale)
+    log_action(
+        db=db, module="property", action="CREATE",
+        record_id=str(sale.id), record_label=f"Sale: {sale.id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in sale.__dict__.items() if not k.startswith('_')},
+    )
     await ws_manager.broadcast("dashboard_refresh", {})
     return sale

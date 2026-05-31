@@ -99,11 +99,7 @@ class Plot(Base):
     block    = relationship("Block", back_populates="plots")
     property = relationship("Property", foreign_keys=[property_id])
 
-    __table_args__ = (
-        Index("ix_plots_block_id", "block_id"),
-        Index("ix_plots_status", "status"),
-        Index("ix_plots_company_id", "company_id"),
-    )
+    __table_args__ = ()
 
 
 # ── TownUnit — the upgraded multi-type property unit ─────────────────────────
@@ -205,11 +201,7 @@ class TownUnit(Base):
                                 cascade="all, delete-orphan")
 
     __table_args__ = (
-        Index("ix_town_units_block_id",   "block_id"),
-        Index("ix_town_units_town_id",    "town_id"),
-        Index("ix_town_units_status",     "status"),
-        Index("ix_town_units_unit_type",  "unit_type"),
-        Index("ix_town_units_company_id", "company_id"),
+        Index("ix_town_units_unit_type", "unit_type"),
     )
 
 
@@ -252,12 +244,7 @@ class TownTransaction(Base):
     unit    = relationship("TownUnit", back_populates="transactions")
     journal = relationship("Journal", foreign_keys=[journal_id])
 
-    __table_args__ = (
-        Index("ix_town_txn_unit_id",    "town_unit_id"),
-        Index("ix_town_txn_town_id",    "town_id"),
-        Index("ix_town_txn_type",       "transaction_type"),
-        Index("ix_town_txn_company_id", "company_id"),
-    )
+    __table_args__ = ()
 
 
 def sync_town_unit_columns(db) -> None:

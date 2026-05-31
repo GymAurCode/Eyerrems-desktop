@@ -5,6 +5,7 @@ import {
   MapPin, Building2, Eye, FileText, CheckCircle, AlertCircle, HelpCircle,
   TrendingUp, Award, DollarSign, Layers, Sparkles, User, ShieldCheck, Compass, Info
 } from "lucide-react";
+import AttachmentsButton from "../../components/attachments/AttachmentsButton";
 import { RowActions, QuickRowActions } from "../../components/actions";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
@@ -15,6 +16,7 @@ import {
 } from "../../lib/townApi";
 import AppTable from "../../components/data-table/AppTable";
 import { TableColumn, TableAction } from "../../components/data-table/types";
+import { useLookup } from "../../hooks/useLookup";
 
 // ── Badges matching standard design systems ──────────────────────────────────
 
@@ -162,13 +164,16 @@ function BlockFormModal({
           />
         </FormField>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary w-full py-3 text-sm rounded-xl font-medium"
-        >
-          {saving ? "Saving…" : initial?.id ? "Update Block" : "Create Block"}
-        </button>
+        <div className="flex items-center gap-3">
+          <AttachmentsButton module="block" recordId={initial?.id} />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary flex-1 py-3 text-sm rounded-xl font-medium"
+          >
+            {saving ? "Saving…" : initial?.id ? "Update Block" : "Create Block"}
+          </button>
+        </div>
       </div>
     </Modal>
   );
@@ -177,15 +182,15 @@ function BlockFormModal({
 // ── Enterprise TownUnit Form Modal ───────────────────────────────────────────
 
 function TownUnitFormModal({
-  open, onClose, initial, townId, blocks, onSaved,
+  blocks, open, initial, units, onClose, onSaved,
 }: {
-  open: boolean;
-  onClose: () => void;
+  blocks: Block[]; open: boolean;
   initial: TownUnit | null;
-  townId: number;
-  blocks: Block[];
+  units: TownUnit[];
+  onClose: () => void;
   onSaved: () => void;
 }) {
+  const { options: UNIT_TYPE_OPTS } = useLookup('unit_type');
   const [unitNumber, setUnitNumber] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -389,19 +394,9 @@ function TownUnitFormModal({
                 value={unitType}
                 onChange={(e) => setUnitType(e.target.value as UnitType)}
               >
-                <option value="plot">Plot</option>
-                <option value="house">House</option>
-                <option value="apartment">Apartment</option>
-                <option value="flat">Flat</option>
-                <option value="shop">Shop</option>
-                <option value="office">Office</option>
-                <option value="plaza">Plaza</option>
-                <option value="market">Market</option>
-                <option value="warehouse">Warehouse</option>
-                <option value="farmhouse">Farmhouse</option>
-                <option value="building">Building</option>
-                <option value="industrial">Industrial</option>
-                <option value="other">Other</option>
+                {UNIT_TYPE_OPTS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </FormField>
 
@@ -702,13 +697,16 @@ function TownUnitFormModal({
           </FormField>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary w-full py-3 text-sm rounded-xl font-semibold tracking-wide shadow-md"
-        >
-          {saving ? "Saving unit details..." : initial?.id ? "Update Unit Details" : "Create Enterprise Unit / Plot"}
-        </button>
+        <div className="flex items-center gap-3">
+          <AttachmentsButton module="town_unit" recordId={initial?.id} />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary flex-1 py-3 text-sm rounded-xl font-semibold tracking-wide shadow-md"
+          >
+            {saving ? "Saving unit details..." : initial?.id ? "Update Unit Details" : "Create Enterprise Unit / Plot"}
+          </button>
+        </div>
       </div>
     </Modal>
   );

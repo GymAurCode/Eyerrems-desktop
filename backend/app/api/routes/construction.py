@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.core.audit import log_action
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.auth import User
@@ -47,7 +48,14 @@ def create_project(
     db: Session = Depends(get_db),
     user: User  = Depends(_admin_manager),
 ):
-    return ProjectService.create(db, payload, user.id)
+    result = ProjectService.create(db, payload, user.id)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Project: {result.name}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    return result
 
 
 @router.get("/projects", response_model=list[ProjectSummary])
@@ -91,17 +99,28 @@ def update_project(
     project_id: int,
     payload: ProjectUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ProjectService.update(db, project_id, payload)
+    result = ProjectService.update(db, project_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(project_id), record_label=f"Project: {project_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(project_id), record_label=f"Project: {project_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ProjectService.delete(db, project_id)
 
 
@@ -113,18 +132,16 @@ def delete_project(
 def create_phase(
     payload: PhaseCreate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ProjectService.create_phase(db, payload)
-
-
-@router.get("/phases/{project_id}", response_model=list[PhaseResponse])
-def list_phases(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ProjectService.get_phases(db, project_id)
+    result = ProjectService.create_phase(db, payload)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Phase: {result.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    return result
 
 
 @router.put("/phases/{phase_id}", response_model=PhaseResponse)
@@ -132,17 +149,28 @@ def update_phase(
     phase_id: int,
     payload: PhaseUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ProjectService.update_phase(db, phase_id, payload)
+    result = ProjectService.update_phase(db, phase_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(phase_id), record_label=f"Phase: {phase_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/phases/{phase_id}", status_code=204)
 def delete_phase(
     phase_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(phase_id), record_label=f"Phase: {phase_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ProjectService.delete_phase(db, phase_id)
 
 
@@ -154,18 +182,15 @@ def delete_phase(
 def upsert_budget(
     payload: BudgetCreate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return BudgetService.upsert(db, payload)
-
-
-@router.get("/budget/{project_id}", response_model=BudgetResponse)
-def get_budget(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return BudgetService.get(db, project_id)
+    result = BudgetService.upsert(db, payload)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.project_id), record_label=f"Budget: Project {result.project_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.patch("/budget/{project_id}", response_model=BudgetResponse)
@@ -173,9 +198,15 @@ def patch_budget(
     project_id: int,
     payload: BudgetUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return BudgetService.patch(db, project_id, payload)
+    result = BudgetService.patch(db, project_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(project_id), record_label=f"Budget: Project {project_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -186,27 +217,16 @@ def patch_budget(
 def create_contractor(
     payload: ContractorCreate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ContractorService.create(db, payload)
-
-
-@router.get("/contractors", response_model=list[ContractorResponse])
-def list_contractors(
-    active_only: bool = Query(False),
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ContractorService.get_all(db, active_only)
-
-
-@router.get("/contractors/{contractor_id}", response_model=ContractorResponse)
-def get_contractor(
-    contractor_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ContractorService.get_by_id(db, contractor_id)
+    result = ContractorService.create(db, payload)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Contractor: {result.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    return result
 
 
 @router.put("/contractors/{contractor_id}", response_model=ContractorResponse)
@@ -214,17 +234,28 @@ def update_contractor(
     contractor_id: int,
     payload: ContractorUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ContractorService.update(db, contractor_id, payload)
+    result = ContractorService.update(db, contractor_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/contractors/{contractor_id}", status_code=204)
 def delete_contractor(
     contractor_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_roles("Admin")),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ContractorService.delete(db, contractor_id)
 
 
@@ -232,26 +263,28 @@ def delete_contractor(
 def assign_contractor(
     payload: ProjectContractorCreate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ContractorService.assign(db, payload)
-
-
-@router.get("/contractors/project/{project_id}", response_model=list[ProjectContractorResponse])
-def project_contractors(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ContractorService.get_project_contractors(db, project_id)
+    result = ContractorService.assign(db, payload)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Contractor Assignment: {result.id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/contractors/assign/{assignment_id}", status_code=204)
 def remove_assignment(
     assignment_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(assignment_id), record_label=f"Contractor Assignment: {assignment_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ContractorService.remove_assignment(db, assignment_id)
 
 
@@ -265,16 +298,14 @@ def create_procurement(
     db: Session = Depends(get_db),
     user: User  = Depends(_all_staff),
 ):
-    return ProcurementService.create(db, payload, user.id)
-
-
-@router.get("/procurement/{project_id}", response_model=list[ProcurementResponse])
-def list_procurement(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ProcurementService.get_all(db, project_id)
+    result = ProcurementService.create(db, payload, user.id)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Procurement: {result.id}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    return result
 
 
 @router.put("/procurement/{procurement_id}", response_model=ProcurementResponse)
@@ -282,9 +313,15 @@ def update_procurement(
     procurement_id: int,
     payload: ProcurementUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
-    return ProcurementService.update(db, procurement_id, payload)
+    result = ProcurementService.update(db, procurement_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.patch("/procurement/{procurement_id}/status", response_model=ProcurementResponse)
@@ -294,15 +331,26 @@ def update_procurement_status(
     db: Session = Depends(get_db),
     user: User  = Depends(_admin_manager),
 ):
-    return ProcurementService.update_status(db, procurement_id, payload, user.id)
+    result = ProcurementService.update_status(db, procurement_id, payload, user.id)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(procurement_id), record_label=f"Procurement status: {procurement_id}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/procurement/{procurement_id}", status_code=204)
 def delete_procurement(
     procurement_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ProcurementService.delete(db, procurement_id)
 
 
@@ -316,16 +364,13 @@ def log_progress(
     db: Session = Depends(get_db),
     user: User  = Depends(_all_staff),
 ):
-    return ExecutionService.log_progress(db, payload, user.id)
-
-
-@router.get("/progress/{project_id}", response_model=list[DailyProgressResponse])
-def list_progress(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ExecutionService.get_progress(db, project_id)
+    result = ExecutionService.log_progress(db, payload, user.id)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Progress: Project {payload.project_id}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+    )
+    return result
 
 
 @router.put("/progress/{progress_id}", response_model=DailyProgressResponse)
@@ -333,17 +378,28 @@ def update_progress(
     progress_id: int,
     payload: DailyProgressUpdate,
     db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
+    current_user: User = Depends(_all_staff),
 ):
-    return ExecutionService.update_progress(db, progress_id, payload)
+    result = ExecutionService.update_progress(db, progress_id, payload)
+    log_action(
+        db=db, module="construction", action="UPDATE",
+        record_id=str(progress_id), record_label=f"Progress: {progress_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
+    return result
 
 
 @router.delete("/progress/{progress_id}", status_code=204)
 def delete_progress(
     progress_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(progress_id), record_label=f"Progress: {progress_id}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+    )
     ExecutionService.delete_progress(db, progress_id)
 
 
@@ -357,7 +413,13 @@ def add_expense(
     db: Session = Depends(get_db),
     user: User  = Depends(_admin_manager),
 ):
-    return ExecutionService.add_expense(db, payload, user.id)
+    result = ExecutionService.add_expense(db, payload, user.id)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(result.id), record_label=f"Expense: {result.description}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+    )
+    return result
 
 
 @router.get("/expenses/{project_id}", response_model=list[ConstructionExpenseResponse])
@@ -408,6 +470,12 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    log_action(
+        db=db, module="construction", action="CREATE",
+        record_id=str(doc.id), record_label=f"Document: {doc.name}",
+        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        new_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
+    )
     return doc
 
 
@@ -429,7 +497,7 @@ def list_documents(
 def delete_document(
     document_id: int,
     db: Session = Depends(get_db),
-    _: User     = Depends(_admin_manager),
+    current_user: User = Depends(_admin_manager),
 ):
     doc = db.query(ConstructionDocument).filter(ConstructionDocument.id == document_id).first()
     if not doc:
@@ -441,6 +509,12 @@ def delete_document(
             file_path.unlink()
     except Exception:
         pass
+    log_action(
+        db=db, module="construction", action="DELETE",
+        record_id=str(document_id), record_label=f"Document: {doc.name}",
+        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        old_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
+    )
     db.delete(doc)
     db.commit()
 

@@ -110,7 +110,7 @@ export default function QuickActionsPanel({
     setLoading(true);
     try {
       const res = await crmApi.getActivities(entityType, entityId);
-      setActivities(res.data);
+      setActivities(res);
     } finally {
       setLoading(false);
     }

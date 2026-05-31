@@ -11,8 +11,8 @@ import { useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
 interface ActionButtonProps {
-  /** Lucide icon component */
-  icon: LucideIcon;
+  /** Icon component */
+  icon: LucideIcon | React.ElementType;
   /** Tooltip text */
   tooltip: string;
   /** Click handler */

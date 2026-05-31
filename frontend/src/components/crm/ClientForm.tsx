@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useId, useState } from "react";
 import Modal from "../Modal";
 import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Client, Dealer } from "../../lib/crmApi";
+import AttachmentsButton from "../attachments/AttachmentsButton";
+import { useLookup } from "../../hooks/useLookup";
 
 const CNIC_RE  = /^\d{5}-\d{7}-\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,6 +30,7 @@ function Divider({ label }: { label: string }) {
 export default function ClientForm({ open, onClose, onSaved, initial, leadPrefill, previewIds }: Props) {
   const formId  = useId();
   const editing = !!initial;
+  const { options: CLIENT_STATUS_OPTS } = useLookup('client_status');
 
   const [name, setName]         = useState("");
   const [phone, setPhone]       = useState("");
@@ -45,14 +48,13 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
   useEffect(() => {
     if (!open) return;
     crmApi.getDealers().then((res) => {
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.items ?? []);
-      setDealers(list);
+      setDealers(res);
     }).catch(() => setDealers([]));
     if (initial) {
       setName(initial.name); setPhone(initial.phone ?? ""); setEmail(initial.email ?? "");
       setCnic(initial.cnic ?? ""); setStatus(initial.status);
       setCompany(initial.company_name ?? ""); setAddress(initial.address ?? "");
-      setDealerId(initial.dealer_id ?? ""); setNotes(initial.notes ?? "");
+      setDealerId((initial as any).dealer_id ?? ""); setNotes(initial.notes ?? "");
     } else if (leadPrefill) {
       setName(leadPrefill.name); setPhone(leadPrefill.phone); setEmail(leadPrefill.email);
       setCnic(""); setStatus("active"); setCompany(""); setAddress(""); setDealerId(""); setNotes("");
@@ -101,6 +103,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
 
   const footer = (
     <>
+      <AttachmentsButton module="client" recordId={initial?.id} />
       <button type="button" onClick={onClose}
         className="px-5 py-2 text-sm rounded-lg transition-colors"
         style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
@@ -134,9 +137,9 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
             <FormField label="Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="potential">Potential</option>
+                {CLIENT_STATUS_OPTS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </FormField>
           </div>
@@ -156,9 +159,9 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
             <FormField label="Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="potential">Potential</option>
+                {CLIENT_STATUS_OPTS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </FormField>
           ) : <div />}

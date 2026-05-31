@@ -5,7 +5,7 @@
 
 import React from 'react';
 import EmployeeTable from './EmployeeTable';
-import { ChartOfAccountsRefactored } from '../../finance/ChartOfAccountsRefactored';
+import ChartOfAccountsRefactored from '../../finance/ChartOfAccountsRefactored';
 
 export default function DataTableExamples() {
   return (

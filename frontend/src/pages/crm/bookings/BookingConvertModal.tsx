@@ -5,6 +5,7 @@ import {
   X, AlertCircle, ArrowRightCircle, CheckCircle2,
   Building2, User, DollarSign, Calendar,
 } from "lucide-react";
+import AttachmentsButton from "../../../components/attachments/AttachmentsButton";
 import { bookingApi, BookingDetail } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
 
@@ -268,6 +269,7 @@ export default function BookingConvertModal({ booking, onClose, onDone }: Props)
             className="flex items-center justify-end gap-3 px-5 py-4"
             style={{ borderTop: "1px solid var(--border)" }}
           >
+            <AttachmentsButton module="booking" recordId={booking.id} />
             <button
               type="button"
               onClick={onClose}

@@ -1,11 +1,13 @@
 import { useEffect, useState, FormEvent, useRef } from "react";
 import { Plus, Printer } from "lucide-react";
 import Modal from "../../Modal";
+import AttachmentsButton from "../../attachments/AttachmentsButton";
 import { propApi, Lease, Property, Unit } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { printRecord } from "../../actions";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
+import { useLookup } from "../../../hooks/useLookup";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -14,6 +16,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function LeaseTab({ refresh, onRefresh }: Props) {
+  const { options: LEASE_STATUS_OPTS } = useLookup('lease_status');
   const [leases, setLeases]         = useState<Lease[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [units, setUnits]           = useState<Unit[]>([]);
@@ -223,12 +226,13 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
             onChange={(e) => setRent(e.target.value)} placeholder="Monthly rent (Rs) *" required />
           <select className="select-dark w-full px-3 py-2.5 text-sm" value={status}
             onChange={(e) => setStatus(e.target.value)}>
-            {["active","pending","expired","terminated"].map((s) => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            {LEASE_STATUS_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
           <textarea className="input-dark w-full px-4 py-2.5 text-sm resize-none" rows={2} value={notes}
             onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
+          <AttachmentsButton module="lease" />
           <button className="btn-primary w-full py-3 text-sm mt-1" type="submit">Create Lease</button>
         </form>
       </Modal>

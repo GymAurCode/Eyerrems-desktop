@@ -10,6 +10,9 @@ import { propApi, type Property, type Unit } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
 import PortalModal from "../components/Modal";
 import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import AttachmentPanel from "../components/attachments/AttachmentPanel";
+import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import { useLookup } from "../hooks/useLookup";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +85,8 @@ function StatCard({ label, value, icon: Icon, color, sub }: {
 function MaintenanceFormModal({
   record, onClose, onSaved,
 }: { record?: Maintenance | null; onClose: () => void; onSaved: () => void }) {
+  const { options: CATEGORY_OPTS } = useLookup('maintenance_category');
+  const { options: PRIORITY_OPTS } = useLookup('maintenance_priority');
   const [properties, setProps]   = useState<Property[]>([]);
   const [units,      setUnits]   = useState<Unit[]>([]);
   const [unitsLoading, setUL]    = useState(false);
@@ -335,14 +340,14 @@ function MaintenanceFormModal({
             <label className="text-xs text-muted font-semibold uppercase tracking-wider">Category</label>
             <select className="select-dark w-full px-3 py-2 text-sm" value={form.category}
               onChange={e => set("category", e.target.value)}>
-              {CATEGORIES.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+              {CATEGORY_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted font-semibold uppercase tracking-wider">Priority</label>
             <select className="select-dark w-full px-3 py-2 text-sm" value={form.priority}
               onChange={e => set("priority", e.target.value)}>
-              {PRIORITIES.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
+              {PRIORITY_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>
 
@@ -380,6 +385,7 @@ function MaintenanceFormModal({
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
+          <AttachmentsButton module="maintenance" recordId={record?.id} />
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl transition-colors"
             style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             Cancel
@@ -682,6 +688,10 @@ function DetailPanel({ record, onBack, onRefresh }: {
         </div>
       </div>
 
+      <div className="mt-6">
+        <AttachmentPanel module="maintenance" recordId={m.id} />
+      </div>
+
       {showStatus && (
         <StatusUpdateModal record={m} onClose={() => setShowStatus(false)}
           onSaved={() => { setShowStatus(false); void load(); onRefresh(); }} />
@@ -793,6 +803,9 @@ function AnalyticsTab() {
 // ── Requests Tab ──────────────────────────────────────────────────────────────
 
 function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
+  const { options: STATUS_OPTS } = useLookup('maintenance_status');
+  const { options: PRIORITY_OPTS } = useLookup('maintenance_priority');
+  const { options: CATEGORY_OPTS } = useLookup('maintenance_category');
   const [records,  setRecords]  = useState<Maintenance[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [search,   setSearch]   = useState("");
@@ -836,15 +849,15 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
         </div>
         <select className="select-dark px-3 py-2 text-xs rounded-xl" value={statusF} onChange={e => setStatusF(e.target.value)}>
           <option value="">All Status</option>
-          {STATUSES.map(s => <option key={s} value={s} className="capitalize">{STATUS_CFG[s]?.label ?? s}</option>)}
+          {STATUS_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select className="select-dark px-3 py-2 text-xs rounded-xl" value={priorityF} onChange={e => setPriorityF(e.target.value)}>
           <option value="">All Priority</option>
-          {PRIORITIES.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
+          {PRIORITY_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select className="select-dark px-3 py-2 text-xs rounded-xl" value={categoryF} onChange={e => setCategoryF(e.target.value)}>
           <option value="">All Categories</option>
-          {CATEGORIES.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+          {CATEGORY_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-xl transition-colors"
           style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>

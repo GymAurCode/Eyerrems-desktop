@@ -1,15 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { UserCheck, Info, Zap } from "lucide-react";
+import { UserCheck, Info, Zap, Clock, Paperclip } from "lucide-react";
 import Modal from "../../components/Modal";
+import RecordHistory from "../../components/RecordHistory";
 import { crmApi, Lead } from "../../lib/crmApi";
 import {
   DetailPage, DetailHeader, DetailBody, DetailSection,
   InfoGrid, StatusBadge, MonoId,
 } from "../../components/detail";
 import QuickActionsPanel from "../../components/crm/QuickActionsPanel";
+import AttachmentPanel from "../../components/attachments/AttachmentPanel";
 
-const TABS = ["Overview", "Quick Actions"] as const;
+const TABS = ["Overview", "Quick Actions", "History"] as const;
 type Tab = typeof TABS[number];
 
 export default function LeadDetail() {
@@ -87,6 +89,7 @@ export default function LeadDetail() {
             >
               {tab === "Quick Actions" && <Zap size={11} />}
               {tab === "Overview" && <Info size={11} />}
+              {tab === "History" && <Clock size={11} />}
               {tab}
             </button>
           ))}
@@ -125,6 +128,18 @@ export default function LeadDetail() {
             />
           </div>
         )}
+
+        {/* ── History Tab ── */}
+        {activeTab === "History" && (
+          <div className="px-6 py-5">
+            <RecordHistory module="crm" recordId={String(lead.id)} />
+          </div>
+        )}
+
+        {/* ── Attachments ── */}
+        <div className="px-6 py-5">
+          <AttachmentPanel module="lead" recordId={lead.id} />
+        </div>
       </DetailBody>
 
       <Modal open={convertModal} onClose={() => setConvertModal(false)} title="Convert Lead to Client">
