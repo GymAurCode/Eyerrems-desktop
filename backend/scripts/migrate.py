@@ -112,12 +112,23 @@ def get_alembic_version(engine) -> str | None:
 
 
 def clear_alembic_version(engine) -> None:
-    with engine.connect() as conn:
-        conn.execute(text(
-            "DELETE FROM alembic_version WHERE EXISTS "
-            "(SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')"
-        ))
-        conn.commit()
+    try:
+        with engine.connect() as conn:
+            # First check if the table exists
+            table_exists = conn.execute(text(
+                "SELECT EXISTS ("
+                "  SELECT FROM information_schema.tables "
+                "  WHERE table_schema = 'public' AND table_name = 'alembic_version'"
+                ")"
+            )).scalar()
+            if table_exists:
+                conn.execute(text("DELETE FROM alembic_version"))
+                conn.commit()
+                print("[migrate] alembic_version cleared.")
+            else:
+                print("[migrate] alembic_version table does not exist yet — skipping clear.")
+    except Exception as e:
+        print(f"[migrate] WARNING: Could not clear alembic_version: {e}")
 
 
 def detect_completed_revision(schema_info: dict) -> str | None:
@@ -177,14 +188,23 @@ def main():
             clear_alembic_version(engine2)
         finally:
             engine2.dispose()
-        alembic_command.upgrade(cfg, "head")
-        print("[migrate] Full migration complete.")
+        try:
+            print("[migrate] Running alembic upgrade head...")
+            alembic_command.upgrade(cfg, "head")
+            print("[migrate] Full migration complete.")
+        except Exception as e:
+            print(f"[migrate] WARNING: alembic upgrade failed: {e}")
+            print("[migrate] App will start — database may need manual migration.")
 
     elif current_ver in VALID_REVISIONS:
         # ── State C: Valid version — normal upgrade ───────────────────────────
         print(f"[migrate] Version {current_ver!r} is valid — running upgrade head...")
-        alembic_command.upgrade(cfg, "head")
-        print("[migrate] Done — database is up to date.")
+        try:
+            alembic_command.upgrade(cfg, "head")
+            print("[migrate] Done — database is up to date.")
+        except Exception as e:
+            print(f"[migrate] WARNING: alembic upgrade failed: {e}")
+            print("[migrate] App will start — database may need manual migration.")
 
     else:
         # ── State B: Partial schema, missing/unknown version ──────────────────
@@ -198,15 +218,19 @@ def main():
         finally:
             engine3.dispose()
 
-        if completed:
-            print(f"[migrate] Stamping at {completed!r}...")
-            alembic_command.stamp(cfg, completed)
-        else:
-            print("[migrate] No recognisable tables found — running from scratch...")
+        try:
+            if completed:
+                print(f"[migrate] Stamping at {completed!r}...")
+                alembic_command.stamp(cfg, completed)
+            else:
+                print("[migrate] No recognisable tables found — running from scratch...")
 
-        print("[migrate] Running upgrade head to apply remaining migrations...")
-        alembic_command.upgrade(cfg, "head")
-        print("[migrate] Migration complete.")
+            print("[migrate] Running upgrade head to apply remaining migrations...")
+            alembic_command.upgrade(cfg, "head")
+            print("[migrate] Migration complete.")
+        except Exception as e:
+            print(f"[migrate] WARNING: alembic upgrade/stamp failed: {e}")
+            print("[migrate] App will start — database may need manual migration.")
 
 
 def seed_data() -> None:
