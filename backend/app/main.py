@@ -47,10 +47,16 @@ from app.services.reminder_scheduler import start_scheduler, stop_scheduler
 from app.services.mail.mail_sync_scheduler import register_mail_sync_job
 from app.services.crm.followup_scheduler import register_followup_job
 
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("rems")
 
 app = FastAPI(title="REMS API", version="1.0.0")
 
+# Health check — registered FIRST, before anything that could fail
+# No auth, no DB, no imports that could crash
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "Real Estate ERP API"}
 
 
 @app.exception_handler(Exception)
@@ -127,14 +133,9 @@ app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
 
 @app.on_event("startup")
 def on_startup():
-    """Seed default data and start schedulers.
+    log.info("=== Application startup began ===")
+    log.info(f"Database URL set: {bool(settings.database_url)}")
 
-    Migrations are intentionally NOT run here — they run via the
-    pre-start script (scripts/migrate.py) which Railway executes before
-    uvicorn starts. Running migrations inside the ASGI startup handler
-    can cause port-binding timeouts on Railway (health check fails while
-    migrations are running, triggering a 502).
-    """
     # ── Ensure master schema (superadmin multi-tenant) ──────────────────────
     try:
         from app.tenant import get_master_session
@@ -340,11 +341,6 @@ def on_startup():
 @app.on_event("shutdown")
 def on_shutdown():
     stop_scheduler()
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
 
 
 @app.get("/health/db")

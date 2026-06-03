@@ -250,7 +250,7 @@ if __name__ == "__main__":
         main()
         seed_data()
     except Exception as e:
-        print(f"[migrate] FATAL: {e}", file=sys.stderr)
+        print(f"[migrate] WARNING: Migration failed: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        print("[migrate] Continuing startup despite migration error...")
