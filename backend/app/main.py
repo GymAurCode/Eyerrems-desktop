@@ -164,8 +164,8 @@ def on_startup():
                 sa_session.execute(
                     text("""
                         INSERT INTO users (email, full_name, hashed_password, is_super_admin,
-                                           status, is_approved, is_active, approval_status)
-                        VALUES (:email, :name, :pw, TRUE, 'active', TRUE, TRUE, 'approved')
+                                           status, is_approved, is_active, approval_status, created_at)
+                        VALUES (:email, :name, :pw, TRUE, 'active', TRUE, TRUE, 'approved', NOW())
                     """),
                     {"email": settings.superadmin_email, "name": "Super Admin", "pw": pw_hash},
                 )
