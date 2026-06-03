@@ -151,7 +151,7 @@ export default function LocationPicker({ value, onChange }: Props) {
             onKeyDown={(e) => e.key === "Enter" && void saveLocation()}
             placeholder="Location name *"
           />
-          <button className="btn-primary w-full py-2.5 text-sm" type="button" onClick={() => void saveLocation()}>
+          <button className="btn-property w-full py-2.5 text-sm" type="button" onClick={() => void saveLocation()}>
             Save Location
           </button>
         </div>
@@ -173,7 +173,7 @@ export default function LocationPicker({ value, onChange }: Props) {
             onKeyDown={(e) => e.key === "Enter" && void saveSubsidiary()}
             placeholder="Subsidiary name (e.g. Phase 1) *"
           />
-          <button className="btn-primary w-full py-2.5 text-sm" type="button" onClick={() => void saveSubsidiary()}>
+          <button className="btn-property w-full py-2.5 text-sm" type="button" onClick={() => void saveSubsidiary()}>
             Save Subsidiary
           </button>
         </div>

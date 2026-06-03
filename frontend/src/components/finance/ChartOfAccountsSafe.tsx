@@ -14,7 +14,7 @@ function ChartOfAccountsFallback() {
       style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
       <AlertCircle size={48} className="mx-auto mb-4 text-red-400" />
       <h3 className="text-lg font-semibold text-red-400 mb-2">Chart of Accounts Error</h3>
-      <p className="text-sm text-gray-400 mb-4">
+      <p className="text-sm text-muted mb-4">
         There was an error loading the chart of accounts. This might be due to a temporary issue.
       </p>
       <div className="flex gap-2 justify-center">

@@ -35,8 +35,8 @@ export const ACTION_DEFAULTS: Record<ActionType, ActionDefaults> = {
   },
   edit: {
     label: "Edit",
-    color: "#a78bfa",
-    hoverBg: "rgba(139,92,246,0.15)",
+    color: "#F59E0B",
+    hoverBg: "rgba(245,158,11,0.15)",
     iconName: "Pencil",
     requiresConfirm: false,
     confirmTitle: "",

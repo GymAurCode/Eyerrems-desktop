@@ -6,11 +6,15 @@ import {
   AlertCircle, Clock, CheckCircle, Plus, X,
 } from "lucide-react";
 import { tenantApi, TenantDetail, RentRecord, TenantLease } from "../lib/tenantApi";
+import { syncApi } from "../lib/financeApi";
 import { formatCurrency } from "../lib/currency";
+import { DataTable } from "../components/data-table";
 import { StatusBadge } from "../components/detail";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import RecordHistory from "../components/RecordHistory";
 import { useLookup } from "../hooks/useLookup";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
 
 // ── Payment Dialog ────────────────────────────────────────────────────────────
 
@@ -39,6 +43,13 @@ function PaymentDialog({ tenantId, records, onClose, onSaved }: {
         payment_method: form.payment_method,
         notes: form.notes || undefined,
       });
+      syncApi.rentPayment({
+        payment_id: tenantId,
+        invoice_id: form.rent_record_id ? Number(form.rent_record_id) : null,
+        amount: Number(form.amount),
+        tenant_name: "",
+        unit_name: "",
+      }).catch(() => {});
       onSaved();
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to record payment");
@@ -398,91 +409,72 @@ export default function TenantDetailPage() {
 
         {/* Section: Records (tabbed) */}
         <div>
-          <div className="flex items-center justify-between px-6 py-3"
-            style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface2)" }}>
-            <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Records</span>
-            <div className="tab-bar">
-              {TABS.map(({ key, label }) => (
-                <button key={key} type="button" onClick={() => setTab(key)}
-                  className={`tab-pill ${activeTab === key ? "active" : ""}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div className="px-6 pt-3">
+            <ModuleTabs
+              tabs={TABS.map((t) => ({ label: t.label, value: t.key }))}
+              activeTab={activeTab}
+              onChange={(v) => setTab(v as typeof activeTab)}
+              moduleColor={MODULE_COLORS.tenants}
+            />
           </div>
 
           {activeTab === "rent" && (
-            <div className="overflow-x-auto">
-              {tenant.rent_records.length === 0 ? (
-                <div className="px-6 py-10 text-xs text-center" style={{ color: "var(--text-muted)" }}>No rent records</div>
-              ) : (
-                <table className="erp-table">
-                  <thead><tr><th>Due Date</th><th className="text-right">Amount Due</th><th className="text-right">Paid</th><th>Status</th><th>Paid On</th></tr></thead>
-                  <tbody>
-                    {tenant.rent_records.map(r => (
-                      <tr key={r.id}>
-                        <td>{r.due_date}</td>
-                        <td className="text-right font-medium">{formatCurrency(r.amount_due)}</td>
-                        <td className="text-right font-medium" style={{ color: "#10b981" }}>{formatCurrency(r.amount_paid)}</td>
-                        <td><div className="flex items-center gap-1.5">{statusIcon(r.status)}<StatusBadge status={r.status} /></div></td>
-                        <td style={{ color: "var(--text-secondary)" }}>{r.paid_date ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+            <div className="px-6 py-4">
+              <DataTable
+                data={tenant.rent_records}
+                columns={[
+                  { key: "due_date", label: "Due Date" },
+                  { key: "amount_due", label: "Amount Due", align: "right", render: (val) => <span className="font-medium">{formatCurrency(val)}</span> },
+                  { key: "amount_paid", label: "Paid", align: "right", render: (val) => <span className="font-medium" style={{ color: "#10b981" }}>{formatCurrency(val)}</span> },
+                  { key: "status", label: "Status", render: (val, row) => <div className="flex items-center gap-1.5">{statusIcon(val)}<StatusBadge status={val} /></div> },
+                  { key: "paid_date", label: "Paid On", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+                ]}
+                variant="compact"
+                searchable={false}
+                emptyTitle="No rent records"
+              />
             </div>
           )}
 
           {activeTab === "payments" && (
-            <div className="overflow-x-auto">
-              {tenant.payments.length === 0 ? (
-                <div className="px-6 py-10 text-xs text-center" style={{ color: "var(--text-muted)" }}>No payments recorded</div>
-              ) : (
-                <table className="erp-table">
-                  <thead><tr><th>Date</th><th className="text-right">Amount</th><th>Method</th><th>Notes</th></tr></thead>
-                  <tbody>
-                    {tenant.payments.map(p => (
-                      <tr key={p.id}>
-                        <td>{p.payment_date}</td>
-                        <td className="text-right font-semibold" style={{ color: "#10b981" }}>{formatCurrency(p.amount)}</td>
-                        <td>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize"
-                            style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-                            {p.payment_method}
-                          </span>
-                        </td>
-                        <td style={{ color: "var(--text-muted)" }}>{p.notes ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+            <div className="px-6 py-4">
+              <DataTable
+                data={tenant.payments}
+                columns={[
+                  { key: "payment_date", label: "Date" },
+                  { key: "amount", label: "Amount", align: "right", render: (val) => <span className="font-semibold" style={{ color: "#10b981" }}>{formatCurrency(val)}</span> },
+                  { key: "payment_method", label: "Method", render: (val) => (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize"
+                      style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
+                      {val}
+                    </span>
+                  )},
+                  { key: "notes", label: "Notes", render: (val) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+                ]}
+                variant="compact"
+                searchable={false}
+                emptyTitle="No payments recorded"
+              />
             </div>
           )}
 
           {activeTab === "leases" && (
-            <div className="overflow-x-auto">
-              {tenant.leases.length === 0 ? (
-                <div className="px-6 py-10 text-xs text-center" style={{ color: "var(--text-muted)" }}>No leases</div>
-              ) : (
-                <table className="erp-table">
-                  <thead><tr><th>Property</th><th>Unit</th><th className="text-right">Rent</th><th>Cycle</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {tenant.leases.map(l => (
-                      <tr key={l.id}>
-                        <td>{l.property_name ?? "—"}</td>
-                        <td style={{ color: "var(--text-secondary)" }}>{l.unit_number ?? "—"}</td>
-                        <td className="text-right font-medium">{formatCurrency(l.rent_amount)}</td>
-                        <td style={{ color: "var(--text-secondary)" }} className="capitalize">{l.rent_cycle}</td>
-                        <td style={{ color: "var(--text-secondary)" }}>{l.lease_start}</td>
-                        <td style={{ color: "var(--text-secondary)" }}>{l.lease_end ?? "Open"}</td>
-                        <td><StatusBadge status={l.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+            <div className="px-6 py-4">
+              <DataTable
+                data={tenant.leases}
+                columns={[
+                  { key: "property_name", label: "Property", render: (val) => val ?? "—" },
+                  { key: "unit_number", label: "Unit", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+                  { key: "rent_amount", label: "Rent", align: "right", render: (val) => <span className="font-medium">{formatCurrency(val)}</span> },
+                  { key: "rent_cycle", label: "Cycle", render: (val) => <span style={{ color: "var(--text-secondary)" }} className="capitalize">{val}</span> },
+                  { key: "lease_start", label: "Start", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+                  { key: "lease_end", label: "End", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "Open"}</span> },
+                  { key: "status", label: "Status", render: (val) => <StatusBadge status={val} /> },
+                ]}
+                variant="compact"
+                searchable={false}
+                emptyTitle="No leases"
+              />
             </div>
           )}
 

@@ -18,6 +18,7 @@ import { bookingApi, BookingListItem } from "../../lib/bookingApi";
 import { generateReport, exportReport, downloadBlob } from "../../lib/reportsApi";
 import { ReportResult } from "../../components/reports/types";
 import ReportSummaryCards from "../../components/reports/ReportSummaryCards";
+import ReportErrorBoundary from "../../components/reports/ReportErrorBoundary";
 import { BookingFormPreview } from "../../components/reports/EnterpriseDocumentPreview";
 
 // ── Booking search (reused pattern) ──────────────────────────────────────────
@@ -34,8 +35,9 @@ function BookingSearch({ onSelect }: { onSelect: (b: BookingListItem) => void })
     try {
       const res = await bookingApi.list();
       const q = query.toLowerCase();
+      const bookings = res.items ?? (Array.isArray(res) ? res : []);
       setResults(
-        res.data.filter(
+        bookings.filter(
           (b) =>
             b.booking_id.toLowerCase().includes(q) ||
             (b.client_name || "").toLowerCase().includes(q) ||
@@ -203,6 +205,7 @@ export default function BookingFormReport() {
     : null;
 
   return (
+    <ReportErrorBoundary>
     <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg-base)" }}>
 
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
@@ -336,5 +339,6 @@ export default function BookingFormReport() {
         </div>
       </div>
     </div>
+    </ReportErrorBoundary>
   );
 }

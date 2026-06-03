@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import {
   BookOpen, Plus, Clock, CheckCircle2, AlertCircle,
   TrendingUp, RefreshCw, Calendar, Search, Filter,
-  ArrowRight, User, Building2, Timer, Eye, Printer,
+  ArrowRight, User, Building2, Timer, Eye, Printer, FileText,
 } from "lucide-react";
+import ReportModal from "../../../components/reports/ReportModal";
 import { bookingApi, BookingListItem, BookingStats } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
-import BookingCreateModal from "./BookingCreateModal";
+import BookingFormDialog from "../../../components/crm/BookingFormDialog";
 import AppTable from "../../../components/data-table/AppTable";
 import { api } from "../../../lib/api";
 import { printRecord } from "../../../components/actions";
@@ -150,6 +151,14 @@ export default function BookingList() {
   const [statusFilter, setStatus]     = useState("all");
   const [showCreate, setShowCreate]   = useState(false);
 
+  // Report modal state
+  const [reportModal, setReportModal] = useState<{
+    open: boolean;
+    reportType: string;
+    filters: Record<string, unknown>;
+    title?: string;
+  }>({ open: false, reportType: "", filters: {} });
+
   // AppTable State
   const [params, setParams] = useState({
     page: 1,
@@ -181,7 +190,7 @@ export default function BookingList() {
       ]);
       setBookings(bRes.data.items || []);
       setTotal(bRes.data.total ?? 0);
-      setStats(sRes.data ?? null);
+      setStats(sRes ?? null);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to load bookings");
@@ -301,7 +310,29 @@ export default function BookingList() {
         { label: "Status", value: row.status },
         { label: "Expiry", value: new Date(row.expiry_date).toLocaleDateString() },
       ]),
-    }
+    },
+    {
+      key: "booking_form",
+      label: "Print Booking Form",
+      icon: FileText,
+      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "booking_form", filters: { booking_id: row.id }, title: "Print Booking Form" }),
+      variant: "secondary",
+    },
+    {
+      key: "token_receipt",
+      label: "Token Receipt",
+      icon: FileText,
+      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "token_receipt", filters: { booking_id: row.id }, title: "Token Receipt" }),
+      variant: "secondary",
+    },
+    {
+      key: "installment_schedule",
+      label: "Instalment Schedule",
+      icon: FileText,
+      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "installment_schedule", filters: { booking_id: row.id }, title: "Instalment Schedule" }),
+      variant: "secondary",
+      hidden: (row: BookingListItem) => !row.has_plan,
+    },
   ];
 
   const toolbarActions = (
@@ -309,7 +340,7 @@ export default function BookingList() {
       <button
         type="button"
         onClick={refresh}
-        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors border border-gray-700 bg-transparent text-gray-300 hover:bg-gray-800"
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors border border-theme bg-transparent text-secondary hover:bg-hover"
       >
         <RefreshCw size={12} />
         <span>Refresh</span>
@@ -415,12 +446,20 @@ export default function BookingList() {
       />
 
       {/* ── Create modal ── */}
-      {showCreate && (
-        <BookingCreateModal
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); refresh(); }}
-        />
-      )}
+      <BookingFormDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSaved={() => { setShowCreate(false); refresh(); }}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        open={reportModal.open}
+        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
+        reportType={reportModal.reportType}
+        filters={reportModal.filters}
+        title={reportModal.title}
+      />
     </div>
   );
 }

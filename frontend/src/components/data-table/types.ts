@@ -132,6 +132,12 @@ export interface DataTableProps<T = any> {
   customToolbar?: React.ReactNode;
   customFooter?: React.ReactNode;
   
+  // Row actions (simplified)
+  onView?: (row: T) => void;
+  onEdit?: (row: T) => void;
+  onDelete?: (row: T) => void;
+  onPrint?: (row: T) => void;
+
   // Performance
   virtualized?: boolean;
   rowHeight?: number;

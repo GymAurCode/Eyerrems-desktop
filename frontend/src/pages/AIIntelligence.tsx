@@ -12,7 +12,8 @@ import {
   type AIRiskScore, type AIDuplicateMatch, type AIInsight,
   type AIQueryLog, type NLQueryResult, type AuditMonitorResult,
 } from "../lib/aiApi";
-import { RowActions, QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { printRecord } from "../components/actions";
+import { DataTable } from "../components/data-table";
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#f59e0b", LOW: "#10b981",
@@ -255,68 +256,30 @@ function AnomaliesTab() {
         </button>
         <span className="text-xs text-muted ml-auto">{items.length} records</span>
       </div>
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? <div className="p-10 text-center text-muted text-sm">Loading...</div>
-        : error ? <div className="p-10 text-center text-red-400 text-sm">{error}</div>
-        : items.length === 0 ? (
-          <div className="p-10 text-center">
-            <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2" />
-            <p className="text-sm text-secondary">No anomalies found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Type","Severity","Module","Description","Risk","User","Time"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                  <ActionsTh />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((a) => (
-                  <tr key={a.id} className="row-hover transition-colors" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-mono text-primary text-[10px]">{a.anomaly_type.replace(/_/g," ")}</td>
-                    <td className="px-4 py-3"><SeverityBadge level={a.severity} /></td>
-                    <td className="px-4 py-3 text-secondary">{a.module ?? "—"}</td>
-                    <td className="px-4 py-3 text-secondary max-w-xs"><p className="truncate" title={a.description}>{a.description}</p></td>
-                    <td className="px-4 py-3"><span className="font-mono font-semibold" style={{ color: SEV_COLOR[a.severity] }}>{a.risk_score.toFixed(0)}</span></td>
-                    <td className="px-4 py-3 text-secondary">{a.user_id ? `#${a.user_id}` : "—"}</td>
-                    <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(a.created_at).toLocaleString()}</td>
-                    <ActionsCell>
-                      {!a.is_resolved ? (
-                        <RowActions
-                          row={a}
-                          compact
-                          actions={[
-                            { type: "approve", label: "Resolve", handler: () => void resolve(a.id) },
-                            { type: "print", handler: () => printRecord(`Anomaly #${a.id}`, [
-                              { label: "Type", value: a.anomaly_type },
-                              { label: "Severity", value: a.severity },
-                              { label: "Description", value: a.description },
-                            ]) },
-                          ]}
-                        />
-                      ) : (
-                        <QuickRowActions
-                          row={a}
-                          compact
-                          onPrint={() => printRecord(`Anomaly #${a.id}`, [
-                            { label: "Type", value: a.anomaly_type },
-                            { label: "Status", value: "Resolved" },
-                          ])}
-                          hiddenActions={["view", "edit", "delete"]}
-                        />
-                      )}
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={items}
+        loading={loading}
+        columns={[
+          { key: "anomaly_type", label: "Type", render: (val) => <span className="font-mono text-primary text-[10px]">{val.replace(/_/g," ")}</span> },
+          { key: "severity", label: "Severity", render: (val) => <SeverityBadge level={val} /> },
+          { key: "module", label: "Module", render: (val) => <span className="text-secondary">{val ?? "—"}</span> },
+          { key: "description", label: "Description", render: (val) => <span className="text-secondary max-w-xs"><p className="truncate" title={val}>{val}</p></span> },
+          { key: "risk_score", label: "Risk", render: (val, row) => <span className="font-mono font-semibold" style={{ color: SEV_COLOR[row.severity] }}>{val.toFixed(0)}</span> },
+          { key: "user_id", label: "User", render: (val) => <span className="text-secondary">{val ? `#${val}` : "—"}</span> },
+          { key: "created_at", label: "Time", render: (val) => <span className="text-muted whitespace-nowrap">{new Date(val).toLocaleString()}</span> },
+        ]}
+        onPrint={(row) => printRecord(`Anomaly #${row.id}`, [
+          { label: "Type", value: row.anomaly_type },
+          { label: "Severity", value: row.severity },
+          { label: "Description", value: row.description },
+        ])}
+        onEdit={(row) => { if (!row.is_resolved) void resolve(row.id); }}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No anomalies found"
+        emptyIcon={CheckCircle}
+        error={error ?? undefined}
+      />
     </div>
   );
 }
@@ -433,48 +396,26 @@ function RiskTab() {
           Recompute
         </button>
       </div>
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? <div className="p-10 text-center text-muted text-sm">Loading...</div>
-        : filtered.length === 0 ? (
-          <div className="p-10 text-center"><Shield size={28} className="text-emerald-400 mx-auto mb-2" /><p className="text-sm text-secondary">No risk scores found.</p></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Subject","Type","Risk Level","Score","Last Computed"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                  <ActionsTh />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id} className="row-hover transition-colors" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 font-semibold text-primary">#{r.subject_id}</td>
-                    <td className="px-4 py-3 text-secondary capitalize">{r.subject_type}</td>
-                    <td className="px-4 py-3"><SeverityBadge level={r.risk_level} /></td>
-                    <td className="px-4 py-3 w-48"><RiskBar score={r.score} /></td>
-                    <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(r.last_computed).toLocaleString()}</td>
-                    <ActionsCell>
-                      <QuickRowActions
-                        row={r}
-                        compact
-                        onPrint={(row) => printRecord(`Risk #${row.subject_id}`, [
-                          { label: "Type", value: row.subject_type },
-                          { label: "Level", value: row.risk_level },
-                          { label: "Score", value: String(row.score) },
-                        ])}
-                        hiddenActions={["view", "edit", "delete"]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={filtered}
+        loading={loading}
+        columns={[
+          { key: "subject_id", label: "Subject", render: (val) => <span className="font-semibold text-primary">#{val}</span> },
+          { key: "subject_type", label: "Type", render: (val) => <span className="text-secondary capitalize">{val}</span> },
+          { key: "risk_level", label: "Risk Level", render: (val) => <SeverityBadge level={val} /> },
+          { key: "score", label: "Score", render: (val) => <RiskBar score={val} /> },
+          { key: "last_computed", label: "Last Computed", render: (val) => <span className="text-muted whitespace-nowrap">{new Date(val).toLocaleString()}</span> },
+        ]}
+        onPrint={(row) => printRecord(`Risk #${row.subject_id}`, [
+          { label: "Type", value: row.subject_type },
+          { label: "Level", value: row.risk_level },
+          { label: "Score", value: String(row.score) },
+        ])}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No risk scores found"
+        emptyIcon={Shield}
+      />
     </div>
   );
 }
@@ -519,64 +460,42 @@ function DuplicatesTab() {
           Scan Duplicates
         </button>
       </div>
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? <div className="p-10 text-center text-muted text-sm">Loading...</div>
-        : items.length === 0 ? (
-          <div className="p-10 text-center"><Copy size={28} className="text-emerald-400 mx-auto mb-2" /><p className="text-sm text-secondary">No duplicate matches found.</p></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Type","Record A","Record B","Confidence","Matched Fields","Detected","Actions"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((d) => {
-                  let fields: string[] = [];
-                  try { fields = JSON.parse(d.match_fields ?? "[]"); } catch { /* ignore */ }
-                  const pct = Math.round(d.confidence * 100);
-                  const confColor = pct >= 90 ? "#ef4444" : pct >= 75 ? "#f97316" : "#f59e0b";
-                  return (
-                    <tr key={d.id} className="row-hover transition-colors" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                      <td className="px-4 py-3 capitalize font-medium text-primary">{d.entity_type}</td>
-                      <td className="px-4 py-3 text-secondary">#{d.entity_id_a}</td>
-                      <td className="px-4 py-3 text-secondary">#{d.entity_id_b}</td>
-                      <td className="px-4 py-3"><span className="font-semibold font-mono" style={{ color: confColor }}>{pct}%</span></td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          {fields.map((f) => (
-                            <span key={f} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8" }}>{f}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(d.created_at).toLocaleDateString()}</td>
-                      <ActionsCell>
-                        <RowActions
-                          row={d}
-                          compact
-                          actions={[
-                            { type: "approve", label: "Confirm", handler: () => void review(d.id, "confirmed") },
-                            { type: "reject", label: "Dismiss", handler: () => void review(d.id, "dismissed") },
-                            { type: "print", handler: () => printRecord(`Duplicate #${d.id}`, [
-                              { label: "Type", value: d.entity_type },
-                              { label: "Record A", value: `#${d.entity_id_a}` },
-                              { label: "Record B", value: `#${d.entity_id_b}` },
-                              { label: "Confidence", value: `${Math.round(d.confidence * 100)}%` },
-                            ]) },
-                          ]}
-                        />
-                      </ActionsCell>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={items}
+        loading={loading}
+        columns={[
+          { key: "entity_type", label: "Type", render: (val) => <span className="capitalize font-medium text-primary">{val}</span> },
+          { key: "entity_id_a", label: "Record A", render: (val) => <span className="text-secondary">#{val}</span> },
+          { key: "entity_id_b", label: "Record B", render: (val) => <span className="text-secondary">#{val}</span> },
+          { key: "confidence", label: "Confidence", render: (val) => {
+            const pct = Math.round(val * 100);
+            const confColor = pct >= 90 ? "#ef4444" : pct >= 75 ? "#f97316" : "#f59e0b";
+            return <span className="font-semibold font-mono" style={{ color: confColor }}>{pct}%</span>;
+          }},
+          { key: "match_fields", label: "Matched Fields", render: (val) => {
+            let fields: string[] = [];
+            try { fields = JSON.parse(val ?? "[]"); } catch { /* ignore */ }
+            return <div className="flex gap-1 flex-wrap">{fields.map((f) => <span key={f} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8" }}>{f}</span>)}</div>;
+          }},
+          { key: "created_at", label: "Detected", render: (val) => <span className="text-muted whitespace-nowrap">{new Date(val).toLocaleDateString()}</span> },
+          { key: "actions", label: "Actions", render: (val, row) => (
+            <div className="flex items-center gap-1">
+              <button onClick={() => review(row.id, "confirmed")} className="p-1.5 rounded hover:bg-green-500/10 text-muted hover:text-green-400" title="Confirm"><CheckCircle size={14} /></button>
+              <button onClick={() => review(row.id, "dismissed")} className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400" title="Dismiss"><XCircle size={14} /></button>
+              <button onClick={() => printRecord(`Duplicate #${row.id}`, [
+                { label: "Type", value: row.entity_type },
+                { label: "Record A", value: `#${row.entity_id_a}` },
+                { label: "Record B", value: `#${row.entity_id_b}` },
+                { label: "Confidence", value: `${Math.round(row.confidence * 100)}%` },
+              ])} className="p-1.5 rounded hover:bg-emerald-500/10 text-muted hover:text-emerald-400" title="Print"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg></button>
+            </div>
+          )},
+        ]}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No duplicate matches found"
+        emptyIcon={Copy}
+      />
     </div>
   );
 }
@@ -629,55 +548,33 @@ function AuditMonitorTab() {
           ))}
         </div>
       )}
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? <div className="p-10 text-center text-muted text-sm">Loading...</div>
-        : !data || data.logs.length === 0 ? (
-          <div className="p-10 text-center"><BookOpen size={28} className="text-muted mx-auto mb-2" /><p className="text-sm text-secondary">No audit entries found.</p></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Time","Action","Module","Entity","User","Description","IP"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                  <ActionsTh />
-                </tr>
-              </thead>
-              <tbody>
-                {data.logs.map((l) => (
-                  <tr key={l.id} className="row-hover transition-colors" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(l.created_at).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-semibold font-mono text-[10px] px-2 py-0.5 rounded"
-                        style={{ color: actionColor[l.action] ?? "#64748b", background: `${actionColor[l.action] ?? "#64748b"}15` }}>
-                        {l.action}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary">{l.module ?? "—"}</td>
-                    <td className="px-4 py-3 text-secondary">{l.entity_type ? `${l.entity_type} #${l.entity_id ?? "?"}` : "—"}</td>
-                    <td className="px-4 py-3 text-secondary">{l.user_id ? `#${l.user_id}` : "—"}</td>
-                    <td className="px-4 py-3 text-muted max-w-xs"><p className="truncate" title={l.description ?? ""}>{l.description ?? "—"}</p></td>
-                    <td className="px-4 py-3 text-muted font-mono text-[10px]">{l.ip_address ?? "—"}</td>
-                    <ActionsCell>
-                      <QuickRowActions
-                        row={l}
-                        compact
-                        onPrint={(r) => printRecord(`Audit ${r.action}`, [
-                          { label: "Module", value: r.module ?? "—" },
-                          { label: "Description", value: r.description ?? "—" },
-                          { label: "Time", value: new Date(r.created_at).toLocaleString() },
-                        ])}
-                        hiddenActions={["view", "edit", "delete"]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={data?.logs ?? []}
+        loading={loading}
+        columns={[
+          { key: "created_at", label: "Time", render: (val) => <span className="text-muted whitespace-nowrap">{new Date(val).toLocaleString()}</span> },
+          { key: "action", label: "Action", render: (val) => (
+            <span className="font-semibold font-mono text-[10px] px-2 py-0.5 rounded"
+              style={{ color: actionColor[val] ?? "#64748b", background: `${actionColor[val] ?? "#64748b"}15` }}>
+              {val}
+            </span>
+          )},
+          { key: "module", label: "Module", render: (val) => <span className="text-secondary">{val ?? "—"}</span> },
+          { key: "entity_type", label: "Entity", render: (val, row) => <span className="text-secondary">{val ? `${val} #${row.entity_id ?? "?"}` : "—"}</span> },
+          { key: "user_id", label: "User", render: (val) => <span className="text-secondary">{val ? `#${val}` : "—"}</span> },
+          { key: "description", label: "Description", render: (val) => <span className="text-muted max-w-xs"><p className="truncate" title={val ?? ""}>{val ?? "—"}</p></span> },
+          { key: "ip_address", label: "IP", render: (val) => <span className="text-muted font-mono text-[10px]">{val ?? "—"}</span> },
+        ]}
+        onPrint={(r) => printRecord(`Audit ${r.action}`, [
+          { label: "Module", value: r.module ?? "—" },
+          { label: "Description", value: r.description ?? "—" },
+          { label: "Time", value: new Date(r.created_at).toLocaleString() },
+        ])}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No audit entries found"
+        emptyIcon={BookOpen}
+      />
     </div>
   );
 }
@@ -753,28 +650,22 @@ function QueryTab() {
               <Brain size={13} className="text-indigo-400 mt-0.5 shrink-0" />
               <p className="text-sm text-secondary">{result.block_reason ?? result.summary}</p>
             </div>
-            {!result.blocked && result.results.length > 0 && (
-              <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border)" }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {Object.keys(result.results[0]).map((k) => (
-                        <th key={k} className="text-left px-3 py-2 text-muted font-semibold uppercase tracking-wider">{k.replace(/_/g," ")}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.results.map((row, i) => (
-                      <tr key={i} className="row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                        {Object.values(row).map((v, j) => (
-                          <td key={j} className="px-3 py-2 text-secondary max-w-xs"><span className="truncate block" title={String(v ?? "")}>{String(v ?? "—")}</span></td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {!result.blocked && result.results.length > 0 && (() => {
+              const cols = Object.keys(result.results[0]).map((k) => ({
+                key: k,
+                label: k.replace(/_/g, " "),
+                render: (v: any) => <span className="truncate block" title={String(v ?? "")}>{String(v ?? "—")}</span>,
+              }));
+              return (
+                <DataTable
+                  data={result.results}
+                  columns={cols}
+                  variant="bordered"
+                  searchable={false}
+                  emptyTitle="No results"
+                />
+              );
+            })()}
           </div>
         </div>
       )}

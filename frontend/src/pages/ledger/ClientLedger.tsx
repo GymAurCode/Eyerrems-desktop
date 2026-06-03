@@ -3,7 +3,9 @@
  * Two views: (1) client list with balances, (2) individual client ledger.
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Users, ChevronRight, ArrowLeft, Plus, Search } from "lucide-react";
+import { Users, ArrowLeft, Plus, Search } from "lucide-react";
+import DataTable from "../../components/data-table/DataTable";
+import type { TableColumn } from "../../components/data-table/types";
 import {
   ledgerApi,
   type ClientLedgerListItem,
@@ -215,76 +217,31 @@ export default function ClientLedger() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface2)" }}>
-                    {["Client", "Code", "Total Debit", "Total Credit", "Balance", "Entries", ""].map(h => (
-                      <th key={h} style={{
-                        padding: "0.625rem 1rem",
-                        textAlign: h === "" || h === "Entries" || h.includes("Debit") || h.includes("Credit") || h === "Balance" ? "right" : "left",
-                        fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.07em",
-                        textTransform: "uppercase", color: "var(--text-muted)", whiteSpace: "nowrap",
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredClients.map((c, idx) => {
-                    const isEven = idx % 2 === 0;
-                    const rowBg  = isEven ? "transparent" : "rgba(255,255,255,0.015)";
-                    return (
-                      <tr key={c.id}
-                        onClick={() => handleSelectClient(c)}
-                        style={{
-                          background: rowBg,
-                          borderBottom: "1px solid var(--border-subtle)",
-                          cursor: "pointer",
-                          transition: "background 0.12s",
-                        }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--hover-bg-sm)"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = rowBg}
-                      >
-                        <td style={{ padding: "0.75rem 1rem" }}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                              style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
-                              {c.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-xs font-semibold text-primary">{c.name}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem" }}>
-                          <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{c.client_id}</span>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem", textAlign: "right" }}>
-                          <span className="text-xs font-semibold" style={{ color: "#f87171" }}>
-                            {formatCurrency(c.total_debit)}
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem", textAlign: "right" }}>
-                          <span className="text-xs font-semibold" style={{ color: "#34d399" }}>
-                            {formatCurrency(c.total_credit)}
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem", textAlign: "right" }}>
-                          <span className="text-xs font-bold"
-                            style={{ color: c.balance >= 0 ? "#60a5fa" : "#f87171" }}>
-                            {c.balance < 0 ? "-" : ""}{formatCurrency(Math.abs(c.balance))}
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem", textAlign: "right" }}>
-                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{c.entry_count}</span>
-                        </td>
-                        <td style={{ padding: "0.75rem 1rem", textAlign: "right" }}>
-                          <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={filteredClients}
+              columns={[
+                { key: 'name', label: 'Client', render: (v, row) => (
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+                      {(v as string).charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-xs font-semibold text-primary">{v as string}</span>
+                  </div>
+                )},
+                { key: 'client_id', label: 'Code', render: (v) => <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{v}</span> },
+                { key: 'total_debit', label: 'Total Debit', align: 'right', render: (v) => <span className="text-xs font-semibold" style={{ color: "#f87171" }}>{formatCurrency(v as number)}</span> },
+                { key: 'total_credit', label: 'Total Credit', align: 'right', render: (v) => <span className="text-xs font-semibold" style={{ color: "#34d399" }}>{formatCurrency(v as number)}</span> },
+                { key: 'balance', label: 'Balance', align: 'right', render: (v) => {
+                  const bal = v as number;
+                  return <span className="text-xs font-bold" style={{ color: bal >= 0 ? "#60a5fa" : "#f87171" }}>{bal < 0 ? "-" : ""}{formatCurrency(Math.abs(bal))}</span>;
+                }},
+                { key: 'entry_count', label: 'Entries', align: 'right', render: (v) => <span className="text-xs" style={{ color: "var(--text-muted)" }}>{v}</span> },
+              ]}
+              searchable={false}
+              striped={false}
+              hoverable
+              onRowClick={(row) => handleSelectClient(row)}
+            />
           )}
         </div>
       </div>

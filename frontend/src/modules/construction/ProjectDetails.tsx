@@ -9,6 +9,10 @@ import {
   Procurement, DailyProgress, ConstructionExpense, Document, ProjectReport,
 } from "../../lib/constructionApi";
 import { formatCurrency } from "../../lib/currency";
+import DataTable from "../../components/data-table/DataTable";
+import type { TableColumn } from "../../components/data-table/types";
+import ModuleTabs from "../../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../../config/moduleColors";
 
 // ── Tab helpers ───────────────────────────────────────────────────────────────
 
@@ -626,36 +630,33 @@ function ResourcesTab({ projectId }: { projectId: number }) {
       {contractors.length === 0 ? (
         <p className="text-center text-muted text-sm py-10">No contractors assigned yet.</p>
       ) : (
-        <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Contractor","Company","Type","Rate","Role","Contract Value","Status",""].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {contractors.map(pc => (
-                <tr key={pc.id} className="hover:bg-white/5"
-                  style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                  <td className="px-4 py-3 font-medium text-primary">{pc.contractor.name}</td>
-                  <td className="px-4 py-3 text-muted">{pc.contractor.company ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted">{pc.contractor.contract_type}</td>
-                  <td className="px-4 py-3 text-primary">{formatCurrency(Number(pc.contractor.rate))}</td>
-                  <td className="px-4 py-3 text-muted">{pc.role ?? "—"}</td>
-                  <td className="px-4 py-3 text-primary">
-                    {pc.contract_value ? formatCurrency(Number(pc.contract_value)) : "—"}
-                  </td>
-                  <td className="px-4 py-3"><Badge label={pc.status} /></td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => handleRemove(pc.id)} className="text-red-400 hover:text-red-300">Remove</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        (() => {
+          const contractorCols: TableColumn<ProjectContractor>[] = [
+            { key: 'contractor', label: 'Contractor', render: (_, row) => <span className="font-medium text-primary">{row.contractor.name}</span> },
+            { key: 'company', label: 'Company', render: (_, row) => <span className="text-muted">{row.contractor.company ?? "—"}</span> },
+            { key: 'type', label: 'Type', render: (_, row) => <span className="text-muted">{row.contractor.contract_type}</span> },
+            { key: 'rate', label: 'Rate', render: (_, row) => <span className="text-primary">{formatCurrency(Number(row.contractor.rate))}</span> },
+            { key: 'role', label: 'Role', render: (v) => <span className="text-muted">{v ?? "—"}</span> },
+            { key: 'contract_value', label: 'Contract Value', render: (v) => <span className="text-primary">{v ? formatCurrency(Number(v)) : "—"}</span> },
+            { key: 'status', label: 'Status', render: (_, row) => <Badge label={row.status} /> },
+          ];
+          return (
+            <DataTable
+              data={contractors}
+              columns={contractorCols}
+              searchable={false}
+              hoverable
+              rowActions={[
+                {
+                  key: 'remove',
+                  label: 'Remove',
+                  variant: 'danger',
+                  onClick: (row) => handleRemove(row.id),
+                },
+              ]}
+            />
+          );
+        })()
       )}
     </div>
   );
@@ -782,48 +783,37 @@ function ProcurementTab({ projectId }: { projectId: number }) {
         </SectionCard>
       )}
 
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <table className="w-full text-xs">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Item","Vendor","Qty","Unit Cost","Total","Status","Actions"].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No procurement items yet.</td></tr>
-            )}
-            {items.map(item => (
-              <tr key={item.id} className="hover:bg-white/5"
-                style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <td className="px-4 py-3 font-medium text-primary">{item.item_name}</td>
-                <td className="px-4 py-3 text-muted">{item.vendor ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{item.quantity} {item.unit ?? ""}</td>
-                <td className="px-4 py-3 text-primary">{formatCurrency(Number(item.unit_cost))}</td>
-                <td className="px-4 py-3 text-primary font-medium">{formatCurrency(Number(item.cost))}</td>
-                <td className="px-4 py-3"><Badge label={item.status} /></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    {PROC_STATUS_FLOW[item.status]?.map(next => (
-                      <button key={next} onClick={() => handleStatusUpdate(item.id, next)}
-                        className="text-[10px] px-2 py-0.5 rounded-full border text-blue-400 border-blue-400/30 hover:bg-blue-400/10">
-                        → {next}
-                      </button>
-                    ))}
-                    {["requested","approved"].includes(item.status) && (
-                      <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-300">
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={items}
+        columns={[
+          { key: 'item_name', label: 'Item', render: (v) => <span className="font-medium text-primary">{v}</span> },
+          { key: 'vendor', label: 'Vendor', render: (v) => <span className="text-muted">{v ?? "—"}</span> },
+          { key: 'quantity', label: 'Qty', render: (_, row) => <span className="text-muted">{row.quantity} {row.unit ?? ""}</span> },
+          { key: 'unit_cost', label: 'Unit Cost', render: (v) => <span className="text-primary">{formatCurrency(Number(v))}</span> },
+          { key: 'cost', label: 'Total', render: (v) => <span className="text-primary font-medium">{formatCurrency(Number(v))}</span> },
+          { key: 'status', label: 'Status', render: (_, row) => <Badge label={row.status} /> },
+        ]}
+        searchable={false}
+        hoverable
+        emptyTitle="No procurement items yet"
+        rowActions={[
+          ...Object.entries(PROC_STATUS_FLOW).flatMap(([status, nextStatuses]) =>
+            nextStatuses.map(next => ({
+              key: `status_${next}`,
+              label: `→ ${next}`,
+              onClick: (row: Procurement) => handleStatusUpdate(row.id, next),
+              hidden: (row: Procurement) => row.status !== status,
+            }))
+          ),
+          {
+            key: 'delete',
+            label: 'Delete',
+            variant: 'danger' as const,
+            onClick: (row: Procurement) => handleDelete(row.id),
+            hidden: (row: Procurement) => !["requested","approved"].includes(row.status),
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -1136,37 +1126,24 @@ function FinanceTab({ projectId }: { projectId: number }) {
         </SectionCard>
       )}
 
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <table className="w-full text-xs">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Date","Type","Description","Amount","Reference","Finance Linked"].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No expenses recorded.</td></tr>
-            )}
-            {expenses.map(e => (
-              <tr key={e.id} className="hover:bg-white/5"
-                style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <td className="px-4 py-3 text-muted">{e.date}</td>
-                <td className="px-4 py-3"><Badge label={e.expense_type} /></td>
-                <td className="px-4 py-3 text-primary">{e.description}</td>
-                <td className="px-4 py-3 text-primary font-medium">{formatCurrency(Number(e.amount))}</td>
-                <td className="px-4 py-3 text-muted">{e.reference_id ?? "—"}</td>
-                <td className="px-4 py-3">
-                  {e.expense_id
-                    ? <span className="text-emerald-400 text-[10px]">✓ Linked #{e.expense_id}</span>
-                    : <span className="text-muted text-[10px]">—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={expenses}
+        columns={[
+          { key: 'date', label: 'Date', render: (v) => <span className="text-muted">{v}</span> },
+          { key: 'expense_type', label: 'Type', render: (_, row) => <Badge label={row.expense_type} /> },
+          { key: 'description', label: 'Description', render: (v) => <span className="text-primary">{v}</span> },
+          { key: 'amount', label: 'Amount', render: (v) => <span className="text-primary font-medium">{formatCurrency(Number(v))}</span> },
+          { key: 'reference_id', label: 'Reference', render: (v) => <span className="text-muted">{v ?? "—"}</span> },
+          { key: 'expense_id', label: 'Finance Linked', render: (_, row) => (
+            row.expense_id
+              ? <span className="text-emerald-400 text-[10px]">✓ Linked #{row.expense_id}</span>
+              : <span className="text-muted text-[10px]">—</span>
+          )},
+        ]}
+        searchable={false}
+        hoverable
+        emptyTitle="No expenses recorded"
+      />
     </div>
   );
 }
@@ -1285,45 +1262,41 @@ function ReportsTab({ projectId }: { projectId: number }) {
     <div className="space-y-5">
       {/* Budget vs Actual */}
       <SectionCard title="Budget vs Actual">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Category","Budgeted","Actual","Variance","Status"].map(h => (
-                  <th key={h} className="px-3 py-2 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {budgetRows.map(({ label, budgeted, actual }) => {
-                const variance = Number(budgeted) - Number(actual);
+        <DataTable
+          data={budgetRows}
+          columns={[
+            { key: 'label', label: 'Category', render: (v) => <span className="font-medium text-primary">{v}</span> },
+            { key: 'budgeted', label: 'Budgeted', render: (v) => <span className="text-primary">{formatCurrency(Number(v))}</span> },
+            { key: 'actual', label: 'Actual', render: (v) => <span className="text-primary">{formatCurrency(Number(v))}</span> },
+            {
+              key: 'variance', label: 'Variance', render: (_, row) => {
+                const variance = Number(row.budgeted) - Number(row.actual);
                 const over = variance < 0;
-                return (
-                  <tr key={label} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-3 py-2.5 text-primary font-medium">{label}</td>
-                    <td className="px-3 py-2.5 text-primary">{formatCurrency(Number(budgeted))}</td>
-                    <td className="px-3 py-2.5 text-primary">{formatCurrency(Number(actual))}</td>
-                    <td className={`px-3 py-2.5 font-medium ${over ? "text-red-400" : "text-emerald-400"}`}>
-                      {over ? "-" : "+"}{formatCurrency(Math.abs(variance))}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Badge label={over ? "over budget" : "on track"} color={over ? "#ef4444" : "#10b981"} />
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr style={{ borderTop: "2px solid var(--border)" }}>
-                <td className="px-3 py-2.5 font-bold text-primary">Total</td>
-                <td className="px-3 py-2.5 font-bold text-primary">{formatCurrency(Number(bva.total_budget))}</td>
-                <td className="px-3 py-2.5 font-bold text-primary">{formatCurrency(Number(bva.actual_total))}</td>
-                <td className={`px-3 py-2.5 font-bold ${Number(bva.variance) < 0 ? "text-red-400" : "text-emerald-400"}`}>
-                  {Number(bva.variance) < 0 ? "-" : "+"}{formatCurrency(Math.abs(Number(bva.variance)))}
-                </td>
-                <td className="px-3 py-2.5 text-muted">{bva.variance_pct.toFixed(1)}% remaining</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                return <span className={`font-medium ${over ? "text-red-400" : "text-emerald-400"}`}>{over ? "-" : "+"}{formatCurrency(Math.abs(variance))}</span>;
+              },
+            },
+            {
+              key: 'status', label: 'Status', render: (_, row) => {
+                const variance = Number(row.budgeted) - Number(row.actual);
+                const over = variance < 0;
+                return <Badge label={over ? "over budget" : "on track"} color={over ? "#ef4444" : "#10b981"} />;
+              },
+            },
+          ]}
+          searchable={false}
+          hoverable
+          customFooter={
+            <div style={{ display: 'flex', padding: '10px 16px', borderTop: '2px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
+              <div style={{ flex: 1 }}>Total</div>
+              <div style={{ flex: 1, textAlign: 'left' }}>{formatCurrency(Number(bva.total_budget))}</div>
+              <div style={{ flex: 1, textAlign: 'left' }}>{formatCurrency(Number(bva.actual_total))}</div>
+              <div style={{ flex: 1, textAlign: 'left', color: Number(bva.variance) < 0 ? '#f87171' : '#34d399' }}>
+                {Number(bva.variance) < 0 ? "-" : "+"}{formatCurrency(Math.abs(Number(bva.variance)))}
+              </div>
+              <div style={{ flex: 1, textAlign: 'left', color: 'var(--text-muted)' }}>{bva.variance_pct.toFixed(1)}% remaining</div>
+            </div>
+          }
+        />
       </SectionCard>
 
       {/* Progress & Procurement */}
@@ -1459,19 +1432,12 @@ export default function ProjectDetails() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1"
-        style={{ borderBottom: "1px solid var(--border)" }}>
-        {TABS.map(({ id: tid, label, icon: Icon }) => (
-          <button key={tid} onClick={() => setActiveTab(tid)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors
-              ${activeTab === tid
-                ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-muted hover:text-primary"}`}>
-            <Icon size={13} />
-            {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={TABS.map((t) => ({ label: t.label, value: t.id, icon: t.icon }))}
+        activeTab={activeTab}
+        onChange={(v) => setActiveTab(v as TabId)}
+        moduleColor={MODULE_COLORS.construction}
+      />
 
       {/* Tab content */}
       <div>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { bookingApi, BookingListItem, BookingStats } from "../lib/bookingApi";
 import { formatCurrency } from "../lib/currency";
+import { DataTable } from "../components/data-table";
 import { RowActions, ActionsCell, printRecord } from "../components/actions";
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -381,7 +382,7 @@ export default function BookingsPage() {
         bookingApi.stats(),
       ]);
       setBookings(bRes && Array.isArray(bRes.items) ? bRes.items : (Array.isArray(bRes) ? bRes : []));
-      setStats(sRes.data ?? null);
+      setStats(sRes ?? null);
     } catch {
       setBookings([]);
     } finally {
@@ -505,90 +506,53 @@ export default function BookingsPage() {
       </div>
 
       {/* Table */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <BookOpen size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">No bookings found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Booking ID", "Client", "Property / Unit", "Booking Amt", "Expiry", "Status", "Actions"].map(h => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(b => (
-                  <tr
-                    key={b.id}
-                    className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    <td className="px-4 py-3 font-mono text-xs text-blue-400 whitespace-nowrap">
-                      {b.booking_id}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-primary font-medium text-xs">{b.client_name ?? "—"}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-secondary text-xs">
-                        {b.property_name ?? "—"}
-                        {b.unit_number && (
-                          <span className="text-muted ml-1">· Unit {b.unit_number}</span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary text-xs whitespace-nowrap">
-                      {formatCurrency(b.booking_amount)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs text-secondary flex items-center gap-1">
-                          <Calendar size={10} className="text-muted" />
-                          {new Date(b.expiry_date).toLocaleDateString()}
-                        </span>
-                        {daysLabel(b)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={b.status} isExpired={b.is_expired} />
-                    </td>
-                    <ActionsCell className="px-4 py-3">
-                      <RowActions
-                        row={b}
-                        compact
-                        actions={[
-                          ...(canChangeStatus(b) ? [{ type: "edit" as const, label: "Status", handler: () => setStatusModal(b) }] : []),
-                          ...(canExtend(b) ? [{ type: "custom" as const, label: "Extend", icon: Clock, handler: () => setExtendModal(b) }] : []),
-                          { type: "print", handler: () => printRecord(`Booking ${b.booking_id}`, [
-                            { label: "Client", value: b.client_name ?? "—" },
-                            { label: "Amount", value: formatCurrency(b.booking_amount) },
-                            { label: "Status", value: b.status },
-                            { label: "Expiry", value: new Date(b.expiry_date).toLocaleDateString() },
-                          ]) },
-                        ]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={filtered}
+        loading={loading}
+        columns={[
+          { key: "booking_id", label: "Booking ID", render: (val: any) => <span className="font-mono text-xs text-blue-400 whitespace-nowrap">{val}</span> },
+          { key: "client_name", label: "Client", render: (val: any) => <span className="text-primary font-medium text-xs">{val ?? "—"}</span> },
+          { key: "property", label: "Property / Unit", render: (val: any, row: any) => (
+            <span className="text-secondary text-xs">
+              {row.property_name ?? "—"}
+              {row.unit_number && <span className="text-muted ml-1">· Unit {row.unit_number}</span>}
+            </span>
+          )},
+          { key: "booking_amount", label: "Booking Amt", render: (val: number) => <span className="text-secondary text-xs whitespace-nowrap">{formatCurrency(val)}</span> },
+          { key: "expiry_date", label: "Expiry", render: (val: string, row: any) => (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-secondary flex items-center gap-1">
+                <Calendar size={10} className="text-muted" />
+                {new Date(val).toLocaleDateString()}
+              </span>
+              {(() => {
+                if (row.is_expired) return <span className="text-red-400 text-xs">Expired</span>;
+                if (row.days_remaining === null) return <span className="text-muted text-xs">—</span>;
+                if (row.days_remaining <= 1) return <span className="text-red-400 text-xs font-medium">&lt;1 day</span>;
+                return <span className="text-xs text-secondary">{row.days_remaining}d left</span>;
+              })()}
+            </div>
+          )},
+          { key: "status", label: "Status", render: (val: string, row: any) => <StatusBadge status={val} isExpired={row.is_expired} /> },
+          { key: "actions", label: "Actions", render: (val: any, row: any) => {
+            const b = row as BookingListItem;
+            const actions: { type: "edit" | "custom" | "print"; label?: string; icon?: any; handler: () => void }[] = [];
+            if (canChangeStatus(b)) actions.push({ type: "edit" as const, label: "Status", handler: () => setStatusModal(b) });
+            if (canExtend(b)) actions.push({ type: "custom" as const, label: "Extend", icon: Clock, handler: () => setExtendModal(b) });
+            actions.push({ type: "print", handler: () => printRecord(`Booking ${b.booking_id}`, [
+              { label: "Client", value: b.client_name ?? "—" },
+              { label: "Amount", value: formatCurrency(b.booking_amount) },
+              { label: "Status", value: b.status },
+              { label: "Expiry", value: new Date(b.expiry_date).toLocaleDateString() },
+            ]) });
+            return (
+              <RowActions row={b} compact actions={actions} />
+            );
+          }},
+        ]}
+        sortable={false}
+        searchable={false}
+      />
 
       {/* Modals */}
       {statusModal && (

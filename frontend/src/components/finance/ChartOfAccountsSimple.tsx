@@ -281,7 +281,7 @@ const TreeNode = React.memo(({
           <ActionButton onClick={handleAdd} title="Add Child" className="text-blue-400">
             <PlusIcon />
           </ActionButton>
-          <ActionButton onClick={handleEdit} title="Edit" className="text-gray-400">
+          <ActionButton onClick={handleEdit} title="Edit" className="text-muted">
             ✏️
           </ActionButton>
           <ActionButton onClick={handleDelete} title="Delete" className="text-red-400">

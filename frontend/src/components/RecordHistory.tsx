@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { auditApi, type AuditLogEntry } from "../lib/auditApi";
+import { DataTable } from "./data-table";
 
 function ActionBadge({ action }: { action: string }) {
   const colors: Record<string, string> = {
@@ -73,30 +74,16 @@ export default function RecordHistory({ module, recordId }: { module: string; re
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border)" }}>
-      <table className="w-full text-xs">
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--hover-bg-sm)" }}>
-            {["Date", "Action", "Changed By", "Changes"].map((h) => (
-              <th key={h} className="text-left px-3 py-2 text-muted font-semibold uppercase tracking-wider">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log) => (
-            <tr key={log.id} className="row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-              <td className="px-3 py-2 text-secondary whitespace-nowrap text-[10px]">
-                {formatDate(log.created_at)}
-              </td>
-              <td className="px-3 py-2"><ActionBadge action={log.action} /></td>
-              <td className="px-3 py-2 text-secondary text-[10px]">{log.changed_by}</td>
-              <td className="px-3 py-2 max-w-[200px]">
-                <DiffSummary diff={log.diff} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      data={logs}
+      columns={[
+        { key: 'created_at', label: 'Date', render: (val) => <span className="text-secondary whitespace-nowrap text-[10px]">{formatDate(val)}</span> },
+        { key: 'action', label: 'Action', render: (val) => <ActionBadge action={val} /> },
+        { key: 'changed_by', label: 'Changed By', render: (val) => <span className="text-secondary text-[10px]">{val}</span> },
+        { key: 'diff', label: 'Changes', render: (val) => <div className="max-w-[200px]"><DiffSummary diff={val} /></div> },
+      ]}
+      searchable={false}
+      sortable={false}
+    />
   );
 }

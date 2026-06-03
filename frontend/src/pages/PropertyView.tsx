@@ -1,27 +1,92 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Building2, MapPin, Tag, Layers, Paperclip, Clock,
+  Building2, Tag, Layers, Paperclip, Clock,
   Plus, ChevronDown, ChevronRight, ImagePlus,
-  Calendar, Ruler, DollarSign, Edit2, Trash2,
+  DollarSign, Edit2, Trash2,
+  Download, Archive, FileText, Landmark, TrendingUp, Wrench, Banknote,
 } from "lucide-react";
-import { propApi, PropertyDetail, Location, Amenity } from "../lib/propertyApi";
+import { propApi, PropertyDetail, PropertyAttachment, Location, Amenity } from "../lib/propertyApi";
 import { uploadsUrl } from "../lib/config";
 import { formatCurrency } from "../lib/currency";
+import { auditApi, AuditLogEntry } from "../lib/auditApi";
 import Modal from "../components/Modal";
 import RecordHistory from "../components/RecordHistory";
+import SearchableSelect from "../components/ui/SearchableSelect";
+import { accountsApi } from "../lib/financeApi";
 import {
   DetailPage, DetailHeader, DetailBody, DetailSection,
   InfoGrid, DataTable, TagList, StatusBadge,
 } from "../components/detail";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
-import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import { DataTable as VaultTable } from "../components/data-table";
 import { useLookup } from "../hooks/useLookup";
+import type { SearchableOption } from "../components/ui/SearchableSelect";
 
-const STATUS_COLOR: Record<string, string> = {
-  available: "#10b981", sold: "#ef4444", rented: "#f59e0b",
-  reserved: "#6366f1", maintenance: "#94a3b8",
+const LISTING_COLORS: Record<string, string> = {
+  available: "#10b981", under_offer: "#f59e0b", sold: "#ef4444",
+  off_market: "#6b7280", coming_soon: "#6366f1",
 };
+const OPERATIONAL_COLORS: Record<string, string> = {
+  active: "#10b981", under_renovation: "#f59e0b",
+  vacant: "#6b7280", archived: "#94a3b8",
+};
+
+const DOC_STATUS = {
+  VALID: { label: "Valid", color: "#10b981" },
+  EXPIRING_SOON: { label: "Expiring Soon", color: "#f59e0b" },
+  EXPIRED: { label: "Expired", color: "#ef4444" },
+};
+
+function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color?: string }) {
+  return (
+    <div className="rounded-xl p-4 flex items-start gap-3"
+      style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+        style={{ background: `${color || "#3b82f6"}18` }}>
+        <Icon size={16} style={{ color: color || "#3b82f6" }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
+        <p className="text-sm font-semibold text-primary truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function TimelineIcon({ action }: { action: string }) {
+  const icons: Record<string, any> = {
+    CREATE: Plus, UPDATE: Edit2, DELETE: Trash2,
+  };
+  const Icon = icons[action] || Clock;
+  const colors: Record<string, string> = {
+    CREATE: "#10b981", UPDATE: "#f59e0b", DELETE: "#ef4444",
+  };
+  const color = colors[action] || "#6b7280";
+  return (
+    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+      style={{ background: `${color}18`, border: `2px solid ${color}40` }}>
+      <Icon size={12} style={{ color }} />
+    </div>
+  );
+}
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+    " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function getDocStatus(expiryDate: string | null): typeof DOC_STATUS[keyof typeof DOC_STATUS] {
+  if (!expiryDate) return DOC_STATUS.VALID;
+  const today = new Date();
+  const expiry = new Date(expiryDate);
+  const diffMs = expiry.getTime() - today.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  if (diffDays < 0) return DOC_STATUS.EXPIRED;
+  if (diffDays < 30) return DOC_STATUS.EXPIRING_SOON;
+  return DOC_STATUS.VALID;
+}
 
 export default function PropertyViewPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,9 +97,18 @@ export default function PropertyViewPage() {
   const [prop, setProp]           = useState<PropertyDetail | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [amenities, setAmenities] = useState<Amenity[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading]     = useState(true);
   const [expanded, setExpanded]   = useState<Set<number>>(new Set());
 
+  // COA Linkage edit modal
+  const [coaEditOpen, setCoaEditOpen] = useState(false);
+  const [coaOptions, setCoaOptions] = useState<SearchableOption[]>([]);
+  const [editIncomeGl, setEditIncomeGl] = useState("");
+  const [editExpenseGl, setEditExpenseGl] = useState("");
+  const [editAssetGl, setEditAssetGl] = useState("");
+
+  // Floor / Unit modals
   const [floorOpen, setFloorOpen] = useState(false);
   const [floorNum, setFloorNum]   = useState("");
   const [unitOpen, setUnitOpen]     = useState(false);
@@ -46,13 +120,17 @@ export default function PropertyViewPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting]     = useState(false);
 
+  // Document delete
+  const [deleteDocId, setDeleteDocId] = useState<number | null>(null);
+
   const load = async () => {
     setLoading(true);
     try {
-      const [pdRes, locsRes, amsRes] = await Promise.all([
+      const [pdRes, locsRes, amsRes, audRes] = await Promise.all([
         propApi.getProperty(propId),
         propApi.getLocations(),
         propApi.getAmenities(),
+        auditApi.getRecordHistory(String(propId)).catch(() => []),
       ]);
       const pd = pdRes && 'data' in pdRes ? (pdRes as any).data : pdRes;
       const locs = locsRes && 'data' in locsRes ? (locsRes as any).data : locsRes;
@@ -60,6 +138,9 @@ export default function PropertyViewPage() {
       setProp(pd || null);
       setLocations(Array.isArray(locs) ? locs : []);
       setAmenities(Array.isArray(ams) ? ams : []);
+      setAuditLogs(Array.isArray(audRes) ? audRes.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ) : []);
       if (pd?.floors) {
         setExpanded(new Set(pd.floors.map((f: any) => f.id)));
       }
@@ -67,12 +148,44 @@ export default function PropertyViewPage() {
       setProp(null);
       setLocations([]);
       setAmenities([]);
+      setAuditLogs([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { void load(); }, [propId]);
+
+  const openCoaEdit = async () => {
+    if (!prop) return;
+    if (coaOptions.length === 0) {
+      try {
+        const accounts = await accountsApi.list();
+        const opts: SearchableOption[] = accounts.map(a => ({
+          value: String(a.id),
+          label: `${a.code} - ${a.name}`,
+          sublabel: a.account_type,
+          meta: a.description || undefined,
+        }));
+        setCoaOptions(opts);
+      } catch { return; }
+    }
+    setEditIncomeGl(prop.income_gl_account_id ? String(prop.income_gl_account_id) : "");
+    setEditExpenseGl(prop.expense_gl_account_id ? String(prop.expense_gl_account_id) : "");
+    setEditAssetGl(prop.asset_gl_account_id ? String(prop.asset_gl_account_id) : "");
+    setCoaEditOpen(true);
+  };
+
+  const saveCoaLinks = async () => {
+    if (!prop) return;
+    await propApi.updateProperty(propId, {
+      income_gl_account_id: editIncomeGl ? Number(editIncomeGl) : null,
+      expense_gl_account_id: editExpenseGl ? Number(editExpenseGl) : null,
+      asset_gl_account_id: editAssetGl ? Number(editAssetGl) : null,
+    } as any);
+    setCoaEditOpen(false);
+    await load();
+  };
 
   const toggleFloor = (id: number) =>
     setExpanded((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -97,9 +210,17 @@ export default function PropertyViewPage() {
     await propApi.uploadImage(propId, file); e.target.value = ""; await load();
   };
 
-  const uploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    await propApi.uploadAttachment(propId, file); e.target.value = ""; await load();
+  const handleDeleteDoc = async () => {
+    if (!deleteDocId) return;
+    await propApi.deleteAttachment(deleteDocId);
+    setDeleteDocId(null);
+    await load();
+  };
+
+  const handleArchive = async () => {
+    if (!prop) return;
+    await propApi.updateProperty(propId, { operational_status: "archived" } as any);
+    await load();
   };
 
   const handleDelete = async () => {
@@ -131,6 +252,9 @@ export default function PropertyViewPage() {
     : [];
   const locationStr   = parentLoc ? `${parentLoc.name} › ${location?.name}` : location?.name || "—";
   const totalUnits    = prop.floors.reduce((s, f) => s + f.units.length, 0);
+  const rentedUnits   = prop.floors.reduce((s, f) => s + f.units.filter(u => u.status === "rented" || u.status === "occupied").length, 0);
+  const monthlyIncome = prop.floors.reduce((s, f) =>
+    s + f.units.reduce((us, u) => us + (u.rent_amount || 0), 0), 0);
 
   return (
     <DetailPage>
@@ -147,16 +271,31 @@ export default function PropertyViewPage() {
           { label: "Units",    value: `${totalUnits}` },
         ]}
         actions={[
-          { label: "Edit",   icon: Edit2,  onClick: () => navigate(`/property/${propId}/edit`) },
+          { label: "Archive", icon: Archive, onClick: () => void handleArchive() },
           { label: "Delete", icon: Trash2, onClick: () => setDeleteOpen(true), variant: "danger" },
         ]}
       />
 
       <DetailBody>
-        {/* ── Section 1: Main Details ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* A) FINANCIAL SUMMARY CARDS */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <StatCard icon={Banknote} label="Purchase Price"
+            value={prop.purchase_price ? formatCurrency(prop.purchase_price) : "—"} color="#3b82f6" />
+          <StatCard icon={TrendingUp} label="Current Market Value"
+            value={prop.current_market_value ? formatCurrency(prop.current_market_value) : "—"} color="#8b5cf6" />
+          <StatCard icon={DollarSign} label="Monthly Income"
+            value={monthlyIncome > 0 ? formatCurrency(monthlyIncome) : "—"} color="#10b981" />
+          <StatCard icon={Wrench} label="Outstanding Maint."
+            value="—" color="#f59e0b" />
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* Section 1: Main Details (existing, extended with new fields) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         <DetailSection title="Property Details" icon={Building2}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Images */}
             <div className="lg:col-span-1">
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
                 {prop.images.length > 0 ? (
@@ -182,23 +321,83 @@ export default function PropertyViewPage() {
               </div>
             </div>
 
-            {/* Info grid */}
             <div className="lg:col-span-2">
               <InfoGrid items={[
                 { label: "Property ID",  value: <span className="font-mono text-xs" style={{ color: "#60a5fa" }}>{prop.tid}</span> },
-                { label: "Status",       value: <StatusBadge status={prop.status} /> },
+                { label: "Listing Status", value: prop.listing_status ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: `${LISTING_COLORS[prop.listing_status] || "#6b7280"}18`,
+                             color: LISTING_COLORS[prop.listing_status] || "#6b7280" }}>
+                    {prop.listing_status.replace(/_/g, " ")}
+                  </span>
+                ) : "—" },
+                { label: "Operational Status", value: prop.operational_status ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: `${OPERATIONAL_COLORS[prop.operational_status] || "#6b7280"}18`,
+                             color: OPERATIONAL_COLORS[prop.operational_status] || "#6b7280" }}>
+                    {prop.operational_status.replace(/_/g, " ")}
+                  </span>
+                ) : "—" },
                 { label: "Category",     value: prop.category_name ?? "—" },
                 { label: "Location",     value: locationStr },
-                { label: "Size",         value: prop.size || "—" },
+                { label: "Size",         value: prop.size ? `${prop.size}${prop.size_unit ? ` ${prop.size_unit}` : ""}` : "—" },
                 { label: "Year Built",   value: prop.year_built?.toString() || "—" },
                 { label: "For Sale",     value: prop.for_sale ? formatCurrency(prop.sale_price) : "No" },
+                { label: "Owner",        value: prop.owner_name || "—" },
+                { label: "Owner Type",   value: prop.owner_type || "—" },
+                { label: "CNIC/NTN",     value: prop.cnic_ntn || "—" },
+                { label: "Ownership %",  value: prop.ownership_pct ? `${prop.ownership_pct}%` : "—" },
+                { label: "Title Deed #", value: prop.title_deed_number || "—" },
+                { label: "Reg. Date",    value: prop.registration_date || "—" },
+                { label: "Mortgage",     value: prop.mortgage_lien ? `Yes (${prop.lender_name || "N/A"})` : "No" },
+                { label: "Reg. Authority", value: prop.regulatory_authority || "—" },
                 { label: "Description",  value: prop.description || "—" },
               ]} />
             </div>
           </div>
         </DetailSection>
 
-        {/* ── Section 2: Floors & Units ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* B) LINKED ACCOUNTS */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection
+          title="Linked GL Accounts"
+          icon={Landmark}
+          action={
+            <button type="button" onClick={() => void openCoaEdit()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ border: "1px solid rgba(59,130,246,0.25)", color: "#60a5fa" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.08)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+              <Edit2 size={12} /> Edit
+            </button>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              { label: "Income GL", account: prop.income_gl_account_name, code: prop.income_gl_account_code },
+              { label: "Expense GL", account: prop.expense_gl_account_name, code: prop.expense_gl_account_code },
+              { label: "Asset GL", account: prop.asset_gl_account_name, code: prop.asset_gl_account_code },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg px-4 py-3"
+                style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
+                <p className="text-[10px] uppercase tracking-wider text-muted mb-1">{item.label}</p>
+                {item.account ? (
+                  <>
+                    <p className="text-sm font-medium text-primary">{item.account}</p>
+                    {item.code && <p className="text-[10px] font-mono text-muted">{item.code}</p>}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted italic">Not linked</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </DetailSection>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* Section 2: Floors & Units (existing) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         <DetailSection
           title="Floors & Units"
           icon={Layers}
@@ -277,34 +476,174 @@ export default function PropertyViewPage() {
           )}
         </DetailSection>
 
-        {/* ── Section 3: Amenities ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* Section 3: Amenities (existing) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         <DetailSection title="Amenities" icon={Tag}>
           <TagList tags={propAmenities.map((a) => a.name)} />
         </DetailSection>
 
-        {/* ── Section 4: Attachments ── */}
-        <DetailSection title="Attachments" icon={Paperclip}>
-          <AttachmentPanel module="property" recordId={prop.id} />
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* C) DOCUMENT VAULT */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection title="Document Vault" icon={FileText}>
+          <VaultTable
+            data={prop.attachments}
+            columns={[
+              { key: "document_type", label: "Type", render: (val) => <span className="text-secondary">{val || "—"}</span> },
+              { key: "document_name", label: "Name", render: (val, row) => (
+                <span className="flex items-center gap-1.5">
+                  <Paperclip size={11} className="text-muted" />
+                  <span className="text-primary">{val || row.filename}</span>
+                </span>
+              )},
+              { key: "uploaded_by", label: "Uploaded By", render: (val) => <span className="text-secondary">{val || "—"}</span> },
+              { key: "created_at", label: "Upload Date", render: (val) => <span className="text-secondary">{val ? new Date(val).toLocaleDateString() : "—"}</span> },
+              { key: "expiry_date", label: "Expiry", render: (val) => <span className="text-secondary">{val ? new Date(val).toLocaleDateString() : "—"}</span> },
+              { key: "expiry_date", label: "Status", render: (val) => {
+                const docStatus = getDocStatus(val);
+                return <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: `${docStatus.color}18`, color: docStatus.color }}>{docStatus.label}</span>;
+              }},
+              { key: "id", label: "Actions", align: "right", render: (val, row) => (
+                <div className="flex items-center justify-end gap-1">
+                  <a href={uploadsUrl(row.file_path)} target="_blank" rel="noreferrer"
+                    className="p-1.5 rounded text-muted hover:text-blue-400 hover:bg-white/5 transition-colors">
+                    <Download size={12} />
+                  </a>
+                  <button type="button" onClick={() => setDeleteDocId(val)}
+                    className="p-1.5 rounded text-muted hover:text-red-400 hover:bg-white/5 transition-colors">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )},
+            ]}
+            variant="compact"
+            searchable={false}
+            emptyTitle="No documents uploaded yet"
+            emptyIcon={FileText}
+          />
         </DetailSection>
 
-        {/* ── Section 5: History ── */}
-        <DetailSection title="History" icon={Clock}>
-          <RecordHistory module="property" recordId={String(prop.id)} />
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* D) ACTIVITY TIMELINE */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection title="Activity Timeline" icon={Clock}>
+          {auditLogs.length === 0 ? (
+            <div className="text-center py-6">
+              <Clock size={24} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>No activity recorded yet.</p>
+            </div>
+          ) : (
+            <div className="relative max-h-96 overflow-y-auto pr-2">
+              {/* Vertical line */}
+              <div className="absolute left-3.5 top-2 bottom-2 w-px" style={{ background: "var(--border)" }} />
+              <div className="space-y-0">
+                {auditLogs.map((log, idx) => (
+                  <div key={log.id || idx} className="relative flex items-start gap-4 pb-5 pl-0">
+                    <TimelineIcon action={log.action} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium text-primary">
+                          {log.action === "CREATE" ? "Property created" :
+                           log.action === "DELETE" ? "Property deleted" :
+                           `Field${log.diff ? "s" : ""} updated`}
+                        </span>
+                        <span className="text-[10px] text-muted">
+                          by {log.changed_by || "System"}
+                        </span>
+                        <span className="text-[10px] text-muted">·</span>
+                        <span className="text-[10px] text-muted">{formatDate(log.created_at)}</span>
+                      </div>
+                      {log.diff && Object.keys(log.diff).length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {Object.entries(log.diff).slice(0, 3).map(([key, val]) => (
+                            <div key={key} className="text-[10px]">
+                              <span className="text-muted">{key}:</span>{" "}
+                              <span className="text-red-400 line-through">{String(val?.from ?? "—")}</span>
+                              {" → "}
+                              <span className="text-emerald-400">{String(val?.to ?? "—")}</span>
+                            </div>
+                          ))}
+                          {Object.keys(log.diff).length > 3 && (
+                            <span className="text-[10px] text-muted">
+                              +{Object.keys(log.diff).length - 3} more change{Object.keys(log.diff).length - 3 !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </DetailSection>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* Section 5: Attachments (existing, kept for backward compat) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection title="File Attachments" icon={Paperclip}>
+          <AttachmentPanel module="property" recordId={prop.id} />
         </DetailSection>
       </DetailBody>
 
-      {/* ── Modals ── */}
+      {/* ── COA Linkage Edit Modal ── */}
+      <Modal open={coaEditOpen} onClose={() => setCoaEditOpen(false)} title="Edit Linked GL Accounts">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Income GL Account</label>
+            <SearchableSelect
+              options={coaOptions.filter(o => o.sublabel === "Income")}
+              value={editIncomeGl}
+              onChange={setEditIncomeGl}
+              placeholder="Select income account…"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted mb-1">Expense GL Account</label>
+            <SearchableSelect
+              options={coaOptions.filter(o => o.sublabel === "Expense")}
+              value={editExpenseGl}
+              onChange={setEditExpenseGl}
+              placeholder="Select expense account…"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted mb-1">Asset GL Account</label>
+            <SearchableSelect
+              options={coaOptions.filter(o => o.sublabel === "Asset")}
+              value={editAssetGl}
+              onChange={setEditAssetGl}
+              placeholder="Select asset account…"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setCoaEditOpen(false)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void saveCoaLinks()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#3b82f6" }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Add Floor Modal ── */}
       <Modal open={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" type="number"
             value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
-          <AttachmentsButton module="property" recordId={propId} />
           <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addFloor()}>
             Add Floor
           </button>
         </div>
       </Modal>
 
+      {/* ── Add Unit Modal ── */}
       <Modal open={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" value={unitNum}
@@ -319,24 +658,43 @@ export default function PropertyViewPage() {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <AttachmentsButton module="property" recordId={propId} />
           <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addUnit()}>
             Add Unit
           </button>
         </div>
       </Modal>
 
+      {/* ── Delete Document Confirmation ── */}
+      <Modal open={!!deleteDocId} onClose={() => setDeleteDocId(null)} title="Delete Document">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            Delete this document permanently?
+          </p>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setDeleteDocId(null)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void handleDeleteDoc()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#ef4444" }}>
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Delete Property Confirmation ── */}
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Property">
         <div className="space-y-4">
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Delete <span className="font-semibold text-primary">{prop.tid}</span>? This removes all floors, units, images, and attachments permanently.
+            Delete <span className="font-semibold text-primary">{prop.tid}</span>? This removes all floors, units, images, and documents permanently.
           </p>
           <div className="flex gap-3">
             <button type="button" onClick={() => setDeleteOpen(false)}
               className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
-              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--hover-bg)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
               Cancel
             </button>
             <button type="button" onClick={() => void handleDelete()} disabled={deleting}

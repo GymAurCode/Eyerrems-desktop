@@ -22,6 +22,17 @@ from app.schemas.company import (
 router = APIRouter(prefix="/company", tags=["Company Settings"])
 
 
+def _company_id_int(request: Request) -> int | None:
+    """Return request.state.company_id as int, or None if invalid/absent."""
+    cid = request.state.company_id
+    if cid is None:
+        return None
+    try:
+        return int(cid)
+    except (ValueError, TypeError):
+        return None
+
+
 @router.get("", response_model=CompanyResponse)
 def get_my_company(
     request: Request,
@@ -29,12 +40,12 @@ def get_my_company(
     current_user: User = Depends(get_current_user),
 ):
     """Get current user's company details."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
     if not company_id:
         raise HTTPException(status_code=404, detail="No company associated")
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+        raise HTTPException(status_code=404, detail="No company associated")
     return company
 
 
@@ -45,7 +56,7 @@ def get_my_features(
     current_user: User = Depends(get_current_user),
 ):
     """Get feature flags for the current user's company."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
     if not company_id:
         return {}
     rows = db.query(CompanyFeature).filter(CompanyFeature.company_id == company_id).all()
@@ -60,7 +71,7 @@ def update_my_features(
     admin: User = Depends(require_permissions("admin.manage")),
 ):
     """Update feature flags (company admin only)."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
     if not company_id:
         raise HTTPException(status_code=403, detail="No company context")
 
@@ -94,7 +105,9 @@ def list_my_company_users(
     current_user: User = Depends(require_permissions("user.view")),
 ):
     """List all users in the current company."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
+    if not company_id:
+        return []
     query = (
         db.query(User)
         .options(joinedload(User.roles))
@@ -127,7 +140,7 @@ def get_currency(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current company's currency setting."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
     if not company_id:
         return {"currency_code": "PKR"}
     company = db.query(Company).filter(Company.id == company_id).first()
@@ -144,7 +157,7 @@ def update_currency(
     admin: User = Depends(require_permissions("admin.manage")),
 ):
     """Update the company's currency setting (admin only)."""
-    company_id = request.state.company_id
+    company_id = _company_id_int(request)
     if not company_id:
         raise HTTPException(status_code=403, detail="No company context")
 

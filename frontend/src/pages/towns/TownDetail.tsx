@@ -6,7 +6,8 @@ import {
   TrendingUp, Award, DollarSign, Layers, Sparkles, User, ShieldCheck, Compass, Info
 } from "lucide-react";
 import AttachmentsButton from "../../components/attachments/AttachmentsButton";
-import { RowActions, QuickRowActions } from "../../components/actions";
+import { RowActions } from "../../components/actions";
+import DataTable from "../../components/data-table/DataTable";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
 import {
@@ -17,6 +18,8 @@ import {
 import AppTable from "../../components/data-table/AppTable";
 import { TableColumn, TableAction } from "../../components/data-table/types";
 import { useLookup } from "../../hooks/useLookup";
+import ModuleTabs from "../../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../../config/moduleColors";
 
 // ── Badges matching standard design systems ──────────────────────────────────
 
@@ -509,13 +512,13 @@ function TownUnitFormModal({
         {/* SECTION 3: Features & Attributes */}
         <div>
           <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">Optional Features</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface/50 p-4 rounded-xl border border-theme">
             <label className="flex items-center gap-2.5 text-xs text-secondary cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={isCorner}
                 onChange={(e) => setIsCorner(e.target.checked)}
-                className="w-4.5 h-4.5 rounded bg-gray-800 border-gray-700 accent-blue-500"
+                className="w-4.5 h-4.5 rounded bg-tertiary border-theme accent-blue-500"
               />
               <span>Is Corner Plot</span>
             </label>
@@ -525,7 +528,7 @@ function TownUnitFormModal({
                 type="checkbox"
                 checked={isFacingPark}
                 onChange={(e) => setIsFacingPark(e.target.checked)}
-                className="w-4.5 h-4.5 rounded bg-gray-800 border-gray-700 accent-blue-500"
+                className="w-4.5 h-4.5 rounded bg-tertiary border-theme accent-blue-500"
               />
               <span>Facing Park</span>
             </label>
@@ -535,7 +538,7 @@ function TownUnitFormModal({
                 type="checkbox"
                 checked={isMainBoulevard}
                 onChange={(e) => setIsMainBoulevard(e.target.checked)}
-                className="w-4.5 h-4.5 rounded bg-gray-800 border-gray-700 accent-blue-500"
+                className="w-4.5 h-4.5 rounded bg-tertiary border-theme accent-blue-500"
               />
               <span>Main Boulevard</span>
             </label>
@@ -545,7 +548,7 @@ function TownUnitFormModal({
                 type="checkbox"
                 checked={isPossessionReady}
                 onChange={(e) => setIsPossessionReady(e.target.checked)}
-                className="w-4.5 h-4.5 rounded bg-gray-800 border-gray-700 accent-blue-500"
+                className="w-4.5 h-4.5 rounded bg-tertiary border-theme accent-blue-500"
               />
               <span>Possession Ready</span>
             </label>
@@ -771,7 +774,7 @@ function UnitDetailModal({
   return (
     <Modal open={open} onClose={onClose} title={`Unit plot Details - ${unit.unit_number}`} size="lg">
       <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
-        <div className="flex items-center justify-between bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
+        <div className="flex items-center justify-between bg-surface/50 p-4 rounded-2xl border border-theme">
           <div>
             <span className="text-xs text-muted block">Status & Code</span>
             <div className="flex items-center gap-2 mt-1">
@@ -789,8 +792,8 @@ function UnitDetailModal({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Column A: Specifications */}
-          <div className="bg-gray-800/20 p-4 rounded-2xl border border-gray-700/30 space-y-3">
-            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-gray-700 pb-1.5">Specifications</h4>
+          <div className="bg-tertiary/20 p-4 rounded-2xl border border-theme/30 space-y-3">
+            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-theme pb-1.5">Specifications</h4>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div><span className="text-muted block">Unit Type</span><span className="text-primary font-medium">{UNIT_TYPE_LABELS[unit.unit_type] ?? unit.unit_type}</span></div>
               <div><span className="text-muted block">Size Label</span><span className="text-primary font-medium">{unit.size_label ?? "—"}</span></div>
@@ -800,7 +803,7 @@ function UnitDetailModal({
               <div><span className="text-muted block">Floor #</span><span className="text-primary font-medium">{unit.floor_number !== null ? `Floor ${unit.floor_number}` : "—"}</span></div>
             </div>
             
-            <div className="border-t border-gray-700/50 pt-2.5">
+            <div className="border-t border-theme/50 pt-2.5">
               <span className="text-muted text-[11px] block mb-1.5">Special Features</span>
               <div className="flex flex-wrap gap-2">
                 {unit.is_corner && <span className="bg-green-500/10 border border-green-500/20 text-[10px] text-green-400 px-2 py-0.5 rounded-full font-medium">Corner</span>}
@@ -816,16 +819,16 @@ function UnitDetailModal({
           </div>
 
           {/* Column B: Financial Summary */}
-          <div className="bg-gray-800/20 p-4 rounded-2xl border border-gray-700/30 space-y-3">
-            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-gray-700 pb-1.5">Financial Snapshot</h4>
+          <div className="bg-tertiary/20 p-4 rounded-2xl border border-theme/30 space-y-3">
+            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-theme pb-1.5">Financial Snapshot</h4>
             <div className="space-y-2.5 text-xs">
               <div className="flex justify-between"><span className="text-muted">Total Price:</span><span className="text-primary font-bold">PKR {Number(unit.total_price || 0).toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-muted">Cost Price:</span><span className="text-secondary">PKR {unit.cost_price ? Number(unit.cost_price).toLocaleString() : "—"}</span></div>
               <div className="flex justify-between"><span className="text-muted">Booking Price:</span><span className="text-secondary">PKR {unit.booking_amount ? Number(unit.booking_amount).toLocaleString() : "—"}</span></div>
-              <div className="flex justify-between border-t border-gray-700/50 pt-2"><span className="text-muted">Received Amount:</span><span className="text-green-400 font-semibold">PKR {Number(unit.received_amount || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between border-t border-theme/50 pt-2"><span className="text-muted">Received Amount:</span><span className="text-green-400 font-semibold">PKR {Number(unit.received_amount || 0).toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-muted">Remaining Balance:</span><span className="text-red-400 font-semibold">PKR {Number(unit.remaining_balance || 0).toLocaleString()}</span></div>
               
-              <div className="border-t border-gray-700/50 pt-2.5">
+              <div className="border-t border-theme/50 pt-2.5">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted">Installment Plan:</span>
                   <span className="font-medium text-primary">
@@ -843,8 +846,8 @@ function UnitDetailModal({
         </div>
 
         {/* Ownership Summary */}
-        <div className="bg-gray-800/20 p-4 rounded-2xl border border-gray-700/30 space-y-2">
-          <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-gray-700 pb-1.5">Ownership & Contacts</h4>
+        <div className="bg-tertiary/20 p-4 rounded-2xl border border-theme/30 space-y-2">
+          <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide border-b border-theme pb-1.5">Ownership & Contacts</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div>
               <span className="text-muted block">Primary Owner / Client</span>
@@ -868,7 +871,7 @@ function UnitDetailModal({
         </div>
 
         {unit.notes && (
-          <div className="bg-gray-800/10 p-3.5 rounded-xl border border-gray-800 text-xs">
+          <div className="bg-tertiary/10 p-3.5 rounded-xl border border-theme text-xs">
             <span className="text-muted font-semibold block mb-1">Internal Notes / Log</span>
             <p className="text-secondary leading-relaxed font-sans">{unit.notes}</p>
           </div>
@@ -1040,77 +1043,23 @@ function LegacyBlockRow({
                   </button>
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                      {["Plot #", "Size", "Type", "Status", "Price", "Owner", "Actions"].map((h) => (
-                        <th
-                          key={h}
-                          className={`text-left px-5 py-2 text-xs font-semibold text-muted uppercase tracking-wider ${h === "Actions" ? "text-right" : ""}`}
-                          style={{ 
-                            paddingLeft: h === "Plot #" ? "2.5rem" : undefined,
-                            width: h === "Actions" ? "1%" : undefined
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mappedUnits.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="row-hover"
-                        style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                      >
-                        <td className="py-2.5 pl-10 pr-5 font-medium text-primary">
-                          {u.unit_number}
-                        </td>
-                        <td className="px-5 py-2.5 text-secondary">{u.size_label ?? "—"}</td>
-                        <td className="px-5 py-2.5 text-secondary capitalize">{u.unit_type}</td>
-                        <td className="px-5 py-2.5">
-                          <PlotStatusBadge status={u.status} />
-                        </td>
-                        <td className="px-5 py-2.5 text-secondary">
-                          {u.total_price
-                            ? `PKR ${Number(u.total_price).toLocaleString()}`
-                            : "—"}
-                        </td>
-                        <td className="px-5 py-2.5 text-secondary">
-                          {u.owner_name ?? "—"}
-                        </td>
-                        <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => onViewUnit(u)}
-                              className="p-1 rounded text-muted hover:text-white hover:bg-gray-800 transition-colors"
-                              title="View full specs"
-                            >
-                              <Eye size={13} />
-                            </button>
-                            <QuickRowActions
-                              row={u}
-                              onEdit={(row) => {
-                                // Find full unit object or map it properly
-                                onEditUnit(row);
-                              }}
-                              onDelete={(row) => {
-                                onDeleteUnit(row);
-                              }}
-                              editPermission="towns:manage"
-                              deletePermission="towns:manage"
-                              deleteConfirmMessage={`Are you sure you want to delete unit #${u.unit_number}? This action cannot be undone.`}
-                              variant="icon-buttons"
-                              compact
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  data={mappedUnits}
+                  columns={[
+                    { key: 'unit_number', label: 'Plot #', render: (v) => <span className="font-medium text-primary">{v}</span> },
+                    { key: 'size_label', label: 'Size', render: (v) => <span className="text-secondary">{v ?? "—"}</span> },
+                    { key: 'unit_type', label: 'Type', render: (v) => <span className="text-secondary capitalize">{v as string}</span> },
+                    { key: 'status', label: 'Status', render: (_, row) => <PlotStatusBadge status={row.status} /> },
+                    { key: 'total_price', label: 'Price', render: (v) => <span className="text-secondary">{v ? `PKR ${Number(v).toLocaleString()}` : "—"}</span> },
+                    { key: 'owner_name', label: 'Owner', render: (v) => <span className="text-secondary">{v ?? "—"}</span> },
+                  ]}
+                  searchable={false}
+                  striped={false}
+                  hoverable
+                  onView={(row) => onViewUnit(row)}
+                  onEdit={(row) => onEditUnit(row)}
+                  onDelete={(row) => onDeleteUnit(row)}
+                />
               )}
             </div>
           </td>
@@ -1398,12 +1347,12 @@ export default function TownDetail() {
   return (
     <div className="p-6 space-y-5 animate-slide-up">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-gray-800 pb-5">
+      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-theme pb-5">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate("/towns")}
-            className="p-2 rounded-xl transition-all hover:bg-gray-800 hover:text-white text-muted"
+            className="p-2 rounded-xl transition-all hover:bg-hover hover:text-white text-muted"
           >
             <ArrowLeft size={16} />
           </button>
@@ -1439,30 +1388,16 @@ export default function TownDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-800 pb-px">
-        {[
-          { id: "overview", label: "Overview", icon: Info },
-          { id: "blocks", label: "Blocks & Sectors", icon: Layers },
-          { id: "units", label: "Units & Plots Directory", icon: Compass },
-        ].map((t) => {
-          const Icon = t.icon;
-          const active = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
-              className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-all capitalize -mb-px ${
-                active
-                  ? "border-blue-500 text-blue-400 bg-blue-500/5 rounded-t-lg"
-                  : "border-transparent text-secondary hover:text-white"
-              }`}
-            >
-              <Icon size={14} />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <ModuleTabs
+        tabs={[
+          { label: "Overview", value: "overview", icon: Info },
+          { label: "Blocks & Sectors", value: "blocks", icon: Layers },
+          { label: "Units & Plots Directory", value: "units", icon: Compass },
+        ]}
+        activeTab={activeTab}
+        onChange={(v) => setActiveTab(v as any)}
+        moduleColor={MODULE_COLORS.towns}
+      />
 
       {/* Content */}
       <div className="space-y-5">
@@ -1470,7 +1405,7 @@ export default function TownDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* Left side: descriptions & quick stats */}
             <div className="lg:col-span-2 space-y-5">
-              <div className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800/80 backdrop-blur-md">
+              <div className="bg-surface/40 p-5 rounded-2xl border border-theme backdrop-blur-md">
                 <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-3">
                   <Sparkles size={14} className="text-yellow-400" />
                   About the Society
@@ -1488,7 +1423,7 @@ export default function TownDetail() {
                   { label: "Available Inventory", value: availablePlots, bg: "rgba(16,185,129,0.08)", color: "#10b981" },
                   { label: "Sold Out", value: soldPlots, bg: "rgba(239,68,68,0.08)", color: "#ef4444" },
                 ].map(({ label, value, bg, color }) => (
-                  <div key={label} className="bg-gray-900/40 border border-gray-800 p-4 rounded-2xl flex flex-col justify-between">
+                  <div key={label} className="bg-surface/40 border border-theme p-4 rounded-2xl flex flex-col justify-between">
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: bg }}>
                       <Building2 size={15} style={{ color }} />
                     </div>
@@ -1503,8 +1438,8 @@ export default function TownDetail() {
 
             {/* Right side: Finance snapshots */}
             <div className="space-y-5">
-              <div className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800/80 backdrop-blur-md space-y-4">
-                <h3 className="text-sm font-bold text-primary flex items-center gap-2 border-b border-gray-800 pb-2">
+              <div className="bg-surface/40 p-5 rounded-2xl border border-theme backdrop-blur-md space-y-4">
+                <h3 className="text-sm font-bold text-primary flex items-center gap-2 border-b border-theme pb-2">
                   <DollarSign size={14} className="text-green-400" />
                   Society Financial Status
                 </h3>
@@ -1523,7 +1458,7 @@ export default function TownDetail() {
                       <span className="text-[10px] text-muted uppercase tracking-wider block">Total Outstanding Balance</span>
                       <span className="text-lg font-bold text-red-400">PKR {Number(finance.outstanding_balance || 0).toLocaleString()}</span>
                     </div>
-                    <div className="border-t border-gray-800 pt-3">
+                    <div className="border-t border-theme pt-3">
                       <div className="flex items-center justify-between text-xs text-muted">
                         <span>Total Paid Transactions:</span>
                         <span className="font-bold text-primary">{finance.transaction_count}</span>
@@ -1544,7 +1479,7 @@ export default function TownDetail() {
         {activeTab === "blocks" && (
           <div className="detail-container overflow-hidden">
             {town.blocks.length === 0 ? (
-              <div className="p-12 text-center bg-gray-900/20 rounded-2xl border border-gray-800">
+              <div className="p-12 text-center bg-surface/20 rounded-2xl border border-theme">
                 <Building2 size={32} className="text-muted mx-auto mb-3" />
                 <p className="text-secondary text-sm">No blocks registered for this society town.</p>
                 <button

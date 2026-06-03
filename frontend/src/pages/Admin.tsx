@@ -5,8 +5,11 @@ import {
   Plus, Pencil, Trash2, Key, Save, UserCheck, AlertCircle, Settings, DollarSign
 } from "lucide-react";
 import PortalModal from "../components/Modal";
-import { RowActions, QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { printRecord } from "../components/actions";
 import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/currency";
+import { DataTable } from "../components/data-table";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
 
 interface Permission { id: number; name: string; module: string; description: string; }
 interface Role { id: number; name: string; description: string; permissions: Permission[]; }
@@ -156,63 +159,43 @@ function UsersTab({ roles }: { roles: Role[] }) {
         ))}
       </div>
 
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {users.length === 0 ? (
-          <div className="p-10 text-center">
-            <Users size={28} className="text-muted mx-auto mb-2" />
-            <p className="text-secondary text-sm">No users found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Name / Email", "Status", "Roles", "Actions"].map((h) => (
-                    <th key={h} className="text-left px-5 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="transition-colors row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-primary">{u.full_name}</p>
-                      <p className="text-muted mt-0.5">{u.email}</p>
-                    </td>
-                    <td className="px-5 py-3"><Badge status={u.status} /></td>
-                    <td className="px-5 py-3 text-secondary">{u.roles.join(", ") || "—"}</td>
-                    <ActionsCell className="px-5 py-3">
-                      <RowActions
-                        row={u}
-                        compact
-                        actions={[
-                          ...(u.status === "pending" ? [
-                            { type: "approve" as const, handler: () => void approve(u.id, true) },
-                            { type: "reject" as const, handler: () => void approve(u.id, false) },
-                          ] : []),
-                          ...(u.status === "active" ? [
-                            { type: "custom" as const, label: "Suspend", icon: XCircle, handler: () => void suspend(u.id, "suspended") },
-                          ] : []),
-                          ...(u.status === "suspended" ? [
-                            { type: "approve" as const, label: "Activate", handler: () => void suspend(u.id, "active") },
-                          ] : []),
-                          { type: "custom", label: "Role", icon: UserCheck, handler: () => { setAssignUser(u); setSelectedRoleId(""); setErr(""); } },
-                          { type: "print", handler: () => printRecord(`User ${u.email}`, [
-                            { label: "Name", value: u.full_name },
-                            { label: "Email", value: u.email },
-                            { label: "Status", value: u.status },
-                            { label: "Roles", value: u.roles.join(", ") || "—" },
-                          ]) },
-                        ]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={users}
+        columns={[
+          { key: "full_name", label: "Name / Email", render: (val, row) => (
+            <div><p className="text-sm font-medium text-primary">{val}</p><p className="text-muted mt-0.5">{row.email}</p></div>
+          )},
+          { key: "status", label: "Status", render: (val) => <Badge status={val} /> },
+          { key: "roles", label: "Roles", render: (val) => <span className="text-secondary">{val.join(", ") || "—"}</span> },
+          { key: "actions", label: "Actions", render: (val, row) => (
+            <div className="flex items-center gap-1">
+              {row.status === "pending" && (
+                <>
+                  <button onClick={() => approve(row.id, true)} className="p-1.5 rounded hover:bg-green-500/10 text-muted hover:text-green-400" title="Approve"><CheckCircle size={14} /></button>
+                  <button onClick={() => approve(row.id, false)} className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400" title="Reject"><XCircle size={14} /></button>
+                </>
+              )}
+              {row.status === "active" && (
+                <button onClick={() => suspend(row.id, "suspended")} className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400" title="Suspend"><XCircle size={14} /></button>
+              )}
+              {row.status === "suspended" && (
+                <button onClick={() => suspend(row.id, "active")} className="p-1.5 rounded hover:bg-green-500/10 text-muted hover:text-green-400" title="Activate"><CheckCircle size={14} /></button>
+              )}
+              <button onClick={() => { setAssignUser(row); setSelectedRoleId(""); setErr(""); }} className="p-1.5 rounded hover:bg-blue-500/10 text-muted hover:text-blue-400" title="Assign Role"><UserCheck size={14} /></button>
+              <button onClick={() => printRecord(`User ${row.email}`, [
+                { label: "Name", value: row.full_name },
+                { label: "Email", value: row.email },
+                { label: "Status", value: row.status },
+                { label: "Roles", value: row.roles.join(", ") || "—" },
+              ])} className="p-1.5 rounded hover:bg-emerald-500/10 text-muted hover:text-emerald-400" title="Print"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg></button>
+            </div>
+          )},
+        ]}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No users found"
+        emptyIcon={Users}
+      />
 
       {assignUser && (
         <PortalModal
@@ -394,52 +377,31 @@ function RolesTab({ roles, permissions, onReload }: {
       </div>
 
       {/* Roles table */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {roles.length === 0 ? (
-          <div className="p-10 text-center">
-            <Shield size={28} className="text-muted mx-auto mb-2" />
-            <p className="text-secondary text-sm">No roles found. Create one to get started.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Role", "Description", "Permissions", "Actions"].map((h) => (
-                    <th key={h} className="text-left px-5 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {roles.map((r) => (
-                  <tr key={r.id} className="transition-colors row-hover"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-5 py-3 font-semibold text-primary">{r.name}</td>
-                    <td className="px-5 py-3 text-secondary max-w-xs truncate">{r.description || "—"}</td>
-                    <td className="px-5 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
-                        {r.permissions.length} permissions
-                      </span>
-                    </td>
-                    <ActionsCell className="px-5 py-3">
-                      <RowActions
-                        row={r}
-                        compact
-                        actions={[
-                          { type: "custom", label: "Permissions", icon: Key, handler: () => openPerms(r) },
-                          { type: "edit", handler: () => openEdit(r) },
-                          { type: "delete", handler: () => openDelete(r) },
-                        ]}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={roles}
+        columns={[
+          { key: "name", label: "Role", render: (val) => <span className="font-semibold text-primary">{val}</span> },
+          { key: "description", label: "Description", render: (val) => <span className="text-secondary max-w-xs truncate">{val || "—"}</span> },
+          { key: "permissions", label: "Permissions", render: (val) => (
+            <span className="text-[10px] px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+              {val.length} permissions
+            </span>
+          )},
+          { key: "actions", label: "Actions", render: (val, row) => (
+            <div className="flex items-center gap-1">
+              <button onClick={() => openPerms(row)} className="p-1.5 rounded hover:bg-blue-500/10 text-muted hover:text-blue-400" title="Permissions"><Key size={14} /></button>
+              <button onClick={() => openEdit(row)} className="p-1.5 rounded hover:bg-amber-500/10 text-muted hover:text-amber-400" title="Edit"><Pencil size={14} /></button>
+              <button onClick={() => openDelete(row)} className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400" title="Delete"><Trash2 size={14} /></button>
+            </div>
+          )},
+        ]}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No roles found"
+        emptyDescription="Create one to get started."
+        emptyIcon={Shield}
+      />
 
       {/* ── Create Role Modal ──────────────────────────────────────────────── */}
       {dialog === "create" && (
@@ -1009,55 +971,26 @@ function AuditTab() {
   }, []);
 
   return (
-    <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Time", "Action", "Module", "Entity", "Description"].map((h) => (
-                <th key={h} className="text-left px-5 py-3 text-muted font-semibold uppercase tracking-wider">{h}</th>
-              ))}
-              <ActionsTh className="px-5 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {audit.map((row) => (
-              <tr key={row.id} className="transition-colors row-hover"
-                style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <td className="px-5 py-3 text-secondary whitespace-nowrap">
-                  {new Date(row.created_at).toLocaleString()}
-                </td>
-                <td className="px-5 py-3 font-medium text-primary">{row.action}</td>
-                <td className="px-5 py-3 text-secondary">{row.module ?? "—"}</td>
-                <td className="px-5 py-3 text-secondary">
-                  {row.entity_type ?? "—"}{row.entity_id != null ? ` #${row.entity_id}` : ""}
-                </td>
-                <td className="px-5 py-3 text-muted max-w-xs truncate">{row.description ?? "—"}</td>
-                <ActionsCell className="px-5 py-3">
-                  <QuickRowActions
-                    row={row}
-                    compact
-                    onPrint={(r) => printRecord(`Audit #${r.id}`, [
-                      { label: "Action", value: r.action },
-                      { label: "Module", value: r.module ?? "—" },
-                      { label: "Entity", value: `${r.entity_type ?? "—"}${r.entity_id != null ? ` #${r.entity_id}` : ""}` },
-                      { label: "Description", value: r.description ?? "—" },
-                      { label: "Time", value: new Date(r.created_at).toLocaleString() },
-                    ])}
-                    hiddenActions={["view", "edit", "delete"]}
-                  />
-                </ActionsCell>
-              </tr>
-            ))}
-            {audit.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-muted">No audit logs found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      data={audit}
+      columns={[
+        { key: "created_at", label: "Time", render: (val) => <span className="text-secondary whitespace-nowrap">{new Date(val).toLocaleString()}</span> },
+        { key: "action", label: "Action", render: (val) => <span className="font-medium text-primary">{val}</span> },
+        { key: "module", label: "Module", render: (val) => <span className="text-secondary">{val ?? "—"}</span> },
+        { key: "entity_type", label: "Entity", render: (val, row) => <span className="text-secondary">{val ?? "—"}{row.entity_id != null ? ` #${row.entity_id}` : ""}</span> },
+        { key: "description", label: "Description", render: (val) => <span className="text-muted max-w-xs truncate">{val ?? "—"}</span> },
+      ]}
+      variant="bordered"
+      searchable={false}
+      emptyTitle="No audit logs found"
+      onPrint={(row) => printRecord(`Audit #${row.id}`, [
+        { label: "Action", value: row.action },
+        { label: "Module", value: row.module ?? "—" },
+        { label: "Entity", value: `${row.entity_type ?? "—"}${row.entity_id != null ? ` #${row.entity_id}` : ""}` },
+        { label: "Description", value: row.description ?? "—" },
+        { label: "Time", value: new Date(row.created_at).toLocaleString() },
+      ])}
+    />
   );
 }
 
@@ -1091,18 +1024,12 @@ export default function AdminPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit"
-        style={{ background: "var(--border)", border: "1px solid var(--border)" }}>
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${tab === key ? "text-white" : "text-secondary hover:text-primary"}`}
-            style={tab === key
-              ? { background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 2px 10px rgba(99,102,241,0.3)" }
-              : {}}>
-            <Icon size={13} /> {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={TABS.map((t) => ({ label: t.label, value: t.key, icon: t.icon }))}
+        activeTab={tab}
+        onChange={(v) => setTab(v as TabKey)}
+        moduleColor={MODULE_COLORS.admin}
+      />
 
       {tab === "users" && <UsersTab roles={roles} />}
       {tab === "roles" && <RolesTab roles={roles} permissions={permissions} onReload={reloadAll} />}

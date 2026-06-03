@@ -109,7 +109,7 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" type="number"
             value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
-          <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addFloor()}>
+          <button className="btn-property w-full py-3 text-sm" type="button" onClick={() => void addFloor()}>
             Add Floor
           </button>
         </div>
@@ -130,7 +130,7 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
               <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
             ))}
           </select>
-          <button className="btn-primary w-full py-3 text-sm" type="button" onClick={() => void addUnit()}>
+          <button className="btn-property w-full py-3 text-sm" type="button" onClick={() => void addUnit()}>
             Add Unit
           </button>
         </div>

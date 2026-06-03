@@ -5,6 +5,7 @@ import SearchableSelect from "../ui/SearchableSelect";
 import { crmApi } from "../../lib/crmApi";
 import {
   commissionsApi,
+  syncApi,
   type DealerCommissionContext,
   type CommissionCalculateResult,
 } from "../../lib/financeApi";
@@ -170,6 +171,14 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
         reference: reference || undefined,
         description: description || undefined,
       });
+      // Sync commission earned to finance
+      syncApi.commissionEarned({
+        deal_id: dealId ? Number(dealId) : null,
+        dealer_id: Number(dealerId),
+        dealer_name: ctx?.dealer?.name || "Unknown",
+        amount: finalAmount || Number(amountOverride) || 0,
+        property_name: "",
+      }).catch(() => {});
       reset();
       onSuccess();
       onClose();

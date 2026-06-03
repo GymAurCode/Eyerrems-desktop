@@ -18,10 +18,12 @@ class Account(Base):
     parent_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    is_system_account = Column(Boolean, nullable=False, default=False)
+    opening_balance = Column(Numeric(14, 2), nullable=False, default=0)
+    opening_balance_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # Self-referential relationship
     parent = relationship("Account", remote_side=[id], backref="children")
     journal_entries = relationship("JournalEntry", back_populates="account")
 
@@ -35,6 +37,8 @@ class Journal(Base):
     reference_type = Column(String(50), nullable=False, index=True)  # invoice, payment, commission, expense, manual
     reference_id = Column(String(100), nullable=True)
     description = Column(String(500), nullable=True)
+    source = Column(String(20), nullable=True, index=True)  # MANUAL, CRM, PROPERTY, EXPENSE, PAYROLL
+    is_editable = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
@@ -72,8 +76,14 @@ class Invoice(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    invoice_type = Column(String(20), nullable=True, default="rent")  # rent, sale, service, other
+    client_id = Column(Integer, nullable=True)
+    client_name = Column(String(255), nullable=True)
+    reference = Column(String(100), nullable=True)
+    paid_amount = Column(Numeric(12, 2), nullable=False, default=0)
+    remaining_amount = Column(Numeric(12, 2), nullable=False, default=0)
 
-    payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+    payments = relationship("app.models.finance.Payment", back_populates="invoice", cascade="all, delete-orphan")
     tenant = relationship("Tenant")
     property = relationship("Property")
     unit = relationship("Unit")
@@ -84,11 +94,19 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True)
-    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False, index=True)
-    method = Column(String(20), nullable=False)  # cash, bank
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True, index=True)
+    method = Column(String(20), nullable=False)  # cash, bank, cheque, online
     amount = Column(Numeric(12, 2), nullable=False)
     date = Column(DateTime, nullable=False, index=True)
     reference_number = Column(String(100), nullable=True)
+    received_from = Column(String(255), nullable=True)
+    payment_type = Column(String(30), nullable=True)  # rent, sale, booking, commission, manual
+    source = Column(String(20), nullable=True)  # CRM, PROPERTY, MANUAL
+    source_id = Column(Integer, nullable=True)
+    posted_to_finance = Column(Boolean, nullable=False, default=False)
+    finance_journal_id = Column(Integer, nullable=True)
+    notes = Column(String(500), nullable=True)
+    receipt_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     invoice = relationship("Invoice", back_populates="payments")
@@ -99,7 +117,7 @@ class Commission(Base):
     __tablename__ = "commissions"
 
     id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # legacy
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     dealer_id = Column(Integer, ForeignKey("dealers.id"), nullable=True, index=True)
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
     deal_id = Column(Integer, ForeignKey("deals.id"), nullable=True, index=True)
@@ -107,8 +125,8 @@ class Commission(Base):
     commission_rate = Column(Numeric(12, 4), nullable=True)
     calculated_amount = Column(Numeric(14, 2), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
-    type = Column(String(20), nullable=False, index=True)  # earned, paid
-    payment_status = Column(String(20), nullable=False, default="unpaid")  # unpaid, paid
+    type = Column(String(20), nullable=False, index=True)
+    payment_status = Column(String(20), nullable=False, default="unpaid")
     date = Column(DateTime, nullable=False)
     reference = Column(String(100), nullable=True)
     description = Column(String(500), nullable=True)
@@ -129,11 +147,60 @@ class Expense(Base):
 
     id = Column(Integer, primary_key=True)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, index=True)
-    paid_from = Column(String(20), nullable=False)  # cash, bank
+    paid_from = Column(String(20), nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
     date = Column(DateTime, nullable=False, index=True)
     description = Column(String(500), nullable=False)
     reference = Column(String(100), nullable=True)
+    vendor_name = Column(String(255), nullable=True)
+    invoice_bill_no = Column(String(100), nullable=True)
+    payment_method = Column(String(30), nullable=True)
+    payment_status = Column(String(20), nullable=True, default="pending")
+    paid_from_account_id = Column(Integer, nullable=True)
+    receipt_path = Column(String(500), nullable=True)
+    property_id = Column(Integer, nullable=True)
+    department = Column(String(100), nullable=True)
+    is_recurring = Column(Boolean, nullable=False, default=False)
+    recurring_frequency = Column(String(20), nullable=True)
+    next_due_date = Column(DateTime, nullable=True)
+    recurring_end_date = Column(DateTime, nullable=True)
+    approval_status = Column(String(20), nullable=True, default="submitted")
+    approved_by = Column(Integer, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     account = relationship("Account")
+
+
+class SyncLog(Base):
+    """Cross-module sync failure log"""
+    __tablename__ = "sync_logs"
+
+    id = Column(Integer, primary_key=True)
+    source_module = Column(String(20), nullable=False, index=True)
+    source_record_type = Column(String(30), nullable=False)
+    source_record_id = Column(Integer, nullable=False)
+    action = Column(String(30), nullable=False)
+    status = Column(String(20), nullable=False, default="failed")
+    error_message = Column(Text, nullable=True)
+    journal_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    retried_at = Column(DateTime, nullable=True)
+    retry_count = Column(Integer, nullable=False, default=0)
+
+
+class AuditLog(Base):
+    """Finance audit log - every action logged, non-deletable"""
+    __tablename__ = "finance_audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=True)
+    user_email = Column(String(255), nullable=True)
+    action = Column(String(50), nullable=False)
+    module = Column(String(50), nullable=False)
+    record_type = Column(String(50), nullable=True)
+    record_id = Column(String(50), nullable=True)
+    description = Column(String(500), nullable=True)
+    amount = Column(Numeric(14, 2), nullable=True)
+    extra_data = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

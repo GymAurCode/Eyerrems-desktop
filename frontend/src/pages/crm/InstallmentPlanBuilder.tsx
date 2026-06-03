@@ -127,10 +127,9 @@ export default function InstallmentPlanBuilder() {
       setLoading(true);
       try {
         const res = await crmApi.getDeal(Number(id));
-        setDeal(res.data);
-        // Pre-fill from deal
-        if (res.data.deal_value) setTotalAmount(String(res.data.deal_value));
-        if (res.data.down_payment) setDownPayment(String(res.data.down_payment));
+        setDeal(res);
+        if (res.deal_value) setTotalAmount(String(res.deal_value));
+        if (res.down_payment) setDownPayment(String(res.down_payment));
       } catch (e: any) {
         setError("Failed to load deal");
       } finally {

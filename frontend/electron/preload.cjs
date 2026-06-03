@@ -102,5 +102,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Logger
   log: (level, message, details) => ipcRenderer.send("log:renderer", level, message, details),
+
+  // Auto-updater
+  checkForUpdates: () => ipcRenderer.send("check-for-updates"),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  onUpdateDownloadStarted: (callback) =>
+    ipcRenderer.on("update-download-started", () => callback()),
+  onUpdateProgress: (callback) =>
+    ipcRenderer.on("update-download-progress", (_, data) => callback(data)),
 });
 

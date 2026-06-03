@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, AlertTriangle, ArrowLeft } from "lucide-react";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../components/actions";
+import { printRecord } from "../../components/actions";
+import DataTable from "../../components/data-table/DataTable";
+import type { TableColumn } from "../../components/data-table/types";
 import { constructionApi, Project, ProjectStatus } from "../../lib/constructionApi";
 import { formatCurrency } from "../../lib/currency";
 
@@ -227,58 +229,44 @@ export default function ProjectList() {
           <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Project", "Location", "Status", "Budget", "Spent", "Progress", "Phases"].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-muted font-medium uppercase tracking-wider">{h}</th>
-                ))}
-                <ActionsTh className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-muted">No projects found</td></tr>
-              )}
-              {filtered.map(p => (
-                <tr key={p.id} className="hover:bg-white/5 transition-colors"
-                  style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                  <td className="px-4 py-3 font-medium text-primary">{p.name}</td>
-                  <td className="px-4 py-3 text-muted">{p.location}</td>
-                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                  <td className="px-4 py-3 text-primary">{formatCurrency(Number(p.total_budget))}</td>
-                  <td className="px-4 py-3 text-primary">{formatCurrency(Number(p.actual_cost ?? 0))}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full rounded-full bg-blue-500"
-                          style={{ width: `${p.progress_percentage ?? 0}%` }} />
-                      </div>
-                      <span className="text-muted">{(p.progress_percentage ?? 0).toFixed(0)}%</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{p.phase_count ?? 0}</td>
-                  <ActionsCell className="px-4 py-3">
-                    <QuickRowActions
-                      row={p}
-                      compact
-                      onView={(row) => navigate(`/construction/projects/${row.id}`)}
-                      onDelete={() => handleDelete(p.id)}
-                      onPrint={(row) => printRecord(`Project ${row.name}`, [
-                        { label: "Name", value: row.name },
-                        { label: "Location", value: row.location ?? "—" },
-                        { label: "Status", value: row.status },
-                        { label: "Budget", value: formatCurrency(Number(row.total_budget)) },
-                        { label: "Spent", value: formatCurrency(Number(row.actual_cost ?? 0)) },
-                      ])}
-                    />
-                  </ActionsCell>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        (() => {
+          const projectColumns: TableColumn<Project>[] = [
+            { key: 'name', label: 'Project', render: (v) => <span className="font-medium text-primary">{v}</span> },
+            { key: 'location', label: 'Location', render: (v) => <span className="text-muted">{v}</span> },
+            { key: 'status', label: 'Status', render: (_, row) => <StatusBadge status={row.status} /> },
+            { key: 'total_budget', label: 'Budget', render: (v) => <span className="text-primary">{formatCurrency(Number(v))}</span> },
+            { key: 'actual_cost', label: 'Spent', render: (v) => <span className="text-primary">{formatCurrency(Number(v ?? 0))}</span> },
+            {
+              key: 'progress_percentage', label: 'Progress', render: (_, row) => (
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${row.progress_percentage ?? 0}%` }} />
+                  </div>
+                  <span className="text-muted">{(row.progress_percentage ?? 0).toFixed(0)}%</span>
+                </div>
+              ),
+            },
+            { key: 'phase_count', label: 'Phases', render: (v) => <span className="text-muted">{v ?? 0}</span> },
+          ];
+          return (
+            <DataTable
+              data={filtered}
+              columns={projectColumns}
+              searchable={false}
+              hoverable
+              emptyTitle="No projects found"
+              onView={(row) => navigate(`/construction/projects/${row.id}`)}
+              onDelete={(row) => handleDelete(row.id)}
+              onPrint={(row) => printRecord(`Project ${row.name}`, [
+                { label: "Name", value: row.name },
+                { label: "Location", value: row.location ?? "—" },
+                { label: "Status", value: row.status },
+                { label: "Budget", value: formatCurrency(Number(row.total_budget)) },
+                { label: "Spent", value: formatCurrency(Number(row.actual_cost ?? 0)) },
+              ])}
+            />
+          );
+        })()
       )}
     </div>
   );

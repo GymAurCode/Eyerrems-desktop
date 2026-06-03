@@ -65,7 +65,7 @@ def create_department(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(dept.id), record_label=f"Department: {dept.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')},
     )
     return dept
@@ -91,7 +91,7 @@ def update_department(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(dept_id), record_label=f"Department: {dept.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return dept
@@ -112,7 +112,7 @@ def delete_department(
     log_action(
         db=db, module="hr", action="DELETE",
         record_id=str(dept_id), record_label=f"Department: {dept.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
     dept.is_active = False
@@ -150,7 +150,7 @@ def create_position(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(pos.id), record_label=f"Position: {pos.title}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')},
     )
     return pos
@@ -176,7 +176,7 @@ def update_position(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(pos_id), record_label=f"Position: {pos.title}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return pos
@@ -212,7 +212,7 @@ def create_branch(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(branch.id), record_label=f"Branch: {branch.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')},
     )
     return branch
@@ -237,7 +237,7 @@ def update_branch(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(branch_id), record_label=f"Branch: {branch.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return branch
@@ -329,7 +329,7 @@ def create_employee(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(emp.id), record_label=f"Employee: {emp.full_name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')},
     )
     return emp
@@ -386,7 +386,7 @@ def update_employee(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(emp_id), record_label=f"Employee: {emp.full_name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return emp
@@ -405,7 +405,7 @@ def deactivate_employee(
     log_action(
         db=db, module="hr", action="DELETE",
         record_id=str(emp_id), record_label=f"Employee: {emp.full_name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
     emp.is_active = False
@@ -468,7 +468,7 @@ def create_salary_structure(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             old_data=old_data, new_data={k: str(v) for k, v in existing.__dict__.items() if not k.startswith('_')},
         )
         return existing
@@ -488,7 +488,7 @@ def create_salary_structure(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')},
     )
     return salary
@@ -526,7 +526,7 @@ def update_salary_structure(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(emp_id), record_label=f"Salary: Employee {emp_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return salary
@@ -576,7 +576,7 @@ def mark_attendance(
         db=db, module="hr", action="CREATE",
         record_id=str(record.id) if record else payload.employee_id,
         record_label=f"Attendance: Employee {payload.employee_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"employee_id": payload.employee_id, "date": str(payload.attendance_date)},
     )
     return record
@@ -604,7 +604,7 @@ def update_attendance(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(att_id), record_label=f"Attendance: {att_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return record
@@ -619,7 +619,7 @@ def approve_attendance_correction(
     log_action(
         db=db, module="hr", action="UPDATE",
         record_id=str(att_id), record_label=f"Attendance approved: {att_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -673,7 +673,7 @@ def create_leave_type(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(lt.id), record_label=f"Leave Type: {lt.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in lt.__dict__.items() if not k.startswith('_')},
     )
     return lt
@@ -723,7 +723,7 @@ def request_leave(
             db=db, module="hr", action="CREATE",
             record_id=str(leave.id) if leave else "",
             record_label=f"Leave: Employee {payload.employee_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             new_data={"employee_id": payload.employee_id, "start": str(payload.start_date), "end": str(payload.end_date)},
         )
         return leave
@@ -759,7 +759,7 @@ def approve_leave(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(leave_id), record_label=f"Leave approved: {leave_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
         return result
     except ValueError as e:
@@ -778,7 +778,7 @@ def reject_leave(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(leave_id), record_label=f"Leave rejected: {leave_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
         return result
     except ValueError as e:
@@ -796,7 +796,7 @@ def cancel_leave(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(leave_id), record_label=f"Leave cancelled: {leave_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
         return result
     except ValueError as e:
@@ -855,7 +855,7 @@ def calculate_payroll(
             db=db, module="hr", action="CREATE",
             record_id=str(result.id) if result else "",
             record_label=f"Payroll: Employee {employee_id} ({payroll_period})",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             new_data={"employee_id": employee_id, "period": payroll_period},
         )
         return result
@@ -898,7 +898,7 @@ def calculate_all_payroll(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=f"bulk-{payroll_period}", record_label=f"Payroll bulk: {payroll_period}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"period": payroll_period, "count": len(results), "department_id": department_id},
     )
     return results
@@ -927,7 +927,7 @@ def approve_payroll(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(payroll_id), record_label=f"Payroll approved: {payroll_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
         return result
     except ValueError as e:
@@ -968,7 +968,7 @@ def mark_payroll_paid(
         log_action(
             db=db, module="hr", action="UPDATE",
             record_id=str(payroll_id), record_label=f"Payroll paid: {payroll_id}",
-            changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+            changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
         return result
     except ValueError as e:
@@ -1029,7 +1029,7 @@ def create_holiday(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(h.id), record_label=f"Holiday: {h.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in h.__dict__.items() if not k.startswith('_')},
     )
     return h
@@ -1048,7 +1048,7 @@ def delete_holiday(
     log_action(
         db=db, module="hr", action="DELETE",
         record_id=str(holiday_id), record_label=f"Holiday: {h.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
     h.is_active = False
@@ -1080,7 +1080,7 @@ def create_allowance_type(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(at.id), record_label=f"Allowance Type: {at.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in at.__dict__.items() if not k.startswith('_')},
     )
     return at
@@ -1108,7 +1108,7 @@ def create_deduction_type(
     log_action(
         db=db, module="hr", action="CREATE",
         record_id=str(dt.id), record_label=f"Deduction Type: {dt.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in dt.__dict__.items() if not k.startswith('_')},
     )
     return dt

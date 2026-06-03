@@ -51,13 +51,13 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="min-h-screen bg-base p-6 text-primary">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-400">Super Admin Console</p>
           <h1 className="mt-3 text-4xl font-semibold">Welcome back{user?.full_name ? `, ${user.full_name}` : ""}</h1>
-          <p className="mt-2 text-slate-400">Manage companies, users, and system-wide settings</p>
+          <p className="mt-2 text-muted">Manage companies, users, and system-wide settings</p>
         </div>
 
         {error && (
@@ -112,23 +112,23 @@ export default function SuperAdminDashboard() {
         <div className="grid gap-6 md:grid-cols-2 mb-8">
           <Link
             to="/superadmin/companies"
-            className="rounded-3xl border border-slate-800 bg-slate-900/95 p-6 hover:border-slate-700 hover:bg-slate-800/95 transition-all cursor-pointer"
+            className="rounded-3xl border border-theme bg-surface p-6 hover:border-theme hover:bg-hover transition-all cursor-pointer"
           >
             <Building2 size={24} className="mb-4 text-blue-400" />
             <h3 className="text-lg font-semibold mb-2">Manage Companies</h3>
-            <p className="text-sm text-slate-400">Create, edit, and manage tenant companies</p>
+            <p className="text-sm text-muted">Create, edit, and manage tenant companies</p>
           </Link>
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/95 p-6 cursor-not-allowed opacity-50">
-            <Users size={24} className="mb-4 text-slate-600" />
+          <div className="rounded-3xl border border-theme bg-surface p-6 cursor-not-allowed opacity-50">
+            <Users size={24} className="mb-4 text-muted" />
             <h3 className="text-lg font-semibold mb-2">System Users</h3>
-            <p className="text-sm text-slate-400">Coming soon</p>
+            <p className="text-sm text-muted">Coming soon</p>
           </div>
         </div>
 
         {/* Recent Activity Placeholder */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/95 p-8">
+        <div className="rounded-3xl border border-theme bg-surface p-8">
           <h2 className="text-lg font-semibold mb-6">Recent Activity</h2>
-          <div className="text-center text-slate-400 py-8">
+          <div className="text-center text-muted py-8">
             <p>No recent activity yet</p>
           </div>
         </div>
@@ -150,12 +150,12 @@ function StatCard({ label, value, icon: Icon, color, href, isText = false }: Sta
   return (
     <Link
       to={href}
-      className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 hover:border-slate-700 hover:bg-slate-800/90 transition-all"
+      className="rounded-3xl border border-theme bg-surface p-6 hover:border-theme hover:bg-hover transition-all"
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-slate-400 uppercase">{label}</p>
-          <p className={`text-3xl font-bold mt-2 ${isText ? "text-slate-200" : ""}`} style={!isText ? { color } : undefined}>
+          <p className="text-xs font-medium text-muted uppercase">{label}</p>
+          <p className={`text-3xl font-bold mt-2 ${isText ? "text-primary" : ""}`} style={!isText ? { color } : undefined}>
             {value}
           </p>
         </div>

@@ -3,9 +3,11 @@
  * Features: sticky header, running balance, debit/credit coloring,
  * zebra rows, right-aligned amounts, clickable rows.
  */
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Eye, Printer } from "lucide-react";
 import { formatCurrency } from "../../lib/currency";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../../components/actions";
+import { printRecord } from "../../components/actions";
+import DataTable from "../../components/data-table/DataTable";
+import type { TableColumn, TableAction } from "../../components/data-table/types";
 
 export interface LedgerRow {
   id:              number;
@@ -82,224 +84,93 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey?: SortKey; sortDir?: SortDir }) {
-  if (col !== sortKey) return <ArrowUpDown size={10} style={{ color: "var(--text-muted)", opacity: 0.5 }} />;
-  return sortDir === "asc"
-    ? <ArrowUp size={10} style={{ color: "#60a5fa" }} />
-    : <ArrowDown size={10} style={{ color: "#60a5fa" }} />;
-}
-
 export default function LedgerTable({ rows, onRowClick, showEntity, sortKey, sortDir, onSort, loading }: Props) {
-  const thClass = "px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap select-none";
-  const thStyle = { color: "var(--text-muted)", background: "var(--bg-surface2)" };
+  const totalDebit  = rows.reduce((s, r) => s + r.debit,  0);
+  const totalCredit = rows.reduce((s, r) => s + r.credit, 0);
+  const lastBalance = rows[rows.length - 1]?.running_balance ?? 0;
 
-  function SortTh({ col, label, right }: { col: SortKey; label: string; right?: boolean }) {
-    return (
-      <th
-        className={`${thClass} ${right ? "text-right" : ""} cursor-pointer hover:text-primary transition-colors`}
-        style={thStyle}
-        onClick={() => onSort?.(col)}
-      >
-        <span className={`inline-flex items-center gap-1 ${right ? "flex-row-reverse" : ""}`}>
-          {label}
-          <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-        </span>
-      </th>
-    );
-  }
+  const dateRender = (v: string) => (
+    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+      {new Date(v).toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" })}
+    </span>
+  );
 
-  if (loading) {
-    return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="skeleton h-10 rounded-lg" />
-        ))}
-      </div>
-    );
-  }
+  const columns: TableColumn<LedgerRow>[] = [
+    { key: 'idx', label: '#', width: 40, render: (_, __, idx) => <span className="text-xs" style={{ color: "var(--text-muted)" }}>{idx + 1}</span> },
+    { key: 'tid', label: 'TID', render: (v) => <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{v}</span> },
+    { key: 'entry_date', label: 'Date', sortable: true, render: (v) => dateRender(v) },
+    ...(showEntity === "client" ? [{ key: 'client_name' as const, label: 'Client', render: (v: string | null | undefined) => <span className="text-xs font-medium text-primary">{v ?? "—"}</span> }] : []),
+    ...(showEntity === "dealer" ? [{ key: 'dealer_name' as const, label: 'Dealer', render: (v: string | null | undefined) => <span className="text-xs font-medium text-primary">{v ?? "—"}</span> }] : []),
+    ...(showEntity === "property" ? [{ key: 'property_name' as const, label: 'Property', render: (v: string | null | undefined) => <span className="text-xs font-medium text-primary">{v ?? "—"}</span> }] : []),
+    { key: 'description', label: 'Description', render: (v) => <span className="text-xs text-primary truncate block" title={v as string}>{v}</span> },
+    { key: 'reference_no', label: 'Ref No', render: (v) => <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{v ?? "—"}</span> },
+    { key: 'entry_type', label: 'Type', render: (_, row) => <TypeBadge type={row.entry_type} /> },
+    { key: 'debit', label: 'Debit', sortable: true, align: 'right', render: (v) => (v as number) > 0 ? <span className="text-xs font-semibold" style={{ color: "#f87171" }}>{formatCurrency(v as number)}</span> : <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span> },
+    { key: 'credit', label: 'Credit', sortable: true, align: 'right', render: (v) => (v as number) > 0 ? <span className="text-xs font-semibold" style={{ color: "#34d399" }}>{formatCurrency(v as number)}</span> : <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span> },
+    { key: 'running_balance', label: 'Balance', sortable: true, align: 'right', render: (v) => {
+      const bal = v as number;
+      return <span className="text-xs font-bold" style={{ color: bal >= 0 ? "#60a5fa" : "#f87171" }}>{bal < 0 ? "-" : ""}{formatCurrency(Math.abs(bal))}</span>;
+    }},
+    { key: 'status', label: 'Status', render: (_, row) => <StatusBadge status={row.status} /> },
+  ];
 
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.15)" }}>
-          <span className="text-2xl">📒</span>
-        </div>
-        <p className="text-sm font-medium text-primary">No ledger entries found</p>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          Entries appear automatically when transactions are recorded
-        </p>
-      </div>
-    );
-  }
+  const rowActionsList: TableAction<LedgerRow>[] = [
+    {
+      key: 'view',
+      label: 'View',
+      icon: Eye,
+      onClick: (row) => onRowClick(row),
+    },
+    {
+      key: 'print',
+      label: 'Print',
+      icon: Printer,
+      onClick: (row) => printRecord(`Ledger ${row.tid}`, [
+        { label: "Date", value: row.entry_date },
+        { label: "Description", value: row.description },
+        { label: "Debit", value: row.debit > 0 ? formatCurrency(row.debit) : "—" },
+        { label: "Credit", value: row.credit > 0 ? formatCurrency(row.credit) : "—" },
+        { label: "Balance", value: formatCurrency(Math.abs(row.running_balance)) },
+      ]),
+    },
+  ];
 
   return (
-    <div className="overflow-x-auto">
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-        <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
-          <tr style={{ borderBottom: "1px solid var(--border)" }}>
-            <th className={thClass} style={thStyle}>#</th>
-            <th className={thClass} style={thStyle}>TID</th>
-            <SortTh col="entry_date" label="Date" />
-            {showEntity === "client"   && <th className={thClass} style={thStyle}>Client</th>}
-            {showEntity === "dealer"   && <th className={thClass} style={thStyle}>Dealer</th>}
-            {showEntity === "property" && <th className={thClass} style={thStyle}>Property</th>}
-            <th className={thClass} style={thStyle}>Description</th>
-            <th className={thClass} style={thStyle}>Ref No</th>
-            <th className={thClass} style={thStyle}>Type</th>
-            <SortTh col="debit"           label="Debit"   right />
-            <SortTh col="credit"          label="Credit"  right />
-            <SortTh col="running_balance" label="Balance" right />
-            <th className={thClass} style={thStyle}>Status</th>
-            <ActionsTh className={thClass} />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            const isEven = idx % 2 === 0;
-            const rowBg  = isEven ? "transparent" : "rgba(255,255,255,0.015)";
-            return (
-              <tr
-                key={row.id}
-                onClick={() => onRowClick(row)}
-                style={{
-                  background: rowBg,
-                  borderBottom: "1px solid var(--border-subtle)",
-                  cursor: "pointer",
-                  transition: "background 0.12s",
-                }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--hover-bg-sm)"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = rowBg}
-              >
-                {/* Row # */}
-                <td style={{ padding: "0.65rem 0.75rem", color: "var(--text-muted)", fontSize: "0.7rem" }}>
-                  {idx + 1}
-                </td>
-                {/* TID */}
-                <td style={{ padding: "0.65rem 0.75rem" }}>
-                  <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{row.tid}</span>
-                </td>
-                {/* Date */}
-                <td style={{ padding: "0.65rem 0.75rem", whiteSpace: "nowrap" }}>
-                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    {new Date(row.entry_date).toLocaleDateString("en-PK", {
-                      day: "2-digit", month: "short", year: "numeric",
-                    })}
-                  </span>
-                </td>
-                {/* Entity name */}
-                {showEntity === "client" && (
-                  <td style={{ padding: "0.65rem 0.75rem" }}>
-                    <span className="text-xs font-medium text-primary">{row.client_name ?? "—"}</span>
-                  </td>
-                )}
-                {showEntity === "dealer" && (
-                  <td style={{ padding: "0.65rem 0.75rem" }}>
-                    <span className="text-xs font-medium text-primary">{row.dealer_name ?? "—"}</span>
-                  </td>
-                )}
-                {showEntity === "property" && (
-                  <td style={{ padding: "0.65rem 0.75rem" }}>
-                    <span className="text-xs font-medium text-primary">{row.property_name ?? "—"}</span>
-                  </td>
-                )}
-                {/* Description */}
-                <td style={{ padding: "0.65rem 0.75rem", maxWidth: "220px" }}>
-                  <span className="text-xs text-primary truncate block" title={row.description}>
-                    {row.description}
-                  </span>
-                </td>
-                {/* Ref No */}
-                <td style={{ padding: "0.65rem 0.75rem" }}>
-                  <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {row.reference_no ?? "—"}
-                  </span>
-                </td>
-                {/* Type */}
-                <td style={{ padding: "0.65rem 0.75rem" }}>
-                  <TypeBadge type={row.entry_type} />
-                </td>
-                {/* Debit — red tone */}
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  {row.debit > 0 ? (
-                    <span className="text-xs font-semibold" style={{ color: "#f87171" }}>
-                      {formatCurrency(row.debit)}
-                    </span>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>—</span>
-                  )}
-                </td>
-                {/* Credit — green tone */}
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  {row.credit > 0 ? (
-                    <span className="text-xs font-semibold" style={{ color: "#34d399" }}>
-                      {formatCurrency(row.credit)}
-                    </span>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>—</span>
-                  )}
-                </td>
-                {/* Running Balance */}
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: row.running_balance >= 0 ? "#60a5fa" : "#f87171" }}
-                  >
-                    {row.running_balance < 0 ? "-" : ""}{formatCurrency(Math.abs(row.running_balance))}
-                  </span>
-                </td>
-                {/* Status */}
-                <td style={{ padding: "0.65rem 0.75rem" }}>
-                  <StatusBadge status={row.status} />
-                </td>
-                <ActionsCell className="!px-3 !py-2">
-                  <QuickRowActions
-                    row={row}
-                    compact
-                    onView={onRowClick}
-                    onPrint={(r) => printRecord(`Ledger ${r.tid}`, [
-                      { label: "Date", value: r.entry_date },
-                      { label: "Description", value: r.description },
-                      { label: "Debit", value: r.debit > 0 ? formatCurrency(r.debit) : "—" },
-                      { label: "Credit", value: r.credit > 0 ? formatCurrency(r.credit) : "—" },
-                      { label: "Balance", value: formatCurrency(Math.abs(r.running_balance)) },
-                    ])}
-                    hiddenActions={["edit", "delete"]}
-                  />
-                </ActionsCell>
-              </tr>
-            );
-          })}
-        </tbody>
-        {/* ── Totals footer ── */}
-        {rows.length > 0 && (() => {
-          const totalDebit  = rows.reduce((s, r) => s + r.debit,  0);
-          const totalCredit = rows.reduce((s, r) => s + r.credit, 0);
-          const lastBalance = rows[rows.length - 1]?.running_balance ?? 0;
-          return (
-            <tfoot>
-              <tr style={{ borderTop: "2px solid var(--border)", background: "var(--bg-surface2)" }}>
-                <td colSpan={showEntity ? 8 : 7}
-                  style={{ padding: "0.65rem 0.75rem", fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Totals
-                </td>
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  <span className="text-xs font-bold" style={{ color: "#f87171" }}>{formatCurrency(totalDebit)}</span>
-                </td>
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  <span className="text-xs font-bold" style={{ color: "#34d399" }}>{formatCurrency(totalCredit)}</span>
-                </td>
-                <td style={{ padding: "0.65rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                  <span className="text-xs font-bold" style={{ color: lastBalance >= 0 ? "#60a5fa" : "#f87171" }}>
-                    {lastBalance < 0 ? "-" : ""}{formatCurrency(Math.abs(lastBalance))}
-                  </span>
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          );
-        })()}
-      </table>
-    </div>
+    <DataTable
+      data={rows}
+      columns={columns}
+      loading={loading}
+      sortable
+      sortConfig={sortKey && sortDir ? { key: sortKey, direction: sortDir } : undefined}
+      onSort={(config) => onSort?.(config.key as SortKey)}
+      onRowClick={(row) => onRowClick(row)}
+      searchable={false}
+      striped={false}
+      hoverable
+      rowActions={rowActionsList}
+      emptyTitle="No ledger entries found"
+      emptyDescription="Entries appear automatically when transactions are recorded"
+      customFooter={
+        rows.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '2px solid var(--border)', background: 'var(--bg-surface2)', fontSize: 13 }}>
+            <div style={{ flex: showEntity ? 8 : 7, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem' }}>
+              Totals
+            </div>
+            <div style={{ flex: 1, textAlign: 'right' }}>
+              <span className="text-xs font-bold" style={{ color: '#f87171' }}>{formatCurrency(totalDebit)}</span>
+            </div>
+            <div style={{ flex: 1, textAlign: 'right' }}>
+              <span className="text-xs font-bold" style={{ color: '#34d399' }}>{formatCurrency(totalCredit)}</span>
+            </div>
+            <div style={{ flex: 1, textAlign: 'right' }}>
+              <span className="text-xs font-bold" style={{ color: lastBalance >= 0 ? '#60a5fa' : '#f87171' }}>
+                {lastBalance < 0 ? "-" : ""}{formatCurrency(Math.abs(lastBalance))}
+              </span>
+            </div>
+            <div style={{ flex: 1 }} />
+          </div>
+        ) : undefined
+      }
+    />
   );
 }

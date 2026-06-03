@@ -37,6 +37,7 @@ from app.api.routes.chat_routes import router as chat_router
 from app.api.routes.superadmin import router as superadmin_router
 from app.api.routes.attachments import router as attachments_router
 from app.api.routes.lookups import router as lookups_router
+from app.api.routes.async_select import router as async_select_router
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
@@ -121,6 +122,7 @@ app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(superadmin_router)
 app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
 app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
+app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
 
 
 @app.on_event("startup")
@@ -186,7 +188,6 @@ def on_startup():
     try:
         from app.tenant import get_master_session
         from app.services.rbac_service import RBACService
-        from sqlalchemy.orm import sessionmaker
 
         mdb = get_master_session()
         try:
@@ -217,6 +218,22 @@ def on_startup():
                     Base.metadata.create_all(bind=tenant_engine)
                     # Migrate attachment columns for existing tables
                     sync_attachments_table(tenant_engine)
+                    # Ensure master_id column exists (used for UUID → integer PK resolution)
+                    with tenant_engine.connect() as conn:
+                        conn.execute(
+                            text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)")
+                        )
+                        conn.execute(
+                            text("""
+                                UPDATE companies c
+                                SET master_id = m.id
+                                FROM master.companies m
+                                WHERE m.schema_name = :schema
+                                  AND c.master_id IS NULL
+                            """),
+                            {"schema": schema_name},
+                        )
+                        conn.commit()
                     tenant_engine.dispose()
 
                     # Seed RBAC data if permissions table is empty
@@ -273,7 +290,6 @@ def on_startup():
 
     # ── Seed default lookup values (public schema + all company schemas) ──────
     try:
-        from sqlalchemy.orm import sessionmaker
         # Seed in public schema
         public_engine = create_engine(settings.database_url, pool_pre_ping=True)
         pub_session = sessionmaker(bind=public_engine)()

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, MapPin, Tag, ChevronRight, LayoutGrid } from "lucide-react";
 import Modal from "../Modal";
 import { propApi, Location as PropertyLocation, Amenity, PropertyCategory } from "../../lib/propertyApi";
+import ModuleTabs from "../ui/ModuleTabs";
+import { MODULE_COLORS } from "../../config/moduleColors";
 
 type Tab = "categories" | "locations" | "amenities";
 
@@ -93,17 +95,12 @@ export default function AdvancedOptions({ open, onClose }: Props) {
   return (
     <Modal open={open} onClose={onClose} title="Advanced Options">
       {/* Tab bar */}
-      <div className="flex gap-1 p-1 rounded-xl mb-5" style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setTab(key)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all duration-200"
-            style={tab === key
-              ? { background: "linear-gradient(135deg,#3b82f6,#6366f1)", color: "#fff", boxShadow: "0 2px 8px rgba(99,102,241,0.3)" }
-              : { color: "var(--text-secondary)" }}>
-            <Icon size={12} /> {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={TABS.map((t) => ({ label: t.label, value: t.key, icon: t.icon }))}
+        activeTab={tab}
+        onChange={(v) => setTab(v as Tab)}
+        moduleColor={MODULE_COLORS.property}
+      />
 
       {/* Categories */}
       {tab === "categories" && (
@@ -116,7 +113,7 @@ export default function AdvancedOptions({ open, onClose }: Props) {
                 onKeyDown={(e) => e.key === "Enter" && void addCategory()}
                 placeholder="e.g. Residential" />
               <button type="button" onClick={() => void addCategory()}
-                className="btn-primary px-4 py-2.5 text-sm flex items-center gap-1.5">
+                className="btn-property px-4 py-2.5 text-sm flex items-center gap-1.5">
                 <Plus size={13} /> Add
               </button>
             </div>
@@ -158,7 +155,7 @@ export default function AdvancedOptions({ open, onClose }: Props) {
                 onKeyDown={(e) => e.key === "Enter" && void addLocation()}
                 placeholder="Location name" />
               <button type="button" onClick={() => void addLocation()}
-                className="btn-primary px-4 py-2.5 text-sm flex items-center gap-1.5">
+                className="btn-property px-4 py-2.5 text-sm flex items-center gap-1.5">
                 <Plus size={13} /> Add
               </button>
             </div>
@@ -203,7 +200,7 @@ export default function AdvancedOptions({ open, onClose }: Props) {
                 onKeyDown={(e) => e.key === "Enter" && void addAmenity()}
                 placeholder="e.g. Swimming Pool" />
               <button type="button" onClick={() => void addAmenity()}
-                className="btn-primary px-4 py-2.5 text-sm flex items-center gap-1.5">
+                className="btn-property px-4 py-2.5 text-sm flex items-center gap-1.5">
                 <Plus size={13} /> Add
               </button>
             </div>

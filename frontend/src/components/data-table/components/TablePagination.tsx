@@ -1,8 +1,3 @@
-/**
- * TablePagination Component
- * Professional pagination with rows per page selector
- */
-
 import React from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { PaginationConfig } from '../types';
@@ -19,7 +14,6 @@ export default function TablePagination({
   loading = false,
 }: TablePaginationProps) {
   const { page, pageSize, total, pageSizeOptions = [10, 25, 50, 100] } = pagination;
-  
   const totalPages = Math.ceil(total / pageSize);
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
@@ -32,165 +26,116 @@ export default function TablePagination({
 
   const handlePageSizeChange = (newPageSize: number) => {
     const newPage = Math.ceil(((page - 1) * pageSize + 1) / newPageSize);
-    onPaginationChange({ 
-      ...pagination, 
-      pageSize: newPageSize, 
-      page: Math.max(1, newPage)
+    onPaginationChange({
+      ...pagination,
+      pageSize: newPageSize,
+      page: Math.max(1, newPage),
     });
   };
 
-  // Generate page numbers to show
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const maxVisible = 7;
-    
-    if (totalPages <= maxVisible) {
-      // Show all pages
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      // Show first page
-      pages.push(1);
-      
-      if (page <= 4) {
-        // Show pages 2-5 and ellipsis
-        for (let i = 2; i <= 5; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (page >= totalPages - 3) {
-        // Show ellipsis and last 5 pages
-        pages.push('...');
-        for (let i = totalPages - 4; i <= totalPages; i++) {
-          pages.push(i);
-        }
-      } else {
-        // Show ellipsis, current page area, ellipsis
-        pages.push('...');
-        for (let i = page - 1; i <= page + 1; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      }
-    }
-    
-    return pages;
-  };
+  if (total === 0) return null;
 
-  if (total === 0) {
-    return (
-      <div className="flex items-center justify-between px-4 py-3 text-xs text-muted">
-        <div>Showing 0-0 of 0</div>
-        <div className="flex items-center gap-2">
-          <span>Rows per page:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="select-dark px-2 py-1 text-xs"
-            disabled={loading}
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    );
-  }
+  const btnStyle = (disabled: boolean): React.CSSProperties => ({
+    width: 32,
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    borderRadius: 6,
+    background: 'transparent',
+    color: 'var(--text-secondary)',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.3 : 1,
+    transition: 'all 0.15s',
+  });
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-      {/* Left: Item count and rows per page */}
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <div>
-          Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {total.toLocaleString()}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span>Rows per page:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="select-dark px-2 py-1 text-xs"
-            disabled={loading}
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </div>
+    <div style={{
+      height: 52,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 16px',
+      background: 'var(--table-header-bg)',
+      borderTop: '1px solid var(--border-color)',
+      borderRadius: '0 0 12px 12px',
+    }}>
+      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+        Showing {startItem.toLocaleString()}–{endItem.toLocaleString()} of {total.toLocaleString()} results
+      </span>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={e => handlePageSizeChange(Number(e.target.value))}
+          disabled={loading}
+          style={{
+            height: 32,
+            padding: '0 8px',
+            borderRadius: 6,
+            border: '1px solid var(--border-color)',
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            fontSize: 13,
+            outline: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          {pageSizeOptions.map(size => (
+            <option key={size} value={size}>{size}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Right: Pagination controls */}
-      <div className="flex items-center gap-1">
-        {/* First page */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
+          type="button"
+          disabled={page <= 1 || loading}
+          style={btnStyle(page <= 1 || loading)}
           onClick={() => handlePageChange(1)}
-          disabled={page === 1 || loading}
-          className="p-2 rounded-lg hover:bg-card disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="First page"
+          onMouseEnter={e => { if (page > 1 && !loading) e.currentTarget.style.background = 'var(--table-row-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <ChevronsLeft size={14} />
+          <ChevronsLeft size={16} />
         </button>
-
-        {/* Previous page */}
         <button
+          type="button"
+          disabled={page <= 1 || loading}
+          style={btnStyle(page <= 1 || loading)}
           onClick={() => handlePageChange(page - 1)}
-          disabled={page === 1 || loading}
-          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Previous page"
+          onMouseEnter={e => { if (page > 1 && !loading) e.currentTarget.style.background = 'var(--table-row-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <ChevronLeft size={14} />
+          <ChevronLeft size={16} />
         </button>
-
-        {/* Page numbers */}
-        <div className="flex items-center gap-1 mx-2">
-          {getPageNumbers().map((pageNum, index) => (
-            <React.Fragment key={index}>
-              {pageNum === '...' ? (
-                <span className="px-2 py-1 text-xs text-muted">...</span>
-              ) : (
-                <button
-                  onClick={() => handlePageChange(pageNum as number)}
-                  disabled={loading}
-                  className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                    pageNum === page
-                      ? 'bg-blue-600 text-white'
-                      : 'hover:bg-card text-foreground'
-                  } ${loading ? 'cursor-not-allowed' : ''}`}
-                >
-                  {pageNum}
-                </button>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-
-        {/* Next page */}
+        <span style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 8px' }}>
+          Page {page} of {totalPages || 1}
+        </span>
         <button
+          type="button"
+          disabled={page >= totalPages || loading}
+          style={btnStyle(page >= totalPages || loading)}
           onClick={() => handlePageChange(page + 1)}
-          disabled={page === totalPages || loading}
-          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Next page"
+          onMouseEnter={e => { if (page < totalPages && !loading) e.currentTarget.style.background = 'var(--table-row-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <ChevronRight size={14} />
+          <ChevronRight size={16} />
         </button>
-
-        {/* Last page */}
         <button
+          type="button"
+          disabled={page >= totalPages || loading}
+          style={btnStyle(page >= totalPages || loading)}
           onClick={() => handlePageChange(totalPages)}
-          disabled={page === totalPages || loading}
-          className="p-2 rounded-lg hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Last page"
+          onMouseEnter={e => { if (page < totalPages && !loading) e.currentTarget.style.background = 'var(--table-row-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <ChevronsRight size={14} />
+          <ChevronsRight size={16} />
         </button>
       </div>
     </div>

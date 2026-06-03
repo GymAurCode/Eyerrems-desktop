@@ -90,11 +90,11 @@ export default function LoginPage() {
 
   return (
     // Login page is intentionally always dark — it's a branded splash screen
-    <div className="min-h-screen flex" style={{ background: "#0f1117", color: "#e2e8f0" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* Left panel */}
       <div
         className="hidden lg:flex lg:w-1/2 relative flex-col items-center justify-center p-12 overflow-hidden"
-        style={{ background: "linear-gradient(135deg,#131525 0%,#0f1117 100%)", borderRight: "1px solid rgba(255,255,255,0.07)" }}
+        style={{ background: "linear-gradient(135deg,var(--bg-primary) 0%,var(--bg-primary) 100%)", borderRight: "1px solid rgba(255,255,255,0.07)" }}
       >
         <div className="absolute inset-0 pointer-events-none transition-all duration-700"
           style={{ background: `radial-gradient(ellipse 60% 50% at 50% 50%, ${current.glow} 0%, transparent 65%)` }} />

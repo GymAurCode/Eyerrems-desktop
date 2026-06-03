@@ -1,19 +1,27 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer } from "lucide-react";
+import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText } from "lucide-react";
+import ReportModal from "../components/reports/ReportModal";
 import { useLookup } from "../hooks/useLookup";
 import { QuickRowActions, printRecord } from "../components/actions";
 import { crmApi, Lead, Client, Dealer, Deal } from "../lib/crmApi";
-import ClientForm from "../components/crm/ClientForm";
+import ClientFormDialog from "../components/crm/ClientFormDialog";
 import DealerForm from "../components/crm/DealerForm";
 import DealForm from "../components/crm/DealForm";
+import LeadFormDialog from "../components/crm/LeadFormDialog";
 import Modal from "../components/Modal";
 import { FormField } from "../components/crm/FormField";
 import BookingList from "./crm/bookings/BookingList";
+import CRMDashboard from "./crm/CRMDashboard";
+import FollowUps from "./crm/FollowUps";
+import SiteVisits from "./crm/SiteVisits";
+import Payments from "./crm/Payments";
 import { api } from "../lib/api";
 import { AppTable, removeEmptyParams } from "../components/data-table";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
 
-const TABS = ["Leads", "Clients", "Dealers", "Deals", "Bookings"];
+const TABS = ["Dashboard", "Leads", "Clients", "Dealers", "Deals", "Bookings", "Follow Ups", "Site Visits", "Payments"];
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   new:       { bg: "rgba(59,130,246,0.12)",  text: "#3b82f6" },
@@ -97,6 +105,17 @@ export default function CRMPage() {
     status: "",
   });
 
+  // Report modal state
+  const [reportModal, setReportModal] = useState<{
+    open: boolean;
+    reportType: string;
+    filters: Record<string, unknown>;
+    title?: string;
+  }>({ open: false, reportType: "", filters: {} });
+
+  const today = new Date().toISOString().split("T")[0];
+  const firstDayOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+
   // Deals pagination & query state
   const [dealsTotal, setDealsTotal] = useState(0);
   const [dealsLoading, setDealsLoading] = useState(false);
@@ -119,14 +138,7 @@ export default function CRMPage() {
   const [dealModal, setDealModal]     = useState(false);
   const [editDealer, setEditDealer]   = useState<Dealer | null>(null);
 
-  // Lead form
-  const [leadName, setLeadName]   = useState("");
-  const [leadPhone, setLeadPhone] = useState("");
-  const [leadEmail, setLeadEmail] = useState("");
-  const [leadSource, setLeadSource] = useState("");
-  const [leadStatus, setLeadStatus] = useState("new");
-  const [leadNotes, setLeadNotes] = useState("");
-  const [leadErr, setLeadErr]     = useState("");
+  // Lead form state (managed inside LeadFormDialog)
 
   // Search
   const [searchQ, setSearchQ] = useState("");
@@ -255,25 +267,11 @@ export default function CRMPage() {
     void fetchDeals(dealsParams);
   }, [dealsParams]);
 
-  const createLead = async () => {
-    if (!leadName.trim()) { setLeadErr("Name is required"); return; }
-    setLeadErr("");
-    await crmApi.createLead({
-      name: leadName, phone: leadPhone || null,
-      email: leadEmail || null, source: leadSource || null,
-      notes: leadNotes || null, status: leadStatus,
-    });
-    setLeadName(""); setLeadPhone(""); setLeadEmail("");
-    setLeadSource(""); setLeadNotes(""); setLeadStatus("new");
-    setLeadModal(false);
-    refreshLeads();
-  };
-
   const doSearch = async () => {
     if (!searchQ.trim()) return;
     try {
       const res = await crmApi.search(searchQ.trim());
-      if (res.client) navigate(`/crm/clients/${res.client.id}`);
+      if (res.client) navigate(`/crm/clients/${res.client.client_id}`);
     } catch {
       alert("No results found for: " + searchQ);
     }
@@ -299,31 +297,29 @@ export default function CRMPage() {
             </button>
           </div>
           <button type="button" onClick={() => {
-            if (tab === 0) setLeadModal(true);
-            else if (tab === 1) setClientModal(true);
-            else if (tab === 2) setDealerModal(true);
-            else if (tab === 3) setDealModal(true);
-            // tab 4 (Bookings) — BookingList manages its own "New Booking" button
+            if (tab === 1) setLeadModal(true);
+            else if (tab === 2) setClientModal(true);
+            else if (tab === 3) setDealerModal(true);
+            else if (tab === 4) setDealModal(true);
+            // tab 5 (Bookings) — BookingList manages its own "New Booking" button
           }} className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-            <Plus size={15} /> {tab === 4 ? "New Booking" : "New"}
+            <Plus size={15} /> {tab === 5 ? "New Booking" : "New"}
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border)" }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === i ? "text-blue-400 border-b-2 border-blue-400" : "text-muted hover:text-secondary"
-            }`}>
-            {t}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={TABS}
+        activeTab={TABS[tab]}
+        onChange={(v) => setTab(TABS.indexOf(v))}
+        moduleColor={MODULE_COLORS.crm}
+      />
 
       {/* Tab content */}
-      {tab === 0 && (() => {
+      {tab === 0 && <CRMDashboard />}
+
+      {tab === 1 && (() => {
         const leadColumns = [
           { key: "lead_id", label: "Lead ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
           { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
@@ -341,7 +337,7 @@ export default function CRMPage() {
             key: "view",
             label: "View",
             icon: Eye,
-            onClick: (row: Lead) => navigate(`/crm/leads/${row.id}`),
+            onClick: (row: Lead) => navigate(`/crm/leads/${row.lead_id}`),
           },
           {
             key: "print",
@@ -379,7 +375,7 @@ export default function CRMPage() {
         );
       })()}
 
-      {tab === 1 && (() => {
+      {tab === 2 && (() => {
         const clientColumns = [
           { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
           { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
@@ -397,7 +393,7 @@ export default function CRMPage() {
             key: "view",
             label: "View",
             icon: Eye,
-            onClick: (row: Client) => navigate(`/crm/clients/${row.id}`),
+            onClick: (row: Client) => navigate(`/crm/clients/${row.client_id}`),
           },
           {
             key: "print",
@@ -408,7 +404,28 @@ export default function CRMPage() {
               { label: "Phone", value: row.phone ?? "—" },
               { label: "Status", value: row.status },
             ]),
-          }
+          },
+          {
+            key: "customer_profile",
+            label: "Customer Profile",
+            icon: FileText,
+            onClick: (row: Client) => setReportModal({ open: true, reportType: "customer_profile", filters: { client_id: row.id }, title: "Customer Profile" }),
+            variant: "secondary",
+          },
+          {
+            key: "customer_ledger",
+            label: "Customer Ledger",
+            icon: FileText,
+            onClick: (row: Client) => setReportModal({ open: true, reportType: "customer_ledger", filters: { client_id: row.id, date_from: firstDayOfYear, date_to: today }, title: "Customer Ledger" }),
+            variant: "secondary",
+          },
+          {
+            key: "outstanding_payments",
+            label: "Outstanding Payments",
+            icon: FileText,
+            onClick: (row: Client) => setReportModal({ open: true, reportType: "outstanding_payments", filters: { client_id: row.id }, title: "Outstanding Payments" }),
+            variant: "secondary",
+          },
         ];
 
         return (
@@ -435,10 +452,21 @@ export default function CRMPage() {
         );
       })()}
 
-      {tab === 2 && (() => {
+      {tab === 3 && (() => {
         const dealerColumns = [
           { key: "dealer_id", label: "Dealer ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
-          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+          {
+            key: "name", label: "Name", sortable: true, className: "font-medium",
+            render: (val: string, row: Dealer) => (
+              <span
+                className="cursor-pointer hover:underline"
+                style={{ color: "#60a5fa" }}
+                onClick={(e) => { e.stopPropagation(); navigate(`/crm/dealers/${row.id}`); }}
+              >
+                {val}
+              </span>
+            ),
+          },
           { key: "phone", label: "Phone", sortable: true },
           { key: "company", label: "Company", sortable: true },
           {
@@ -451,6 +479,12 @@ export default function CRMPage() {
         ];
 
         const dealerActions = [
+          {
+            key: "view",
+            label: "View",
+            icon: Eye,
+            onClick: (row: Dealer) => navigate(`/crm/dealers/${row.id}`),
+          },
           {
             key: "edit",
             label: "Edit",
@@ -493,7 +527,7 @@ export default function CRMPage() {
         );
       })()}
 
-      {tab === 3 && (() => {
+      {tab === 4 && (() => {
         const dealColumns = [
           { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
           { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
@@ -518,7 +552,7 @@ export default function CRMPage() {
             key: "view",
             label: "View",
             icon: Eye,
-            onClick: (row: Deal) => navigate(`/crm/deals/${row.id}`),
+            onClick: (row: Deal) => navigate(`/crm/deals/${row.deal_id}`),
           },
           {
             key: "print",
@@ -530,7 +564,20 @@ export default function CRMPage() {
               { label: "Value", value: String(row.deal_value) },
               { label: "Status", value: row.status },
             ]),
-          }
+          },
+          {
+            key: "deal_summary",
+            label: "Deal Summary",
+            icon: FileText,
+            onClick: (row: Deal) => setReportModal({ open: true, reportType: "deal_report", filters: { deal_id: row.id }, title: "Deal Summary Report" }),
+          },
+          {
+            key: "booking_form",
+            label: "Booking Form",
+            icon: FileText,
+            onClick: (row: Deal) => setReportModal({ open: true, reportType: "booking_form", filters: { deal_id: row.id }, title: "Booking Form" }),
+            variant: "secondary",
+          },
         ];
 
         return (
@@ -557,56 +604,29 @@ export default function CRMPage() {
         );
       })()}
 
-      {tab === 4 && (
+      {tab === 5 && (
         <BookingList />
       )}
 
+      {tab === 6 && <FollowUps />}
+
+      {tab === 7 && <SiteVisits />}
+
+      {tab === 8 && <Payments />}
+
       {/* Lead Modal */}
-      <Modal open={leadModal} onClose={() => setLeadModal(false)} title="New Lead">
-        <div className="space-y-4">
-          {leadErr && (
-            <p className="text-xs text-red-400 px-3 py-2 rounded-lg"
-              style={{ background: "rgba(239,68,68,0.08)" }}>{leadErr}</p>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Name" required>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={leadName}
-                onChange={(e) => setLeadName(e.target.value)} placeholder="Full name" />
-            </FormField>
-            <FormField label="Phone">
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={leadPhone}
-                onChange={(e) => setLeadPhone(e.target.value)} placeholder="Phone" />
-            </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Email">
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={leadEmail}
-                onChange={(e) => setLeadEmail(e.target.value)} placeholder="Email" />
-            </FormField>
-            <FormField label="Source">
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={leadSource}
-                onChange={(e) => setLeadSource(e.target.value)} placeholder="Referral, Website…" />
-            </FormField>
-          </div>
-          <FormField label="Status">
-            <select className="select-dark w-full px-3 py-2.5 text-sm" value={leadStatus}
-              onChange={(e) => setLeadStatus(e.target.value)}>
-              <option value="">Select status...</option>
-              {LEAD_STATUS_OPTS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Notes">
-            <textarea className="input-dark w-full px-3 py-2.5 text-sm resize-none" rows={2}
-              value={leadNotes} onChange={(e) => setLeadNotes(e.target.value)} placeholder="Notes…" />
-          </FormField>
-          <button onClick={createLead} className="btn-primary w-full py-3 text-sm">Save Lead</button>
-        </div>
-      </Modal>
+      <LeadFormDialog
+        open={leadModal}
+        onClose={() => setLeadModal(false)}
+        onSaved={(lead) => {
+          setLeadModal(false);
+          setLeads((prev) => [lead, ...prev]);
+          setLeadsTotal((t) => t + 1);
+        }}
+      />
 
       {/* Client Modal */}
-      <ClientForm
+      <ClientFormDialog
         open={clientModal}
         onClose={() => setClientModal(false)}
         onSaved={() => { setClientModal(false); refreshClients(); }}
@@ -632,6 +652,15 @@ export default function CRMPage() {
         open={dealModal}
         onClose={() => setDealModal(false)}
         onSaved={() => { setDealModal(false); refreshDeals(); }}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        open={reportModal.open}
+        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
+        reportType={reportModal.reportType}
+        filters={reportModal.filters}
+        title={reportModal.title}
       />
     </div>
   );

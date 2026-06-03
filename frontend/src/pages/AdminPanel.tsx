@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import ModuleTabs from '../components/ui/ModuleTabs';
+import { DataTable } from '../components/data-table';
 
 interface User {
   id: number;
@@ -97,32 +99,17 @@ export default function AdminPanel() {
       <h1 className="text-3xl font-bold mb-6">Admin Panel</h1>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 ${activeTab === 'users' ? 'border-b-2 border-blue-500 font-semibold' : ''}`}
-        >
-          Users
-        </button>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 ${activeTab === 'pending' ? 'border-b-2 border-blue-500 font-semibold' : ''}`}
-        >
-          Pending Approvals
-        </button>
-        <button
-          onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2 ${activeTab === 'roles' ? 'border-b-2 border-blue-500 font-semibold' : ''}`}
-        >
-          Roles
-        </button>
-        <button
-          onClick={() => setActiveTab('permissions')}
-          className={`px-4 py-2 ${activeTab === 'permissions' ? 'border-b-2 border-blue-500 font-semibold' : ''}`}
-        >
-          Permissions
-        </button>
-      </div>
+      <ModuleTabs
+        tabs={[
+          { label: 'Users', value: 'users' },
+          { label: 'Pending Approvals', value: 'pending' },
+          { label: 'Roles', value: 'roles' },
+          { label: 'Permissions', value: 'permissions' },
+        ]}
+        activeTab={activeTab}
+        onChange={(v) => setActiveTab(v as 'users' | 'pending' | 'roles' | 'permissions')}
+        moduleColor="#3b82f6"
+      />
 
       {loading && <div>Loading...</div>}
 
@@ -130,36 +117,25 @@ export default function AdminPanel() {
       {activeTab === 'users' && (
         <div>
           <h2 className="text-2xl font-bold mb-4">All Users</h2>
-          <table className="w-full border">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-2 text-left">Email</th>
-                <th className="p-2 text-left">Name</th>
-                <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">Roles</th>
-                <th className="p-2 text-left">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(user => (
-                <tr key={user.id} className="border-t">
-                  <td className="p-2">{user.email}</td>
-                  <td className="p-2">{user.full_name}</td>
-                  <td className="p-2">
-                    <span className={`px-2 py-1 rounded text-sm ${
-                      user.status === 'active' ? 'bg-green-100 text-green-800' :
-                      user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="p-2">{user.roles.join(', ')}</td>
-                  <td className="p-2">{new Date(user.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            data={users}
+            columns={[
+              { key: "email", label: "Email" },
+              { key: "full_name", label: "Name" },
+              { key: "status", label: "Status", render: (val) => (
+                <span className={`px-2 py-1 rounded text-sm ${
+                  val === 'active' ? 'bg-green-100 text-green-800' :
+                  val === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>{val}</span>
+              )},
+              { key: "roles", label: "Roles", render: (val) => val.join(', ') },
+              { key: "created_at", label: "Created", render: (val) => new Date(val).toLocaleDateString() },
+            ]}
+            variant="bordered"
+            searchable={false}
+            emptyTitle="No users found"
+          />
         </div>
       )}
 
@@ -167,43 +143,25 @@ export default function AdminPanel() {
       {activeTab === 'pending' && (
         <div>
           <h2 className="text-2xl font-bold mb-4">Pending User Approvals</h2>
-          {pendingUsers.length === 0 ? (
-            <p>No pending approvals</p>
-          ) : (
-            <table className="w-full border">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 text-left">Email</th>
-                  <th className="p-2 text-left">Name</th>
-                  <th className="p-2 text-left">Created</th>
-                  <th className="p-2 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingUsers.map(user => (
-                  <tr key={user.id} className="border-t">
-                    <td className="p-2">{user.email}</td>
-                    <td className="p-2">{user.full_name}</td>
-                    <td className="p-2">{new Date(user.created_at).toLocaleDateString()}</td>
-                    <td className="p-2">
-                      <button
-                        onClick={() => approveUser(user.id, true)}
-                        className="bg-green-500 text-white px-3 py-1 rounded mr-2"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => approveUser(user.id, false)}
-                        className="bg-red-500 text-white px-3 py-1 rounded"
-                      >
-                        Reject
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <DataTable
+            data={pendingUsers}
+            columns={[
+              { key: "email", label: "Email" },
+              { key: "full_name", label: "Name" },
+              { key: "created_at", label: "Created", render: (val) => new Date(val).toLocaleDateString() },
+              { key: "id", label: "Actions", render: (val, row) => (
+                <div className="flex gap-2">
+                  <button onClick={() => approveUser(val, true)}
+                    className="bg-green-500 text-white px-3 py-1 rounded text-sm">Approve</button>
+                  <button onClick={() => approveUser(val, false)}
+                    className="bg-red-500 text-white px-3 py-1 rounded text-sm">Reject</button>
+                </div>
+              )},
+            ]}
+            variant="bordered"
+            searchable={false}
+            emptyTitle="No pending approvals"
+          />
         </div>
       )}
 
@@ -255,7 +213,7 @@ export default function AdminPanel() {
                               className="w-4 h-4"
                             />
                             <span className="text-sm">{perm.name}</span>
-                            <span className="text-xs text-gray-500">- {perm.description}</span>
+                            <span className="text-xs text-muted">- {perm.description}</span>
                           </label>
                         ))}
                       </div>
@@ -264,7 +222,7 @@ export default function AdminPanel() {
                 </div>
               </>
             ) : (
-              <p className="text-gray-500">Select a role to manage permissions</p>
+              <p className="text-muted">Select a role to manage permissions</p>
             )}
           </div>
         </div>
@@ -284,22 +242,16 @@ export default function AdminPanel() {
             ).map(([module, perms]) => (
               <div key={module} className="border p-4 rounded">
                 <h3 className="font-bold text-lg mb-2">{module}</h3>
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="p-2 text-left">Permission</th>
-                      <th className="p-2 text-left">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {perms.map(perm => (
-                      <tr key={perm.id} className="border-t">
-                        <td className="p-2 font-mono text-sm">{perm.name}</td>
-                        <td className="p-2 text-sm">{perm.description}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  data={perms}
+                  columns={[
+                    { key: "name", label: "Permission", render: (val) => <span className="font-mono text-sm">{val}</span> },
+                    { key: "description", label: "Description", render: (val) => <span className="text-sm">{val}</span> },
+                  ]}
+                  variant="bordered"
+                  searchable={false}
+                  emptyTitle="No permissions"
+                />
               </div>
             ))}
           </div>

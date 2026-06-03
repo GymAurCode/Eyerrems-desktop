@@ -101,7 +101,12 @@ def get_current_user(
 
     if user.email == "admin@rems.local" or token_is_super_admin:
         # Master admin may authenticate with a token that carries no tenant context.
-        request.state.company_id = token_company_id if token_company_id is not None else 1
+        cid = token_company_id if token_company_id is not None else 1
+        try:
+            cid = int(cid)
+        except (ValueError, TypeError):
+            cid = 1
+        request.state.company_id = cid
         request.state.is_super_admin = True
         return user
 

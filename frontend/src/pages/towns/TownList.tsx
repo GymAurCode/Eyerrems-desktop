@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Building2, MapPin, Edit2, Trash2, Search } from "lucide-react";
+import { Plus, Building2, MapPin, Search } from "lucide-react";
 import AttachmentsButton from "../../components/attachments/AttachmentsButton";
-import { QuickRowActions, printRecord } from "../../components/actions";
+import { printRecord } from "../../components/actions";
+import DataTable from "../../components/data-table/DataTable";
+import type { TableColumn, TableAction } from "../../components/data-table/types";
 import Modal from "../../components/Modal";
 import { FormField } from "../../components/crm/FormField";
 import { townApi, Town } from "../../lib/townApi";
@@ -268,84 +270,30 @@ export default function TownList() {
       </div>
 
       {/* Table */}
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <Building2 size={32} className="text-muted mx-auto mb-3" />
-            <p className="text-secondary text-sm">
-              {search ? "No towns match your search." : "No towns yet."}
-            </p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["TID", "Name", "Location", "Blocks", "Plots", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className={`text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider ${h === "Actions" ? "text-right" : ""}`}
-                    style={h === "Actions" ? { width: "1%" } : {}}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((town) => (
-                <tr
-                  key={town.id}
-                  className="row-hover cursor-pointer"
-                  style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  onClick={() => navigate(`/towns/${town.id}`)}
-                >
-                  <td className="px-5 py-3.5 font-mono text-xs text-blue-400">
-                    {town.tid}
-                  </td>
-                  <td className="px-5 py-3.5 font-medium text-primary">
-                    {town.name}
-                  </td>
-                  <td className="px-5 py-3.5 text-secondary">
-                    {town.location ? (
-                      <span className="flex items-center gap-1.5">
-                        <MapPin size={11} style={{ color: "var(--text-muted)" }} />
-                        {town.location}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-secondary">{town.block_count}</td>
-                  <td className="px-5 py-3.5 text-secondary">{town.plot_count}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <QuickRowActions
-                      row={town}
-                      onView={(t) => navigate(`/towns/${t.id}`)}
-                      onEdit={openEdit}
-                      onDelete={handleDeleteTown}
-                      onPrint={(t) => printRecord(`Town ${t.tid}`, [
-                        { label: "Name", value: t.name },
-                        { label: "Location", value: t.location ?? "—" },
-                        { label: "Blocks", value: String(t.block_count) },
-                        { label: "Plots", value: String(t.plot_count) },
-                      ])}
-                      editPermission="towns:manage"
-                      deletePermission="towns:manage"
-                      deleteConfirmMessage={`Are you sure you want to delete "${town.name}"? This will permanently delete all blocks and plots. This action cannot be undone.`}
-                      variant="icon-buttons"
-                      compact
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DataTable
+        data={filtered}
+        columns={[
+          { key: 'tid', label: 'TID', render: (v) => <span className="font-mono text-xs text-blue-400">{v}</span> },
+          { key: 'name', label: 'Name', render: (v) => <span className="font-medium text-primary">{v}</span> },
+          { key: 'location', label: 'Location', render: (v) => v ? <span className="flex items-center gap-1.5"><MapPin size={11} style={{ color: "var(--text-muted)" }} />{v as string}</span> : "—" },
+          { key: 'block_count', label: 'Blocks', render: (v) => <span className="text-secondary">{v}</span> },
+          { key: 'plot_count', label: 'Plots', render: (v) => <span className="text-secondary">{v}</span> },
+        ]}
+        loading={loading}
+        searchable={false}
+        hoverable
+        emptyTitle={search ? "No towns match your search." : "No towns yet."}
+        emptyIcon={Building2}
+        onView={(t) => navigate(`/towns/${t.id}`)}
+        onEdit={openEdit}
+        onDelete={handleDeleteTown}
+        onPrint={(t) => printRecord(`Town ${t.tid}`, [
+          { label: "Name", value: t.name },
+          { label: "Location", value: t.location ?? "—" },
+          { label: "Blocks", value: String(t.block_count) },
+          { label: "Plots", value: String(t.plot_count) },
+        ])}
+      />
 
       {/* Modals */}
       <TownFormModal

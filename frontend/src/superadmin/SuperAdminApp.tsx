@@ -2,7 +2,8 @@ import { Routes, Route, useNavigate, useLocation, useParams, Link } from "react-
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { useAuthStore } from "../store/auth";
-import { Building2, LayoutDashboard, Plus, LogOut, AlertTriangle, Shield, ChevronDown, ChevronRight, Save, CheckCircle, XCircle } from "lucide-react";
+import { Building2, LayoutDashboard, Plus, LogOut, AlertTriangle, Shield, ChevronDown, ChevronRight, Save, CheckCircle, XCircle, Eye, Edit2 } from "lucide-react";
+import { DataTable } from "../components/data-table";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,15 +52,15 @@ function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
 
   return (
-    <aside className="w-60 h-screen flex flex-col border-r shrink-0" style={{ background: "#0f1117", borderColor: "#1e293b" }}>
+    <aside className="w-60 h-screen flex flex-col border-r shrink-0" style={{ background: "var(--bg-primary)", borderColor: "var(--border)" }}>
       {/* Logo */}
-      <div className="h-14 flex items-center gap-2.5 px-4 border-b shrink-0" style={{ borderColor: "#1e293b" }}>
+      <div className="h-14 flex items-center gap-2.5 px-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
           <Building2 size={16} className="text-white" />
         </div>
         <div>
           <p className="text-xs font-semibold" style={{ color: "#f1f5f9" }}>SuperAdmin</p>
-          <p className="text-[10px]" style={{ color: "#64748b" }}>Master Console</p>
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Master Console</p>
         </div>
       </div>
 
@@ -75,7 +76,7 @@ function Sidebar() {
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
               style={{
                 background: isActive ? "rgba(59,130,246,0.12)" : "transparent",
-                color: isActive ? "#60a5fa" : "#64748b",
+                color: isActive ? "#60a5fa" : "var(--text-muted)",
               }}
             >
               <Icon size={18} />
@@ -102,7 +103,7 @@ function Sidebar() {
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen" style={{ background: "#0f1117", color: "#e2e8f0" }}>
+    <div className="flex h-screen" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
@@ -135,7 +136,7 @@ function OverviewPage() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Overview</h1>
-        <p className="text-sm mt-1" style={{ color: "#64748b" }}>System-wide statistics and recent companies</p>
+        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>System-wide statistics and recent companies</p>
       </div>
 
       {/* Stats */}
@@ -149,35 +150,24 @@ function OverviewPage() {
       )}
 
       {/* Recent Companies */}
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#1e293b", background: "#111318" }}>
-        <div className="px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: "#1e293b" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+        <div className="px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <h2 className="font-semibold text-sm">Recent Companies</h2>
           <Link to="/superadmin/companies" className="text-xs font-medium" style={{ color: "#60a5fa" }}>View All</Link>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ background: "#0a0b0f" }}>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Name</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Status</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Expiry</th>
-            </tr>
-          </thead>
-          <tbody>
-            {companies.map((c) => (
-              <tr key={c.id} className="border-t" style={{ borderColor: "#1e293b" }}>
-                <td className="px-5 py-3">
-                  <p className="font-medium text-sm">{c.name}</p>
-                  <p className="text-xs" style={{ color: "#64748b" }}>{c.admin_email}</p>
-                </td>
-                <td className="px-5 py-3"><StatusBadge status={c.status} expiryDate={c.expiry_date} /></td>
-                <td className="px-5 py-3 text-xs" style={{ color: "#94a3b8" }}>{formatDate(c.expiry_date)}</td>
-              </tr>
-            ))}
-            {companies.length === 0 && (
-              <tr><td colSpan={3} className="px-5 py-8 text-center text-sm" style={{ color: "#64748b" }}>No companies yet</td></tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          data={companies}
+          columns={[
+            { key: 'name', label: 'Name', render: (val: any, row: any) => (
+              <div><p className="font-medium text-sm">{val}</p><p className="text-xs" style={{ color: "var(--text-muted)" }}>{row.admin_email}</p></div>
+            )},
+            { key: 'status', label: 'Status', render: (_: any, row: any) => <StatusBadge status={row.status} expiryDate={row.expiry_date} /> },
+            { key: 'expiry_date', label: 'Expiry', render: (val: any) => <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{formatDate(val)}</span> },
+          ]}
+          searchable={false}
+          sortable={false}
+          bordered={false}
+        />
       </div>
     </div>
   );
@@ -185,8 +175,8 @@ function OverviewPage() {
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: "#1e293b", background: "#111318" }}>
-      <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: "#64748b" }}>{label}</p>
+    <div className="rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+      <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>{label}</p>
       <p className="text-3xl font-bold" style={{ color }}>{value}</p>
     </div>
   );
@@ -200,7 +190,7 @@ function StatusBadge({ status, expiryDate }: { status: string; expiryDate: strin
     suspended: { text: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
     expired:   { text: "#ef4444", bg: "rgba(239,68,68,0.12)" },
   };
-  const c = colors[effectiveStatus] ?? { text: "#64748b", bg: "rgba(100,116,139,0.12)" };
+  const c = colors[effectiveStatus] ?? { text: "var(--text-muted)", bg: "rgba(100,116,139,0.12)" };
   return (
     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: c.text, background: c.bg }}>
       {effectiveStatus}
@@ -261,7 +251,7 @@ function CompaniesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Companies</h1>
-          <p className="text-sm mt-1" style={{ color: "#64748b" }}>Manage all tenant companies</p>
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Manage all tenant companies</p>
         </div>
         <Link to="/superadmin/create" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style={{ background: "#2563eb", color: "#fff" }}>
           <Plus size={16} /> Create
@@ -274,49 +264,36 @@ function CompaniesPage() {
         </div>
       )}
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#1e293b", background: "#111318" }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ background: "#0a0b0f" }}>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Company</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Email</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Status</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Expiry</th>
-              <th className="text-left px-5 py-3 font-medium" style={{ color: "#64748b" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {companies.map((c) => {
-              const expired = isExpired(c.expiry_date);
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+        <DataTable
+          data={companies}
+          columns={[
+            { key: 'name', label: 'Company', render: (val: any, row: any) => (
+              <div><p className="font-medium text-sm">{val}</p><p className="text-xs" style={{ color: "var(--text-muted)" }}>{row.schema_name}</p></div>
+            )},
+            { key: 'admin_email', label: 'Email', render: (val: any) => <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: 'status', label: 'Status', render: (_: any, row: any) => <StatusBadge status={row.status} expiryDate={row.expiry_date} /> },
+            { key: 'expiry_date', label: 'Expiry', render: (val: any) => <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{formatDate(val)}</span> },
+            { key: 'actions', label: 'Actions', render: (_: any, row: any) => {
+              const expired = isExpired(row.expiry_date);
               return (
-                <tr key={c.id} className="border-t" style={{ borderColor: "#1e293b" }}>
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-sm">{c.name}</p>
-                    <p className="text-xs" style={{ color: "#64748b" }}>{c.schema_name}</p>
-                  </td>
-                  <td className="px-5 py-3 text-xs" style={{ color: "#94a3b8" }}>{c.admin_email}</td>
-                  <td className="px-5 py-3"><StatusBadge status={c.status} expiryDate={c.expiry_date} /></td>
-                  <td className="px-5 py-3 text-xs" style={{ color: "#94a3b8" }}>{formatDate(c.expiry_date)}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      {c.status === "active" && !expired ? (
-                        <button onClick={() => handleSuspend(c.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#f59e0b", background: "rgba(245,158,11,0.1)" }}>Suspend</button>
-                      ) : (
-                        <button onClick={() => handleActivate(c.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#10b981", background: "rgba(16,185,129,0.1)" }}>Activate</button>
-                      )}
-                      <button onClick={() => setExtendModal({ id: c.id, name: c.name })} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>Extend</button>
-                      <Link to={`/superadmin/companies/${c.id}/permissions`} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all inline-block" style={{ color: "#8b5cf6", background: "rgba(139,92,246,0.1)" }}>Permissions</Link>
-                      <button onClick={() => handleDelete(c.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
+                <div className="flex items-center gap-2">
+                  {row.status === "active" && !expired ? (
+                    <button onClick={() => handleSuspend(row.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#f59e0b", background: "rgba(245,158,11,0.1)" }}>Suspend</button>
+                  ) : (
+                    <button onClick={() => handleActivate(row.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#10b981", background: "rgba(16,185,129,0.1)" }}>Activate</button>
+                  )}
+                  <button onClick={() => setExtendModal({ id: row.id, name: row.name })} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>Extend</button>
+                  <Link to={`/superadmin/companies/${row.id}/permissions`} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all inline-block" style={{ color: "#8b5cf6", background: "rgba(139,92,246,0.1)" }}>Permissions</Link>
+                  <button onClick={() => handleDelete(row.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }}>Delete</button>
+                </div>
               );
-            })}
-            {companies.length === 0 && (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-sm" style={{ color: "#64748b" }}>No companies found</td></tr>
-            )}
-          </tbody>
-        </table>
+            }},
+          ]}
+          searchable={false}
+          sortable={false}
+          bordered={false}
+        />
       </div>
 
       {/* Extend Expiry Modal */}
@@ -335,12 +312,12 @@ function ExtendModal({ companyName, onSelect, onClose }: { companyName: string; 
   const [days, setDays] = useState(30);
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="rounded-xl border p-6 w-80" style={{ borderColor: "#1e293b", background: "#111318" }}>
+      <div className="rounded-xl border p-6 w-80" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
         <h3 className="font-semibold mb-2">Extend Expiry</h3>
-        <p className="text-xs mb-4" style={{ color: "#64748b" }}>How many days to add for <strong>{companyName}</strong>?</p>
-        <input type="number" value={days} onChange={(e) => setDays(parseInt(e.target.value) || 30)} className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} min={1} />
+        <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>How many days to add for <strong>{companyName}</strong>?</p>
+        <input type="number" value={days} onChange={(e) => setDays(parseInt(e.target.value) || 30)} className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} min={1} />
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-3 py-2 rounded-lg text-sm border" style={{ borderColor: "#1e293b" }}>Cancel</button>
+          <button onClick={onClose} className="flex-1 px-3 py-2 rounded-lg text-sm border" style={{ borderColor: "var(--border)" }}>Cancel</button>
           <button onClick={() => onSelect(days)} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium" style={{ background: "#2563eb", color: "#fff" }}>Extend</button>
         </div>
       </div>
@@ -390,7 +367,7 @@ function CreateCompanyPage() {
     <div className="max-w-lg mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Create Company</h1>
-        <p className="text-sm mt-1" style={{ color: "#64748b" }}>Provision a new tenant company</p>
+        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Provision a new tenant company</p>
       </div>
 
       {error && (
@@ -401,31 +378,31 @@ function CreateCompanyPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Company Name *</label>
-          <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Company Name *</label>
+          <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Admin Email *</label>
-          <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Email *</label>
+          <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Admin Password *</label>
-          <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Password *</label>
+          <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Phone</label>
-          <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Phone</label>
+          <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Expiry *</label>
-          <select value={form.expiry_option} onChange={(e) => setForm({ ...form, expiry_option: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }}>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Expiry *</label>
+          <select value={form.expiry_option} onChange={(e) => setForm({ ...form, expiry_option: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
             {EXPIRY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         {form.expiry_option === "custom" && (
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Custom Expiry Date</label>
-            <input type="date" value={form.custom_expiry_date} onChange={(e) => setForm({ ...form, custom_expiry_date: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "#0a0b0f", borderColor: "#1e293b", color: "#e2e8f0" }} />
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Custom Expiry Date</label>
+            <input type="date" value={form.custom_expiry_date} onChange={(e) => setForm({ ...form, custom_expiry_date: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
           </div>
         )}
         <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg text-sm font-medium" style={{ background: "#2563eb", color: "#fff" }}>
@@ -594,12 +571,12 @@ function PermissionsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Link to="/superadmin/companies" className="text-xs" style={{ color: "#64748b" }}>Companies</Link>
-            <span className="text-xs" style={{ color: "#475569" }}>/</span>
-            <span className="text-xs" style={{ color: "#94a3b8" }}>Permissions</span>
+            <Link to="/superadmin/companies" className="text-xs" style={{ color: "var(--text-muted)" }}>Companies</Link>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>/</span>
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Permissions</span>
           </div>
           <h1 className="text-2xl font-bold">Permissions — {companyName}</h1>
-          <p className="text-sm mt-1" style={{ color: "#64748b" }}>Control which modules and tabs this company can access</p>
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Control which modules and tabs this company can access</p>
         </div>
       </div>
 
@@ -609,15 +586,15 @@ function PermissionsPage() {
           const isExpanded = expanded[module] ?? (module === "properties" || module === "tenants" || module === "finance");
           const modulePerm = perms[module] || { enabled: true, tabs: {} };
           return (
-            <div key={module} className="rounded-xl border overflow-hidden" style={{ borderColor: "#1e293b", background: "#111318" }}>
+            <div key={module} className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
               {/* Module header */}
               <div
                 className="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
-                style={{ borderBottom: isExpanded ? "1px solid #1e293b" : "none" }}
+                style={{ borderBottom: isExpanded ? "1px solid var(--border)" : "none" }}
                 onClick={() => setExpanded({ ...expanded, [module]: !isExpanded })}
               >
                 <div className="flex items-center gap-3">
-                  {isExpanded ? <ChevronDown size={16} style={{ color: "#64748b" }} /> : <ChevronRight size={16} style={{ color: "#64748b" }} />}
+                  {isExpanded ? <ChevronDown size={16} style={{ color: "var(--text-muted)" }} /> : <ChevronRight size={16} style={{ color: "var(--text-muted)" }} />}
                   <span className="font-medium text-sm">{MODULE_LABELS[module] || module}</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
@@ -628,7 +605,7 @@ function PermissionsPage() {
                     onChange={() => toggleModule(module)}
                   />
                   <div className="w-9 h-5 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"
-                    style={{ background: modulePerm.enabled ? "#8b5cf6" : "#334155" }}
+                    style={{ background: modulePerm.enabled ? "#8b5cf6" : "var(--bg-active)" }}
                   />
                 </label>
               </div>
@@ -638,7 +615,7 @@ function PermissionsPage() {
                 <div className="px-5 py-3 space-y-2">
                   {tabs.map((tab) => (
                     <div key={tab} className="flex items-center justify-between py-1">
-                      <span className="text-sm" style={{ color: "#cbd5e1" }}>{TAB_LABELS[tab] || tab}</span>
+                      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{TAB_LABELS[tab] || tab}</span>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
@@ -647,7 +624,7 @@ function PermissionsPage() {
                           onChange={() => toggleTab(module, tab)}
                         />
                         <div className="w-9 h-5 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"
-                          style={{ background: (modulePerm.tabs[tab] ?? true) ? "#8b5cf6" : "#334155" }}
+                          style={{ background: (modulePerm.tabs[tab] ?? true) ? "#8b5cf6" : "var(--bg-active)" }}
                         />
                       </label>
                     </div>
@@ -655,7 +632,7 @@ function PermissionsPage() {
                 </div>
               )}
               {isExpanded && !modulePerm.enabled && (
-                <div className="px-5 py-4 text-xs" style={{ color: "#64748b" }}>Module disabled — tabs hidden</div>
+                <div className="px-5 py-4 text-xs" style={{ color: "var(--text-muted)" }}>Module disabled — tabs hidden</div>
               )}
             </div>
           );
@@ -667,7 +644,7 @@ function PermissionsPage() {
         <button
           onClick={() => navigate("/superadmin/companies")}
           className="px-5 py-2.5 rounded-lg text-sm font-medium border"
-          style={{ borderColor: "#1e293b", color: "#94a3b8" }}
+          style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
           Cancel
         </button>

@@ -14,6 +14,7 @@ import { importApi } from "../lib/importApi";
 import { useBulkImport } from "../hooks/useBulkImport";
 import MasterImportModal from "../components/import/MasterImportModal";
 // import SingleImportModal from "../components/import/SingleImportModal";
+import { DataTable } from "../components/data-table";
 
 // Import card configuration
 const IMPORT_CARDS = [
@@ -384,83 +385,46 @@ export default function ImportCenter() {
               </button>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="erp-table">
-                <thead>
-                  <tr>
-                    <th>Module</th>
-                    <th>File</th>
-                    <th>Status</th>
-                    <th className="text-right">Imported</th>
-                    <th className="text-right">Failed</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.slice(0, 10).map((item) => {
-                    const card = IMPORT_CARDS.find(c => c.moduleKey === item.module_key);
-                    const Icon = card?.icon || FileText;
-                    
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-6 h-6 rounded flex items-center justify-center"
-                              style={{ background: card?.bgColor || "var(--hover-bg)" }}
-                            >
-                              <Icon size={12} style={{ color: card?.color || "var(--text-muted)" }} />
-                            </div>
-                            <span className="text-xs font-medium">
-                              {card?.title || item.module_key.replace(/_/g, " ")}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="max-w-[200px] truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                          {item.file_name}
-                        </td>
-                        <td>
-                          <span 
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                            style={{
-                              background: item.status === "completed" ? "rgba(16,185,129,0.1)" : 
-                                         item.status === "failed" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)",
-                              color: item.status === "completed" ? "#10b981" : 
-                                    item.status === "failed" ? "#ef4444" : "#f59e0b"
-                            }}
-                          >
-                            {item.status === "completed" && <CheckCircle2 size={10} className="mr-1" />}
-                            {item.status === "failed" && <AlertTriangle size={10} className="mr-1" />}
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          <span className="text-xs font-medium" style={{ color: "#10b981" }}>
-                            {item.imported_rows.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          {item.failed_rows > 0 ? (
-                            <button 
-                              className="text-xs font-medium underline"
-                              style={{ color: "#ef4444" }}
-                              onClick={() => importApi.downloadErrors(item.id)}
-                            >
-                              {item.failed_rows.toLocaleString()}
-                            </button>
-                          ) : (
-                            <span className="text-xs" style={{ color: "var(--text-muted)" }}>0</span>
-                          )}
-                        </td>
-                        <td className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          {formatDate(item.created_at)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={history}
+              columns={[
+                { key: "module_key", label: "Module", render: (val, row) => {
+                  const card = IMPORT_CARDS.find(c => c.moduleKey === val);
+                  const Icon = card?.icon || FileText;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ background: card?.bgColor || "var(--hover-bg)" }}>
+                        <Icon size={12} style={{ color: card?.color || "var(--text-muted)" }} />
+                      </div>
+                      <span className="text-xs font-medium">{card?.title || val.replace(/_/g, " ")}</span>
+                    </div>
+                  );
+                }},
+                { key: "file_name", label: "File", render: (val) => <span className="max-w-[200px] truncate text-xs" style={{ color: "var(--text-muted)" }}>{val}</span> },
+                { key: "status", label: "Status", render: (val) => (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style={{
+                    background: val === "completed" ? "rgba(16,185,129,0.1)" : val === "failed" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)",
+                    color: val === "completed" ? "#10b981" : val === "failed" ? "#ef4444" : "#f59e0b"
+                  }}>
+                    {val === "completed" && <CheckCircle2 size={10} className="mr-1" />}
+                    {val === "failed" && <AlertTriangle size={10} className="mr-1" />}
+                    {val}
+                  </span>
+                )},
+                { key: "imported_rows", label: "Imported", align: "right", render: (val) => <span className="text-xs font-medium" style={{ color: "#10b981" }}>{val.toLocaleString()}</span> },
+                { key: "failed_rows", label: "Failed", align: "right", render: (val, row) => val > 0 ? (
+                  <button className="text-xs font-medium underline" style={{ color: "#ef4444" }} onClick={() => importApi.downloadErrors(row.id)}>
+                    {val.toLocaleString()}
+                  </button>
+                ) : (
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>0</span>
+                )},
+                { key: "created_at", label: "Date", render: (val) => <span className="text-xs" style={{ color: "var(--text-muted)" }}>{formatDate(val)}</span> },
+              ]}
+              variant="compact"
+              searchable={false}
+              emptyTitle="No import history"
+            />
           </div>
         </div>
       )}

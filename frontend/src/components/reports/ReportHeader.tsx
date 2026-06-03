@@ -48,7 +48,7 @@ export default function ReportHeader({
             </h1>
           </div>
           {meta?.subtitle && (
-            <p className="text-sm text-gray-500 ml-6">{meta.subtitle}</p>
+            <p className="text-sm text-muted ml-6">{meta.subtitle}</p>
           )}
         </div>
 
@@ -59,7 +59,7 @@ export default function ReportHeader({
               onClick={onRefresh}
               disabled={loading}
               title="Refresh"
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+              className="p-2 text-muted hover:text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             </button>
@@ -107,13 +107,13 @@ export default function ReportHeader({
       {meta && (
         <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-gray-100">
           {meta.company_name && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <Building2 size={12} className="text-gray-400" />
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <Building2 size={12} className="text-muted" />
               <span>{meta.company_name}</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Calendar size={12} className="text-gray-400" />
+          <div className="flex items-center gap-1.5 text-xs text-muted">
+            <Calendar size={12} className="text-muted" />
             <span>
               {new Date(meta.generated_at).toLocaleString("en-US", {
                 year: "numeric",
@@ -125,18 +125,18 @@ export default function ReportHeader({
             </span>
           </div>
           {meta.generated_by && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <User size={12} className="text-gray-400" />
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <User size={12} className="text-muted" />
               <span>{meta.generated_by}</span>
             </div>
           )}
           {meta.report_id && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <Hash size={12} className="text-gray-400" />
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <Hash size={12} className="text-muted" />
               <span className="font-mono">{meta.report_id}</span>
             </div>
           )}
-          <div className="ml-auto text-xs text-gray-400">
+          <div className="ml-auto text-xs text-muted">
             {meta.total_records.toLocaleString()} record{meta.total_records !== 1 ? "s" : ""}
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function ReportHeader({
       {/* Active filters */}
       {meta?.filters_applied && Object.keys(meta.filters_applied).length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mt-2">
-          <span className="text-xs text-gray-400">Filters:</span>
+          <span className="text-xs text-muted">Filters:</span>
           {Object.entries(meta.filters_applied).map(([key, value]) => (
             <span
               key={key}

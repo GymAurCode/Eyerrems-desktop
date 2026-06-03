@@ -5,24 +5,27 @@ import {
   LayoutList, LayoutGrid, Settings, FileText, BookOpen,
 } from "lucide-react";
 import { remindersApi, type ReminderDashboard, type Template, type NotifLog, type ReminderSettings } from "../lib/remindersApi";
+import { DataTable } from "../components/data-table";
 import type { Reminder } from "../store/notifications";
 import { useNotifStore } from "../store/notifications";
 import ReminderForm from "../components/reminders/ReminderForm";
 import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
 
 // ── Priority badge ────────────────────────────────────────────────────────────
 const PRIORITY_BADGE: Record<string, string> = {
   urgent: "bg-red-500/15 text-red-400 border-red-500/30",
   high:   "bg-orange-500/15 text-orange-400 border-orange-500/30",
   medium: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  low:    "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  low:    "bg-gray-500/15 text-muted border-gray-500/30",
 };
 
 const STATUS_BADGE: Record<string, string> = {
   pending:   "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
   completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   snoozed:   "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  cancelled: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  cancelled: "bg-gray-500/15 text-muted border-gray-500/30",
 };
 
 type Tab = "dashboard" | "my" | "notifications" | "templates" | "logs" | "settings";
@@ -107,13 +110,13 @@ export default function RemindersPage() {
     alert("Settings saved.");
   };
 
-  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "dashboard",     label: "Dashboard",     icon: <LayoutGrid size={14} /> },
-    { id: "my",            label: "My Reminders",  icon: <Bell size={14} /> },
-    { id: "notifications", label: "Notifications", icon: <AlarmClock size={14} /> },
-    { id: "templates",     label: "Templates",     icon: <BookOpen size={14} /> },
-    { id: "logs",          label: "Logs",          icon: <FileText size={14} /> },
-    { id: "settings",      label: "Settings",      icon: <Settings size={14} /> },
+    const TAB_ITEMS: { label: string; value: string; icon: React.ElementType }[] = [
+    { label: "Dashboard",     value: "dashboard",     icon: LayoutGrid },
+    { label: "My Reminders",  value: "my",            icon: Bell },
+    { label: "Notifications", value: "notifications", icon: AlarmClock },
+    { label: "Templates",     value: "templates",     icon: BookOpen },
+    { label: "Logs",          value: "logs",          icon: FileText },
+    { label: "Settings",      value: "settings",      icon: Settings },
   ];
 
   return (
@@ -133,20 +136,12 @@ export default function RemindersPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-theme pb-0">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-t-lg border-b-2 transition-all
-              ${tab === t.id
-                ? "border-blue-500 text-blue-400 bg-blue-500/5"
-                : "border-transparent text-secondary hover:text-primary"}`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={TAB_ITEMS}
+        activeTab={tab}
+        onChange={setTab}
+        moduleColor={MODULE_COLORS.reminders}
+      />
 
       {loading && <div className="text-xs text-muted py-4 text-center">Loading…</div>}
 
@@ -280,51 +275,31 @@ export default function RemindersPage() {
 
       {/* ── Logs ── */}
       {tab === "logs" && (
-        <div className="overflow-x-auto rounded-xl border border-theme">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-theme bg-surface">
-                {["ID","Reminder","User","Triggered","Delivered","Read","Status"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-muted font-medium">{h}</th>
-                ))}
-                <ActionsTh className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No logs yet.</td></tr>
-              )}
-              {logs.map((l) => (
-                <tr key={l.id} className="border-b border-theme hover:bg-hover transition-colors">
-                  <td className="px-4 py-2.5 text-primary">{l.id}</td>
-                  <td className="px-4 py-2.5 text-secondary">{l.reminder_id ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-secondary">{l.user_id}</td>
-                  <td className="px-4 py-2.5 text-secondary">{new Date(l.triggered_at).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-secondary">{l.delivered_at ? new Date(l.delivered_at).toLocaleString() : "—"}</td>
-                  <td className="px-4 py-2.5 text-secondary">{l.read_at ? new Date(l.read_at).toLocaleString() : "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] border ${STATUS_BADGE[l.status] ?? STATUS_BADGE.pending}`}>
-                      {l.status}
-                    </span>
-                  </td>
-                  <ActionsCell className="px-4 py-2.5">
-                    <QuickRowActions
-                      row={l}
-                      compact
-                      onPrint={(row) => printRecord(`Reminder Log #${row.id}`, [
-                        { label: "Reminder ID", value: String(row.reminder_id ?? "—") },
-                        { label: "User", value: String(row.user_id) },
-                        { label: "Status", value: row.status },
-                        { label: "Triggered", value: new Date(row.triggered_at).toLocaleString() },
-                      ])}
-                      hiddenActions={["view", "edit", "delete"]}
-                    />
-                  </ActionsCell>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={logs}
+          columns={[
+            { key: "id", label: "ID", render: (val) => <span className="text-primary">{val}</span> },
+            { key: "reminder_id", label: "Reminder", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "user_id", label: "User", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "triggered_at", label: "Triggered", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{new Date(val).toLocaleString()}</span> },
+            { key: "delivered_at", label: "Delivered", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleString() : "—"}</span> },
+            { key: "read_at", label: "Read", render: (val) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleString() : "—"}</span> },
+            { key: "status", label: "Status", render: (val) => (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] border ${STATUS_BADGE[val] ?? STATUS_BADGE.pending}`}>
+                {val}
+              </span>
+            )},
+          ]}
+          variant="compact"
+          searchable={false}
+          emptyTitle="No logs yet"
+          onPrint={(row) => printRecord(`Reminder Log #${row.id}`, [
+            { label: "Reminder ID", value: String(row.reminder_id ?? "—") },
+            { label: "User", value: String(row.user_id) },
+            { label: "Status", value: row.status },
+            { label: "Triggered", value: new Date(row.triggered_at).toLocaleString() },
+          ])}
+        />
       )}
 
       {/* ── Settings ── */}

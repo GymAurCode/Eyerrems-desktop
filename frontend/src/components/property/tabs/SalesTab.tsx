@@ -1,38 +1,91 @@
-import { useEffect, useState, FormEvent, useRef } from "react";
-import { Plus, Printer } from "lucide-react";
-import Modal from "../../Modal";
-import { propApi, PropertySale, Property, Unit, Buyer, Seller } from "../../../lib/propertyApi";
+import { useEffect, useState, useRef } from "react";
+import {
+  Plus, Printer, Eye, ChevronRight, FileText, CheckCircle, Ban,
+} from "lucide-react";
+import { propApi, PropertySale, Property, Buyer, Seller } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { printRecord } from "../../actions";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
+import RecordSaleDialog from "../dialogs/RecordSaleDialog";
+import SaleDetailsDialog from "../dialogs/SaleDetailsDialog";
+import UpdateSaleStageDialog from "../dialogs/UpdateSaleStageDialog";
+import RecordPaymentDialog from "../dialogs/RecordPaymentDialog";
+import CancelSaleDialog from "../dialogs/CancelSaleDialog";
+import CompleteSaleDialog from "../dialogs/CompleteSaleDialog";
 
 type Props = { refresh: number; onRefresh: () => void };
 
-const STATUS_COLOR: Record<string, string> = {
-  pending: "#f59e0b", completed: "#10b981", cancelled: "#ef4444",
+const STAGES = [
+  "enquiry", "offer_made", "due_diligence", "spa_signed",
+  "token_paid", "payment_processing", "transfer", "completed", "cancelled",
+] as const;
+
+const STAGE_LABELS: Record<string, string> = {
+  enquiry: "Enquiry", offer_made: "Offer Made", due_diligence: "Due Diligence",
+  spa_signed: "SPA Signed", token_paid: "Token Paid",
+  payment_processing: "Payment Processing", transfer: "Transfer",
+  completed: "Completed", cancelled: "Cancelled",
 };
+
+const STAGE_COLOR: Record<string, string> = {
+  completed: "#10b981",
+  spa_signed: "#3b82f6", token_paid: "#3b82f6",
+  enquiry: "#f59e0b", offer_made: "#f59e0b",
+  due_diligence: "#f59e0b", payment_processing: "#f59e0b", transfer: "#f59e0b",
+  cancelled: "#ef4444",
+};
+
+function formatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function StageBadge({ stage }: { stage: string }) {
+  const sc = STAGE_COLOR[stage] ?? "#94a3b8";
+  return (
+    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap"
+      style={{ background: `${sc}18`, color: sc }}>
+      {STAGE_LABELS[stage] ?? stage}
+    </span>
+  );
+}
 
 export default function SalesTab({ refresh, onRefresh }: Props) {
   const [sales, setSales]           = useState<PropertySale[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
-  const [units, setUnits]           = useState<Unit[]>([]);
   const [buyers, setBuyers]         = useState<Buyer[]>([]);
   const [sellers, setSellers]       = useState<Seller[]>([]);
-  const [open, setOpen]             = useState(false);
-  const [total, setTotal]             = useState(0);
-  const [loading, setLoading]         = useState(false);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(false);
   const paramsRef = useRef<any>(null);
 
-  const [propId, setPropId]     = useState<number | "">("");
-  const [unitId, setUnitId]     = useState<number | "">("");
-  const [buyerId, setBuyerId]   = useState<number | "">("");
-  const [sellerId, setSellerId] = useState<number | "">("");
-  const [price, setPrice]       = useState("");
-  const [saleDate, setSaleDate] = useState("");
-  const [status, setStatus]     = useState("pending");
-  const [notes, setNotes]       = useState("");
+  // ── Record Sale Dialog ──
+  const [open, setOpen] = useState(false);
 
+  // ── Detail modal ──
+  const [detailSale, setDetailSale]     = useState<PropertySale | null>(null);
+  const [detailOpen, setDetailOpen]     = useState(false);
+
+  // ── Stage change ──
+  const [stageOpen, setStageOpen]       = useState(false);
+  const [stageSaleId, setStageSaleId]   = useState(0);
+  const [stageValue, setStageValue]     = useState("");
+
+  // ── Payment modal ──
+  const [payOpen, setPayOpen]           = useState(false);
+  const [paySaleId, setPaySaleId]       = useState(0);
+  const [paySalePrice, setPaySalePrice] = useState(0);
+
+  // ── Cancel modal ──
+  const [cancelOpen, setCancelOpen]     = useState(false);
+  const [cancelSaleId, setCancelSaleId] = useState(0);
+
+  // ── Complete modal ──
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeSaleId, setCompleteSaleId] = useState(0);
+
+  // ── Data fetching ──
   const fetchSales = async (params: any) => {
     paramsRef.current = params;
     setLoading(true);
@@ -42,6 +95,8 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
           search: params.search || undefined,
+          sale_stage: params.status || undefined,
+          property_id: params.propertyType || undefined,
           filter: params.dateFilter || undefined,
           startDate: params.startDate || undefined,
           endDate: params.endDate || undefined,
@@ -49,10 +104,9 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
       });
       const data = res.data;
       setSales(Array.isArray(data) ? data : []);
-      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
-      setTotal(totalCount);
-    } catch (err) {
-      console.error(err);
+      const tc = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
+      setTotal(tc);
+    } catch {
       setSales([]);
       setTotal(0);
     } finally {
@@ -61,135 +115,164 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
   };
 
   const refreshTable = () => {
-    if (paramsRef.current) {
-      fetchSales(paramsRef.current);
-    }
+    if (paramsRef.current) fetchSales(paramsRef.current);
   };
 
-  useEffect(() => {
-    refreshTable();
-  }, [refresh]);
+  useEffect(() => { refreshTable(); }, [refresh]);
 
   useEffect(() => {
     Promise.all([
       propApi.getProperties(), propApi.getBuyers(), propApi.getSellers(),
     ]).then(([p, b, s]) => {
-      const pData = p && 'data' in p ? (p as any).data : p;
-      const bData = b && 'data' in b ? (b as any).data : b;
-      const sData = s && 'data' in s ? (s as any).data : s;
-      setProperties(Array.isArray(pData) ? pData : []);
-      setBuyers(Array.isArray(bData) ? bData : []);
-      setSellers(Array.isArray(sData) ? sData : []);
+      const pD = p && 'data' in p ? (p as any).data : p;
+      const bD = b && 'data' in b ? (b as any).data : b;
+      const sD = s && 'data' in s ? (s as any).data : s;
+      setProperties(Array.isArray(pD) ? pD : []);
+      setBuyers(Array.isArray(bD) ? bD : []);
+      setSellers(Array.isArray(sD) ? sD : []);
     });
   }, []);
 
-  useEffect(() => {
-    if (!propId) { setUnits([]); setUnitId(""); return; }
-    propApi.getUnits(Number(propId)).then((res) => {
-      const data = res && 'data' in res ? (res as any).data : res;
-      setUnits(Array.isArray(data) ? data : []);
-    });
-  }, [propId]);
-
-  const reset = () => {
-    setPropId(""); setUnitId(""); setBuyerId(""); setSellerId("");
-    setPrice(""); setSaleDate(""); setStatus("pending"); setNotes("");
+  // ── Detail view ──
+  const openDetail = async (sale: PropertySale) => {
+    try {
+      const d = await propApi.getSale(sale.id);
+      setDetailSale(d);
+      setDetailOpen(true);
+    } catch {}
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!buyerId || !sellerId || !price || !saleDate) return;
-    await propApi.createSale({
-      property_id: propId ? Number(propId) : null,
-      unit_id: unitId ? Number(unitId) : null,
-      buyer_id: Number(buyerId), seller_id: Number(sellerId),
-      sale_price: Number(price), sale_date: saleDate, status,
-      notes: notes || null,
-    });
-    reset(); setOpen(false); onRefresh();
+  // ── Stage change ──
+  const openStageChange = (sale: PropertySale) => {
+    setStageSaleId(sale.id);
+    setStageValue(sale.sale_stage);
+    setStageOpen(true);
   };
 
-  const columns = [
-    {
-      key: "tid",
-      label: "TID",
-      className: "font-mono text-xs text-blue-400"
-    },
-    {
-      key: "property_id",
-      label: "Property",
-      render: (val: any) => val || "—",
-      className: "text-secondary font-mono text-xs"
-    },
-    {
-      key: "unit_id",
-      label: "Unit",
-      render: (val: any) => val || "—",
-      className: "text-secondary font-mono text-xs"
-    },
-    {
-      key: "buyer_id",
-      label: "Buyer",
-      render: (val: number, row: PropertySale) => {
-        const buyer = buyers.find((b) => b.id === val);
-        return buyer?.name ?? val;
-      },
-      className: "text-primary font-medium"
-    },
-    {
-      key: "seller_id",
-      label: "Seller",
-      render: (val: number, row: PropertySale) => {
-        const seller = sellers.find((s) => s.id === val);
-        return seller?.name ?? val;
-      },
-      className: "text-primary font-medium"
-    },
-    {
-      key: "sale_price",
-      label: "Price",
-      render: (val: any) => formatCurrency(val),
-      className: "text-emerald-400 font-semibold"
-    },
-    {
-      key: "sale_date",
-      label: "Date",
-      className: "text-secondary"
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (val: string) => {
-        const sc = STATUS_COLOR[val] ?? "#94a3b8";
-        return (
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-            style={{ background: `${sc}18`, color: sc }}>{val}</span>
-        );
-      }
+  // ── Record Payment ──
+  const openPay = (sale: PropertySale) => {
+    setPaySaleId(sale.id);
+    setPaySalePrice(sale.sale_price);
+    setPayOpen(true);
+  };
+
+  // ── Cancel Sale ──
+  const openCancel = (sale: PropertySale) => {
+    setCancelSaleId(sale.id);
+    setCancelOpen(true);
+  };
+
+  // ── Complete Sale ──
+  const openComplete = (sale: PropertySale) => {
+    setCompleteSaleId(sale.id);
+    setCompleteOpen(true);
+  };
+
+  const refreshAndRefreshDetail = async () => {
+    refreshTable();
+    if (detailOpen && detailSale) {
+      try {
+        const d = await propApi.getSale(detailSale.id);
+        setDetailSale(d);
+      } catch {}
     }
+  };
+
+  const refreshAndCloseDetail = () => {
+    setDetailOpen(false);
+    setDetailSale(null);
+    refreshTable();
+  };
+
+  // ── Columns ──
+  const columns = [
+    { key: "tid", label: "Sale ID", className: "font-mono text-xs text-blue-400" },
+    {
+      key: "property_id", label: "Property / Unit",
+      render: (_: any, row: PropertySale) => {
+        const prop = properties.find(p => p.id === row.property_id);
+        const propName = prop?.name || row.property_id || "—";
+        return <span className="text-xs text-secondary">{propName}</span>;
+      },
+    },
+    {
+      key: "buyer_id", label: "Buyer",
+      render: (val: number) => {
+        const b = buyers.find(x => x.id === val);
+        return <span className="text-primary font-medium text-xs">{b?.name ?? val}</span>;
+      },
+    },
+    {
+      key: "seller_id", label: "Seller",
+      render: (val: number) => {
+        const s = sellers.find(x => x.id === val);
+        return <span className="text-primary font-medium text-xs">{s?.name ?? val}</span>;
+      },
+    },
+    {
+      key: "sale_price", label: "Agreed Price",
+      render: (val: any) => <span className="text-emerald-400 font-semibold text-xs">{formatCurrency(val)}</span>,
+    },
+    {
+      key: "commission_amount", label: "Commission",
+      render: (val: any) => <span className="text-secondary text-xs">{val ? formatCurrency(val) : "—"}</span>,
+    },
+    {
+      key: "sale_stage", label: "Sale Stage",
+      render: (val: string) => <StageBadge stage={val} />,
+    },
+    {
+      key: "agreement_date", label: "Agreement Date",
+      render: (val: any, row: PropertySale) => (
+        <span className="text-secondary text-xs">{formatDate(val || row.sale_date)}</span>
+      ),
+    },
   ];
 
   const rowActions = [
     {
-      key: "print",
-      label: "Print",
-      icon: Printer,
+      key: "view", label: "View Sale Details", icon: Eye,
+      onClick: (row: PropertySale) => openDetail(row),
+    },
+    {
+      key: "stage", label: "Update Stage", icon: ChevronRight,
+      onClick: (row: PropertySale) => openStageChange(row),
+      hidden: (row: PropertySale) => row.sale_stage === "completed" || row.sale_stage === "cancelled",
+    },
+    {
+      key: "payment", label: "Record Payment", icon: FileText,
+      onClick: (row: PropertySale) => openPay(row),
+      hidden: (row: PropertySale) => row.sale_stage === "cancelled" || row.payment_type !== "instalment",
+    },
+    {
+      key: "complete", label: "Mark As Completed", icon: CheckCircle,
+      onClick: (row: PropertySale) => openComplete(row),
+      hidden: (row: PropertySale) => row.sale_stage === "completed" || row.sale_stage === "cancelled",
+    },
+    {
+      key: "cancel", label: "Cancel Sale", icon: Ban,
+      onClick: (row: PropertySale) => openCancel(row),
+      hidden: (row: PropertySale) => row.sale_stage === "completed" || row.sale_stage === "cancelled",
+    },
+    {
+      key: "print", label: "Print", icon: Printer,
       onClick: (row: PropertySale) => {
-        const buyer = buyers.find((b) => b.id === row.buyer_id);
-        const seller = sellers.find((s) => s.id === row.seller_id);
+        const buyer = buyers.find(b => b.id === row.buyer_id);
+        const seller = sellers.find(s => s.id === row.seller_id);
         printRecord(`Sale ${row.tid}`, [
           { label: "Buyer", value: buyer?.name ?? String(row.buyer_id) },
           { label: "Seller", value: seller?.name ?? String(row.seller_id) },
           { label: "Price", value: formatCurrency(row.sale_price) },
-          { label: "Date", value: row.sale_date },
-          { label: "Status", value: row.status },
+          { label: "Stage", value: STAGE_LABELS[row.sale_stage] ?? row.sale_stage },
+          { label: "Date", value: row.agreement_date || row.sale_date || "—" },
         ]);
-      }
-    }
+      },
+    },
   ];
 
   return (
     <>
+      {/* ── SALES LIST TABLE ── */}
       <SmartTable
         storageKey="rems_property_sales"
         data={sales}
@@ -199,81 +282,68 @@ export default function SalesTab({ refresh, onRefresh }: Props) {
         total={total}
         onParamsChange={fetchSales}
         showStatusFilter={true}
-        statusOptions={[
-          { label: "Pending", value: "pending" },
-          { label: "Completed", value: "completed" },
-          { label: "Cancelled", value: "cancelled" }
-        ]}
+        statusOptions={STAGES.filter(s => s !== "cancelled").map(s => ({
+          label: STAGE_LABELS[s] ?? s,
+          value: s,
+        }))}
+        showTypeFilter={true}
+        typeOptions={properties.map(p => ({ label: `${p.tid} — ${p.name}`, value: String(p.id) }))}
         showDateFilter={true}
         toolbarActions={
-          <button type="button" onClick={() => { reset(); setOpen(true); }}
-            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
+          <button type="button" onClick={() => setOpen(true)}
+            className="btn-property flex items-center gap-2 px-3 py-2 text-xs">
             <Plus size={13} /> New Sale
           </button>
         }
       />
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Record Sale">
-        <form onSubmit={submit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted mb-1">Property</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={propId}
-                onChange={(e) => setPropId(e.target.value ? Number(e.target.value) : "")}>
-                <option value="">— Optional —</option>
-                {properties.map((p) => <option key={p.id} value={p.id}>{p.tid} — {p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Unit</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={unitId}
-                onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : "")}>
-                <option value="">— Optional —</option>
-                {units.map((u) => <option key={u.id} value={u.id}>{u.tid} — {u.unit_number}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted mb-1">Buyer *</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={buyerId}
-                onChange={(e) => setBuyerId(e.target.value ? Number(e.target.value) : "")} required>
-                <option value="">— Select buyer —</option>
-                {buyers.map((b) => <option key={b.id} value={b.id}>{b.tid} — {b.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Seller *</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={sellerId}
-                onChange={(e) => setSellerId(e.target.value ? Number(e.target.value) : "")} required>
-                <option value="">— Select seller —</option>
-                {sellers.map((s) => <option key={s.id} value={s.id}>{s.tid} — {s.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted mb-1">Sale Price (Rs) *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={price}
-                onChange={(e) => setPrice(e.target.value)} required />
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Sale Date *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={saleDate}
-                onChange={(e) => setSaleDate(e.target.value)} required />
-            </div>
-          </div>
-          <select className="select-dark w-full px-3 py-2.5 text-sm" value={status}
-            onChange={(e) => setStatus(e.target.value)}>
-            {["pending","completed","cancelled"].map((s) => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            ))}
-          </select>
-          <textarea className="input-dark w-full px-4 py-2.5 text-sm resize-none" rows={2} value={notes}
-            onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
-          <button className="btn-primary w-full py-3 text-sm mt-1" type="submit">Record Sale</button>
-        </form>
-      </Modal>
+      <RecordSaleDialog
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        onSaved={onRefresh}
+        properties={properties}
+        buyers={buyers}
+        sellers={sellers}
+      />
+
+      <SaleDetailsDialog
+        isOpen={detailOpen}
+        onClose={() => { setDetailOpen(false); setDetailSale(null); }}
+        sale={detailSale}
+        properties={properties}
+        buyers={buyers}
+        sellers={sellers}
+      />
+
+      <UpdateSaleStageDialog
+        isOpen={stageOpen}
+        onClose={() => setStageOpen(false)}
+        onSaved={refreshAndRefreshDetail}
+        saleId={stageSaleId}
+        currentStage={stageValue}
+      />
+
+      <RecordPaymentDialog
+        isOpen={payOpen}
+        onClose={() => setPayOpen(false)}
+        onSaved={refreshAndRefreshDetail}
+        saleId={paySaleId}
+        salePrice={paySalePrice}
+      />
+
+      <CancelSaleDialog
+        isOpen={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        onSaved={refreshAndCloseDetail}
+        saleId={cancelSaleId}
+      />
+
+      <CompleteSaleDialog
+        isOpen={completeOpen}
+        onClose={() => setCompleteOpen(false)}
+        onSaved={refreshAndCloseDetail}
+        saleId={completeSaleId}
+      />
     </>
   );
 }

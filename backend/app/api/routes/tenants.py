@@ -323,7 +323,7 @@ def create_tenant_wizard(
     log_action(
         db=db, module="tenant", action="CREATE",
         record_id=str(tenant.id), record_label=f"Tenant: {tenant.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')},
     )
     return _build_detail(db, tenant)
@@ -407,7 +407,7 @@ def record_payment(
     log_action(
         db=db, module="tenant", action="CREATE",
         record_id=str(payment.id), record_label=f"Payment: {tenant.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
     )
     return payment
@@ -631,7 +631,7 @@ def create_maintenance(
         record_id=str(record.id),
         record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
         changed_by=current_user.email,
-        changed_by_role=getattr(current_user, 'role', None),
+        changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')},
         ip_address=request.client.host if request.client else None,
     )
@@ -710,7 +710,7 @@ def update_maintenance(
         record_id=str(record_id),
         record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
         changed_by=current_user.email,
-        changed_by_role=getattr(current_user, 'role', None),
+        changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         ip_address=request.client.host if request.client else None,
     )
 
@@ -738,7 +738,7 @@ def delete_maintenance(
         record_id=str(record_id),
         record_label=f"Maintenance: {record.description[:80] if record.description else ''}",
         changed_by=current_user.email,
-        changed_by_role=getattr(current_user, 'role', None),
+        changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         ip_address=request.client.host if request.client else None,
     )
 
@@ -781,7 +781,7 @@ def update_tenant(
     log_action(
         db=db, module="tenant", action="UPDATE",
         record_id=str(tenant_id), record_label=f"Tenant: {tenant.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return tenant
@@ -800,7 +800,7 @@ def delete_tenant(
     log_action(
         db=db, module="tenant", action="DELETE",
         record_id=str(tenant_id), record_label=f"Tenant: {tenant.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
     db.delete(tenant)
@@ -848,7 +848,7 @@ def end_lease(
     log_action(
         db=db, module="tenant", action="UPDATE",
         record_id=str(lease_id), record_label=f"Lease ended: {lease_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     d = LeaseOut.model_validate(lease).model_dump()
@@ -912,7 +912,7 @@ def increase_rent(
     log_action(
         db=db, module="tenant", action="CREATE",
         record_id=str(increase.id), record_label=f"Rent Increase: Lease {lease_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in increase.__dict__.items() if not k.startswith('_')},
     )
     return increase

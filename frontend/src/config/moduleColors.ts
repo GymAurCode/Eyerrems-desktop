@@ -1,0 +1,17 @@
+export const MODULE_COLORS: Record<string, string> = {
+  dashboard:     "#FBBF24",
+  property:      "var(--property-accent)",
+  towns:         "#22D3EE",
+  crm:           "#C084FC",
+  tenants:       "#60A5FA",
+  maintenance:   "#FB923C",
+  construction:  "#FBBF24",
+  hr:            "#F472B6",
+  finance:       "#4ADE80",
+  reports:       "#2DD4BF",
+  ai:            "#A78BFA",
+  communication: "#38BDF8",
+  reminders:     "#F87171",
+  admin:         "#94A3B8",
+  history:       "#A78BFA",
+};

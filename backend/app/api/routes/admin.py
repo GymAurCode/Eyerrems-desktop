@@ -80,7 +80,7 @@ def create_role(
     log_action(
         db=db, module="user", action="CREATE",
         record_id=str(role.id), record_label=f"Role: {role.name}",
-        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
         new_data={"role_name": role.name, "permission_count": len(role.permissions)},
         ip_address=request.client.host if request.client else None,
     )
@@ -127,7 +127,7 @@ def update_role(
     log_action(
         db=db, module="user", action="UPDATE",
         record_id=str(role.id), record_label=f"Role: {role.name}",
-        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
         new_data={"role_name": role.name, "permission_count": len(role.permissions)},
         ip_address=request.client.host if request.client else None,
     )
@@ -176,7 +176,7 @@ def delete_role(
     log_action(
         db=db, module="user", action="DELETE",
         record_id=str(role_id), record_label=f"Role: {role_name}",
-        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
         old_data={"role_name": role_name},
         ip_address=request.client.host if request.client else None,
     )
@@ -218,7 +218,7 @@ def create_permission(
     log_action(
         db=db, module="user", action="CREATE",
         record_id=str(permission.id), record_label=f"Permission: {permission.name}",
-        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
         new_data={"permission_name": permission.name, "module": permission.module},
         ip_address=request.client.host if request.client else None,
     )
@@ -258,7 +258,7 @@ def delete_permission(
     log_action(
         db=db, module="user", action="DELETE",
         record_id=str(permission_id), record_label=f"Permission: {perm_name}",
-        changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+        changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
         old_data={"permission_name": perm_name},
         ip_address=request.client.host if request.client else None,
     )
@@ -282,7 +282,7 @@ def seed_permissions(
         log_action(
             db=db, module="user", action="CREATE",
             record_id="seed", record_label="Seeded default permissions",
-            changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+            changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
             new_data={"count": len(created)},
             ip_address=request.client.host if request.client else None,
         )
@@ -304,7 +304,7 @@ def seed_roles(
         log_action(
             db=db, module="user", action="CREATE",
             record_id="seed", record_label="Seeded default roles",
-            changed_by=admin.email, changed_by_role=getattr(admin, 'role', None),
+            changed_by=admin.email, changed_by_role=getattr(getattr(admin, 'role', None), 'name', None),
             new_data={"count": len(created), "roles": [r.name for r in created]},
             ip_address=request.client.host if request.client else None,
         )

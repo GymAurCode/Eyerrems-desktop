@@ -123,7 +123,7 @@ const ActionButton = React.memo(({
     type="button"
     onClick={onClick}
     title={title}
-    className={`p-1 rounded hover:bg-gray-700 transition-colors ${className}`}
+    className={`p-1 rounded hover:bg-hover transition-colors ${className}`}
   >
     {children}
   </button>
@@ -204,7 +204,7 @@ const TreeNode = React.memo(({
   return (
     <div>
       <div
-        className="group flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors hover:bg-gray-800"
+        className="group flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors hover:bg-hover"
         style={{
           paddingLeft: `${level * 20 + 8}px`,
           background: isSelected ? `${color}18` : "transparent",
@@ -216,7 +216,7 @@ const TreeNode = React.memo(({
         <button
           type="button"
           onClick={handleToggle}
-          className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-200"
+          className="w-4 h-4 flex items-center justify-center text-muted hover:text-primary"
         >
           {hasChildren ? (open ? <ChevronDownIcon /> : <ChevronRightIcon />) : (
             <span 
@@ -227,7 +227,7 @@ const TreeNode = React.memo(({
         </button>
 
         {/* Code */}
-        <span className="font-mono text-xs text-gray-400 min-w-0 shrink-0">
+        <span className="font-mono text-xs text-muted min-w-0 shrink-0">
           {node.code}
         </span>
 
@@ -241,7 +241,7 @@ const TreeNode = React.memo(({
 
         {/* Status */}
         {!node.is_active && (
-          <span className="text-xs px-2 py-1 bg-gray-700 text-gray-400 rounded">
+          <span className="text-xs px-2 py-1 bg-tertiary text-muted rounded">
             Inactive
           </span>
         )}
@@ -258,7 +258,7 @@ const TreeNode = React.memo(({
           <ActionButton onClick={handleAdd} title="Add Child" className="text-blue-400">
             <PlusIcon />
           </ActionButton>
-          <ActionButton onClick={handleEdit} title="Edit" className="text-gray-400">
+          <ActionButton onClick={handleEdit} title="Edit" className="text-muted">
             ✏️
           </ActionButton>
           <ActionButton onClick={handleDelete} title="Delete" className="text-red-400">
@@ -428,7 +428,7 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
       <div className="p-8 text-center">
         <AlertIcon />
         <h3 className="text-lg font-semibold text-red-400 mb-2">Error Loading Accounts</h3>
-        <p className="text-sm text-gray-400 mb-4">{error}</p>
+        <p className="text-sm text-muted mb-4">{error}</p>
         <button 
           onClick={loadAccounts}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -441,18 +441,18 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
 
   return (
     <div 
-      className="rounded-xl overflow-hidden border border-gray-700 bg-gray-900"
+      className="rounded-xl overflow-hidden border border-theme bg-surface"
       style={{ height: "calc(100vh - 280px)", minHeight: "500px" }}
     >
       <div className="flex h-full">
         {/* Left Panel */}
-        <div className="flex flex-col flex-1 border-r border-gray-700">
+        <div className="flex flex-col flex-1 border-r border-theme">
           {/* Toolbar */}
-          <div className="p-4 border-b border-gray-700 space-y-3">
+          <div className="p-4 border-b border-theme space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookIcon />
-                <span className="text-sm font-bold text-gray-300">
+                <span className="text-sm font-bold text-secondary">
                   Chart of Accounts (Robust)
                 </span>
                 <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded">
@@ -463,14 +463,14 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
                 <button
                   onClick={() => setShowInactive(!showInactive)}
                   className={`px-3 py-1 text-xs rounded ${
-                    showInactive ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                    showInactive ? 'bg-blue-600 text-white' : 'bg-tertiary text-secondary'
                   }`}
                 >
                   {showInactive ? 'Hide Inactive' : 'Show Inactive'}
                 </button>
                 <button
                   onClick={loadAccounts}
-                  className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                  className="px-3 py-1 text-xs bg-tertiary text-secondary rounded hover:bg-gray-600"
                 >
                   Refresh
                 </button>
@@ -495,13 +495,13 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
                   placeholder="Search accounts..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm bg-gray-800 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full pl-8 pr-3 py-2 text-sm bg-tertiary border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2 text-sm bg-gray-800 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
+                className="px-3 py-2 text-sm bg-tertiary border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="All">All Types</option>
                 <option value="Asset">Asset</option>
@@ -520,7 +520,7 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
                 <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
               </div>
             ) : filteredAccounts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+              <div className="flex flex-col items-center justify-center h-32 text-muted">
                 <BookIcon />
                 <p className="text-sm mt-2">
                   {search ? "No accounts match your search" : "No accounts found"}
@@ -551,35 +551,35 @@ export default function ChartOfAccountsRobust({ readOnly = false }: ChartOfAccou
               <h3 className="text-lg font-semibold text-white mb-4">{selected.name}</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Code:</span>
+                  <span className="text-sm text-muted">Code:</span>
                   <span className="font-mono text-sm text-blue-400">{selected.code}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Type:</span>
+                  <span className="text-sm text-muted">Type:</span>
                   <TypeBadge type={selected.account_type} />
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Balance:</span>
+                  <span className="text-sm text-muted">Balance:</span>
                   <span className="font-semibold text-green-400">
                     {formatCurrency(selected.balance)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Status:</span>
-                  <span className={selected.is_active ? 'text-green-400' : 'text-gray-400'}>
+                  <span className="text-sm text-muted">Status:</span>
+                  <span className={selected.is_active ? 'text-green-400' : 'text-muted'}>
                     {selected.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
                 {selected.description && (
                   <div>
-                    <span className="text-sm text-gray-400 block mb-1">Description:</span>
-                    <p className="text-sm text-gray-300">{selected.description}</p>
+                    <span className="text-sm text-muted block mb-1">Description:</span>
+                    <p className="text-sm text-secondary">{selected.description}</p>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-center text-gray-400 mt-8">
+            <div className="text-center text-muted mt-8">
               <BookIcon />
               <p className="text-sm mt-2">Select an account to view details</p>
             </div>

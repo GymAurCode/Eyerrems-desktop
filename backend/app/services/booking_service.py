@@ -10,7 +10,7 @@ from typing import Optional
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
 from sqlalchemy import and_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.booking import Booking, BookingLog
 from app.models.crm import (
@@ -183,6 +183,33 @@ class BookingService:
 
         if new_status == "confirmed":
             booking.confirmed_at = now
+            # ── Finance sync: journalize booking token ────────────────────────
+            if booking.booking_amount > 0:
+                try:
+                    cash_account = db.query(Account).filter(Account.code == "1100").first()
+                    revenue_account = cls._resolve_revenue_account(db, booking)
+                    if cash_account and revenue_account:
+                        JournalService.create_journal_entry(
+                            db=db,
+                            entries=[
+                                JournalEntryData(
+                                    account_id=cash_account.id,
+                                    debit=booking.booking_amount,
+                                    description=f"Booking token {booking.booking_id}",
+                                ),
+                                JournalEntryData(
+                                    account_id=revenue_account.id,
+                                    credit=booking.booking_amount,
+                                    description=f"Booking token {booking.booking_id} revenue",
+                                ),
+                            ],
+                            reference_type="booking_confirmation",
+                            reference_id=str(booking.id),
+                            description=f"Booking {booking.booking_id} token payment — {booking.booking_amount}",
+                            date=now,
+                        )
+                except ValueError:
+                    pass  # journal creation failed silently
         elif new_status == "active":
             booking.active_at = now
             # Lock the unit
@@ -369,6 +396,17 @@ class BookingService:
     # ── Payment processing ────────────────────────────────────────────────────
 
     @staticmethod
+    def _resolve_revenue_account(db: Session, booking: Booking) -> Optional[Account]:
+        """Resolve the revenue GL account from the booking's property, or fallback to 4300."""
+        if booking.property_id:
+            prop = db.query(Property).filter(Property.id == booking.property_id).first()
+            if prop and prop.income_gl_account_id:
+                rev = db.query(Account).filter(Account.id == prop.income_gl_account_id).first()
+                if rev:
+                    return rev
+        return db.query(Account).filter(Account.code == "4300").first()
+
+    @staticmethod
     def record_payment(
         db: Session,
         installment: Installment,
@@ -381,7 +419,7 @@ class BookingService:
         """
         Record a payment against an installment.
         - Supports partial payments (multiple payments per installment)
-        - Creates double-entry journal: Debit Cash/Bank, Credit AR
+        - Creates double-entry journal: Debit Cash/Bank, Credit Property Revenue
         - Prevents overpayment
         """
         new_paid = Decimal(str(installment.paid_amount)) + amount
@@ -395,12 +433,30 @@ class BookingService:
         # Resolve accounts
         cash_code = "1010" if method == "cash" else "1100"
         cash_account = db.query(Account).filter(Account.code == cash_code).first()
-        ar_account   = db.query(Account).filter(Account.code == "1200").first()
-        if not cash_account or not ar_account:
+
+        # Resolve property revenue account from installment plan's deal/booking
+        revenue_account = None
+        plan = installment.plan
+        if plan:
+            if plan.deal_id:
+                deal = db.query(Deal).options(
+                    joinedload(Deal.property)
+                ).filter(Deal.id == plan.deal_id).first()
+                if deal and deal.property and deal.property.income_gl_account_id:
+                    revenue_account = db.query(Account).filter(Account.id == deal.property.income_gl_account_id).first()
+            elif plan.booking_id:
+                booking = db.query(Booking).options(
+                    joinedload(Booking.property)
+                ).filter(Booking.id == plan.booking_id).first()
+                if booking and booking.property and booking.property.income_gl_account_id:
+                    revenue_account = db.query(Account).filter(Account.id == booking.property.income_gl_account_id).first()
+        if not revenue_account:
+            revenue_account = db.query(Account).filter(Account.code == "4300").first()
+
+        if not cash_account or not revenue_account:
             raise HTTPException(
                 400,
-                "Required accounts (Cash 1010 / Bank 1100 + AR 1200) not found. "
-                "Run default COA setup.",
+                "Required accounts (Cash/Bank + Revenue) not found. Run default COA setup.",
             )
 
         pay_date = payment_date or datetime.utcnow()
@@ -414,9 +470,9 @@ class BookingService:
                     description=f"Installment #{installment.id} payment",
                 ),
                 JournalEntryData(
-                    account_id=ar_account.id,
+                    account_id=revenue_account.id,
                     credit=amount,
-                    description=f"Installment #{installment.id} AR cleared",
+                    description=f"Installment #{installment.id} revenue",
                 ),
             ],
             reference_type="installment_payment",

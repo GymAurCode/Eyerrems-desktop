@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { CheckCircle2, AlertCircle, AlertTriangle, XCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, XCircle } from "lucide-react";
 import type { ImportRowPreview } from "../../lib/importApi";
+import { DataTable } from "../data-table";
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; icon: typeof CheckCircle2 }> = {
   valid:     { color: "#10b981", bg: "rgba(16,185,129,0.12)", icon: CheckCircle2 },
@@ -61,147 +62,55 @@ export default function ImportPreviewTable({
 
   const totalPages = Math.max(1, Math.ceil(searched.length / pageSize));
 
-  // Reset page on search or filter change
   useMemo(() => {
     setCurrentPage(1);
   }, [search, filter, pageSize]);
 
-  const showCols = columns.slice(0, 7); // Show up to 7 columns
+  const showCols = columns.slice(0, 7);
+
+  const dtColumns = [
+    { key: 'row_number', label: '#', render: (val: any) => <span className="font-mono text-muted text-xs">{val}</span> },
+    { key: 'status', label: 'Status', render: (val: any) => {
+      const st = STATUS_STYLE[val] ?? STATUS_STYLE.invalid;
+      const Icon = st.icon;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+          style={{ background: st.bg, color: st.color }}>
+          <Icon size={10} /> {val}
+        </span>
+      );
+    }},
+    ...showCols.map((c) => ({
+      key: `data.${c}`,
+      label: c.replace(/_/g, " "),
+      render: (_: any, row: any) => <span className="max-w-[140px] truncate block text-xs">{row.data?.[c] ?? "—"}</span>,
+    })),
+    { key: 'issues', label: 'Issues', render: (_: any, row: any) => {
+      const issues = [...(row.errors || []), ...(row.warnings || [])].join("; ") || "—";
+      return <span className="text-[10px]" style={{ color: row.status === "invalid" ? "#f87171" : "var(--text-muted)" }}>{issues}</span>;
+    }},
+    { key: 'include', label: 'Include', align: 'center' as const, render: (_: any, row: any) => {
+      const canToggle = row.status === "valid" || row.status === "warning";
+      return canToggle ? (
+        <input type="checkbox" checked={!excludedRows.has(row.row_number)}
+          onChange={() => onToggleRow(row.row_number)}
+          title="Include in import" className="cursor-pointer" />
+      ) : null;
+    }},
+  ];
 
   return (
     <div className="space-y-3">
-      {/* Search and Page Size Controls */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="relative w-64">
-          <Search size={13} className="absolute left-3 top-2.5 text-muted pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search preview rows..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border focus:outline-none focus:ring-1 focus:ring-blue-500"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-          />
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span>Rows per page:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="select-dark py-1 px-2 text-xs rounded-lg"
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </div>
-      </div>
-
-      {searched.length === 0 ? (
-        <div className="py-12 text-center text-sm border rounded-xl" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-          No matching rows to display
-        </div>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
-            <table className="erp-table w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="w-10">#</th>
-                  <th className="w-24">Status</th>
-                  {showCols.map((c) => (
-                    <th key={c} className="capitalize">{c.replace(/_/g, " ")}</th>
-                  ))}
-                  <th>Issues</th>
-                  <th className="w-16 text-center">Include</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((row) => {
-                  const st = STATUS_STYLE[row.status] ?? STATUS_STYLE.invalid;
-                  const Icon = st.icon;
-                  const excluded = excludedRows.has(row.row_number);
-                  const canToggle = row.status === "valid" || row.status === "warning";
-                  return (
-                    <tr
-                      key={row.row_number}
-                      style={{
-                        opacity: excluded ? 0.45 : 1,
-                        background:
-                          row.status === "invalid" ? "rgba(239,68,68,0.04)" :
-                          row.status === "duplicate" ? "rgba(139,92,246,0.04)" :
-                          row.status === "warning" ? "rgba(245,158,11,0.04)" : undefined,
-                      }}
-                    >
-                      <td className="font-mono text-muted">{row.row_number}</td>
-                      <td>
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                          style={{ background: st.bg, color: st.color }}
-                        >
-                          <Icon size={10} />
-                          {row.status}
-                        </span>
-                      </td>
-                      {showCols.map((c) => (
-                        <td key={c} className="max-w-[140px] truncate">
-                          {row.data[c] ?? "—"}
-                        </td>
-                      ))}
-                      <td className="text-[10px]" style={{ color: row.status === "invalid" ? "#f87171" : "var(--text-muted)" }}>
-                        {[...row.errors, ...row.warnings].join("; ") || "—"}
-                      </td>
-                      <td className="text-center">
-                        {canToggle && (
-                          <input
-                            type="checkbox"
-                            checked={!excluded}
-                            onChange={() => onToggleRow(row.row_number)}
-                            title="Include in import"
-                            className="cursor-pointer"
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between border-t pt-3 text-xs text-muted" style={{ borderColor: "var(--border)" }}>
-            <span>
-              Showing {Math.min(searched.length, (currentPage - 1) * pageSize + 1)}-
-              {Math.min(searched.length, currentPage * pageSize)} of {searched.length} rows
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1 px-2 rounded-lg border text-muted hover:text-primary transition-colors disabled:opacity-40"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {currentPage} of {totalPages}</span>
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 px-2 rounded-lg border text-muted hover:text-primary transition-colors disabled:opacity-40"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      <DataTable
+        data={paginated}
+        columns={dtColumns}
+        searchable={false}
+        sortable={false}
+        striped={false}
+        bordered={true}
+        pagination={{ page: currentPage, pageSize, total: searched.length }}
+        onPaginationChange={(config) => setCurrentPage(config.page)}
+      />
     </div>
   );
 }

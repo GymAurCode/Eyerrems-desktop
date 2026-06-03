@@ -47,8 +47,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Token exists but user not yet loaded → show loading spinner
   if (!user) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#07090e]">
-        <div className="text-slate-400 text-sm font-medium animate-pulse">Loading session...</div>
+      <div className="flex h-screen w-screen items-center justify-center bg-base">
+        <div className="text-muted text-sm font-medium animate-pulse">Loading session...</div>
       </div>
     );
   }
@@ -156,7 +156,7 @@ export const RequirePermission: React.FC<{
           <p className="text-gray-600">
             You don't have permission to access this resource.
           </p>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-sm text-muted mt-2">
             Required permission: <code className="bg-gray-100 px-2 py-1 rounded">{permission}</code>
           </p>
         </div>

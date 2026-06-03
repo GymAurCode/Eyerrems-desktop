@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
           style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
           <AlertCircle size={48} className="mx-auto mb-4 text-red-400" />
           <h3 className="text-lg font-semibold text-red-400 mb-2">Something went wrong</h3>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-muted mb-4">
             {this.state.error?.message || 'An unexpected error occurred in this component.'}
           </p>
           <div className="flex gap-2 justify-center">
@@ -67,15 +67,15 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
             <button 
               onClick={() => window.location.reload()} 
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-tertiary text-white rounded-lg hover:bg-hover transition-colors"
             >
               Refresh Page
             </button>
           </div>
           {this.state.error && (
             <details className="mt-4 text-left">
-              <summary className="text-xs text-gray-500 cursor-pointer">Error Details & Stack Trace</summary>
-              <pre className="text-xs text-red-400 mt-2 p-3 bg-gray-900 rounded-lg overflow-auto select-text whitespace-pre-wrap max-h-60">
+              <summary className="text-xs text-muted cursor-pointer">Error Details & Stack Trace</summary>
+              <pre className="text-xs text-red-400 mt-2 p-3 bg-surface rounded-lg overflow-auto select-text whitespace-pre-wrap max-h-60">
                 {this.state.error.stack || this.state.error.message}
               </pre>
             </details>

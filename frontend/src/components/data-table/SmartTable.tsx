@@ -162,7 +162,7 @@ export default function SmartTable<T = any>({
   };
 
   return (
-    <div className="w-full space-y-4 rounded-xl p-4 border" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--card-shadow)" }}>
+    <div className="w-full space-y-4 prop-card p-4">
       {/* Header & Title */}
       {(title || subtitle || toolbarActions) && (
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
@@ -175,7 +175,7 @@ export default function SmartTable<T = any>({
       )}
 
       {/* Standardized Filter Panel */}
-      <div className="flex flex-wrap items-center gap-3 py-1 pb-4" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex flex-wrap items-center gap-3 py-1 pb-4 border-b border-theme">
         {/* Search Field */}
         <div className="relative min-w-[240px] flex-1 max-w-sm">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">

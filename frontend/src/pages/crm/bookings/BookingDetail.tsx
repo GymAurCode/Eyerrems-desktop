@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
@@ -9,11 +9,14 @@ import {
 } from "lucide-react";
 import { bookingApi, BookingDetail as BookingDetailType, BookingLog, InstallmentPlan, InstallmentItem } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
+import { DataTable } from "../../../components/data-table";
+import { generateInstallmentSchedule } from "../../../lib/installmentEngine";
 import { BookingStatusBadge, BOOKING_STATUS_COLOR, BOOKING_STATUS_LABEL } from "./BookingList";
 import AttachmentPanel from "../../../components/attachments/AttachmentPanel";
 import RecordHistory from "../../../components/RecordHistory";
 import BookingExtendModal from "./BookingExtendModal";
 import BookingConvertModal from "./BookingConvertModal";
+import PaymentVerificationDialog from "../../../components/crm/PaymentVerificationDialog";
 
 // ── Status tracker ────────────────────────────────────────────────────────────
 
@@ -388,11 +391,14 @@ export default function BookingDetailPage() {
   const [payingInst, setPayingInst] = useState<InstallmentItem | null>(null);
 
   const load = async () => {
-    if (!id) return;
+    if (!id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const r = await bookingApi.get(Number(id));
-      setBooking(r.data);
+      const entityId: string | number = id.startsWith("BKG-") ? id : Number(id);
+      const r = await bookingApi.get(entityId);
+      setBooking(r);
+    } catch {
+      setBooking(null);
     } finally {
       setLoading(false);
     }
@@ -777,79 +783,37 @@ function PaymentPlanSection({
           )}
 
           {/* Installment table */}
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-            <div
-              className="px-4 py-3 flex items-center justify-between"
-              style={{ background: "var(--bg-surface2)", borderBottom: "1px solid var(--border)" }}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
-                Installment Schedule
-              </span>
-              <span className="text-[10px] text-muted">{plan.frequency} · {plan.total_count} installments</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["#", "Due Date", "Amount", "Paid", "Remaining", "Status", ""].map(h => (
-                      <th key={h} className="text-left px-3 py-2.5 text-[10px] font-bold text-muted uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {plan.installments.map((inst, idx) => {
-                    const color = INST_STATUS_COLOR[inst.status] ?? "#94a3b8";
-                    const canPay = inst.status !== "paid";
-                    return (
-                      <tr
-                        key={inst.id}
-                        style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                        className="transition-colors row-hover"
-                      >
-                        <td className="px-3 py-2.5 text-muted">{inst.installment_number ?? idx + 1}</td>
-                        <td className="px-3 py-2.5 font-mono text-secondary whitespace-nowrap">
-                          {new Date(inst.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}
-                        </td>
-                        <td className="px-3 py-2.5 font-semibold text-primary whitespace-nowrap">
-                          {Number(inst.amount).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2.5 text-secondary whitespace-nowrap">
-                          {Number(inst.paid_amount).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: inst.remaining > 0 ? "#a78bfa" : "#34d399" }}>
-                          {Number(inst.remaining).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span
-                            className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize"
-                            style={{ background: `${color}1a`, color }}
-                          >
-                            {inst.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {canPay && (
-                            <button
-                              type="button"
-                              onClick={() => setPayingInst(inst)}
-                              className="flex items-center gap-1 text-[10px] px-2 py-1.5 rounded-lg transition-colors"
-                              style={{ color: "#34d399" }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(52,211,153,0.1)"; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                            >
-                              <CreditCard size={10} /> Pay
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            title="Installment Schedule"
+            subtitle={`${plan.frequency} · ${plan.total_count} installments`}
+            data={plan.installments}
+            columns={[
+              { key: "installment_number", label: "#", render: (val: any, row: any, idx: number) => <span className="text-muted">{val ?? idx + 1}</span> },
+              { key: "due_date", label: "Due Date", render: (val: string) => <span className="font-mono text-secondary whitespace-nowrap">{new Date(val).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</span> },
+              { key: "amount", label: "Amount", render: (val: number) => <span className="font-semibold text-primary whitespace-nowrap">{Number(val).toLocaleString()}</span> },
+              { key: "paid_amount", label: "Paid", render: (val: number) => <span className="text-secondary whitespace-nowrap">{Number(val).toLocaleString()}</span> },
+              { key: "remaining", label: "Remaining", render: (val: number) => <span className="whitespace-nowrap" style={{ color: val > 0 ? "#a78bfa" : "#34d399" }}>{Number(val).toLocaleString()}</span> },
+              { key: "status", label: "Status", render: (val: string) => {
+                const color = INST_STATUS_COLOR[val] ?? "#94a3b8";
+                return <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize" style={{ background: `${color}1a`, color }}>{val}</span>;
+              }},
+              { key: "actions", label: "", render: (val: any, row: any) => {
+                const inst = row as InstallmentItem;
+                if (inst.status === "paid") return null;
+                return (
+                  <button type="button" onClick={() => setPayingInst(inst)}
+                    className="flex items-center gap-1 text-[10px] px-2 py-1.5 rounded-lg transition-colors"
+                    style={{ color: "#34d399" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(52,211,153,0.1)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                    <CreditCard size={10} /> Pay
+                  </button>
+                );
+              }},
+            ]}
+            sortable={false}
+            searchable={false}
+          />
         </>
       )}
 
@@ -862,15 +826,14 @@ function PaymentPlanSection({
         />
       )}
 
-      {/* Pay installment modal */}
-      {payingInst && (
-        <PayInstallmentModal
-          booking={booking}
-          installment={payingInst}
-          onClose={() => setPayingInst(null)}
-          onPaid={() => { setPayingInst(null); onPaymentDone(); }}
-        />
-      )}
+      <PaymentVerificationDialog
+        open={!!payingInst}
+        onClose={() => setPayingInst(null)}
+        bookingId={booking.id}
+        bookingRef={booking.booking_id}
+        installment={payingInst!}
+        onPaid={() => { setPayingInst(null); onPaymentDone(); }}
+      />
     </div>
   );
 }
@@ -901,6 +864,30 @@ function CreatePlanModal({
   const perInst = count && Number(count) > 0
     ? Math.ceil(remaining / Number(count))
     : 0;
+
+  const freqMap: Record<string, "Monthly" | "Quarterly" | "HalfYearly" | "Yearly"> = {
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+    half_yearly: "HalfYearly",
+    yearly: "Yearly",
+  };
+
+  const schedulePreview = useMemo(() => {
+    const c = Number(count);
+    if (!c || c < 1 || remaining <= 0) return null;
+    try {
+      return generateInstallmentSchedule({
+        totalAmount: totalPayable,
+        downPayment: Number(booking.down_payment ?? 0),
+        numInstallments: c,
+        frequency: freqMap[frequency] ?? "Monthly",
+        startDate: startDate ? new Date(startDate) : undefined,
+        dueDay: dueDay ? Number(dueDay) : undefined,
+      });
+    } catch {
+      return null;
+    }
+  }, [frequency, count, startDate, dueDay, totalPayable, remaining]);
 
   const handleCreate = async () => {
     const c = Number(count);
@@ -987,7 +974,31 @@ function CreatePlanModal({
             </div>
           </div>
 
-          {perInst > 0 && (
+          {schedulePreview && schedulePreview.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={13} style={{ color: "#818cf8" }} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                  Schedule Preview
+                </span>
+              </div>
+              <DataTable
+                data={schedulePreview}
+                columns={[
+                  { key: "installment_number", label: "#", render: (val: any) => <span className="text-muted">{val}</span> },
+                  { key: "due_date", label: "Due Date", render: (val: string) => <span className="font-mono text-secondary whitespace-nowrap">{new Date(val + "T00:00:00").toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</span> },
+                  { key: "amount", label: "Amount", render: (val: number) => <span className="font-medium">{val.toLocaleString()}</span> },
+                  { key: "balance_remaining", label: "Balance", render: (val: number) => <span className="text-muted">{val.toLocaleString()}</span> },
+                ]}
+                variant="compact"
+                sortable={false}
+                searchable={false}
+                bordered={false}
+              />
+            </div>
+          )}
+
+          {!schedulePreview && perInst > 0 && (
             <div className="px-3 py-2.5 rounded-xl text-xs flex items-center gap-2"
               style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "#818cf8" }}>
               <TrendingUp size={13} />
@@ -1014,129 +1025,4 @@ function CreatePlanModal({
   );
 }
 
-// ── Pay Installment Modal ─────────────────────────────────────────────────────
 
-function PayInstallmentModal({
-  booking, installment, onClose, onPaid,
-}: {
-  booking: BookingDetailType;
-  installment: InstallmentItem;
-  onClose: () => void;
-  onPaid: () => void;
-}) {
-  const remaining = installment.remaining;
-  const [method, setMethod]   = useState<"cash" | "bank" | "cheque" | "online">("bank");
-  const [amount, setAmount]   = useState(String(remaining));
-  const [ref, setRef]         = useState("");
-  const [notes, setNotes]     = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState("");
-
-  const handlePay = async () => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { setError("Enter a valid amount"); return; }
-    if (amt > remaining) { setError(`Cannot exceed remaining balance (${remaining.toLocaleString()})`); return; }
-    setSaving(true);
-    setError("");
-    try {
-      await bookingApi.payInstallment(booking.id, installment.id, {
-        installment_id:   installment.id,
-        method,
-        amount:           amt,
-        reference_number: ref || undefined,
-        notes:            notes || undefined,
-      });
-      onPaid();
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail;
-      setError(typeof detail === "string" ? detail : "Payment failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ animation: "modalFadeIn 0.18s ease-out both" }}>
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }} onClick={onClose} />
-      <div className="relative w-full flex flex-col overflow-hidden"
-        style={{
-          maxWidth: "min(400px, 92vw)",
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "16px",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.45)",
-          animation: "modalSlideUp 0.2s ease-out both",
-        }}
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-          <div>
-            <h2 className="text-sm font-bold text-primary">Record Payment</h2>
-            <p className="text-[10px] text-muted mt-0.5">
-              Installment #{installment.installment_number} · Due {new Date(installment.due_date).toLocaleDateString("en-PK")} · Balance {remaining.toLocaleString()}
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: "var(--text-secondary)" }}>
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="px-5 py-5 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs"
-              style={{ color: "#f87171", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <AlertCircle size={13} /> {error}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Method</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(["bank", "cash", "cheque", "online"] as const).map(m => (
-                <button key={m} type="button" onClick={() => setMethod(m)}
-                  className="py-2 rounded-lg text-xs font-semibold capitalize transition-all"
-                  style={method === m
-                    ? { background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)" }
-                    : { background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
-                  {m}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Amount</label>
-            <input type="number" className="input-dark w-full px-3 py-2.5 text-sm"
-              value={amount} onChange={e => setAmount(e.target.value)} />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Reference (optional)</label>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" value={ref}
-              onChange={e => setRef(e.target.value)} placeholder="Cheque / TXN no." />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Notes (optional)</label>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" value={notes}
-              onChange={e => setNotes(e.target.value)} placeholder="Any notes…" />
-          </div>
-        </div>
-
-        <div className="flex gap-2 px-5 pb-5">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm rounded-xl"
-            style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-            Cancel
-          </button>
-          <button type="button" onClick={handlePay} disabled={saving || !amount}
-            className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-            {saving
-              ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing…</>
-              : <><CreditCard size={13} /> Confirm Payment</>}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}

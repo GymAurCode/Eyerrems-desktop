@@ -1,150 +1,274 @@
-import { useEffect, useState, FormEvent, useRef } from "react";
-import { Plus, Printer } from "lucide-react";
-import Modal from "../../Modal";
-import { propApi, Seller } from "../../../lib/propertyApi";
+import { useEffect, useState, useRef } from "react";
+import {
+  Plus, Printer, Eye, Edit2, Building2, User, Archive, Mail, ChevronRight,
+} from "lucide-react";
+import { propApi, Contact } from "../../../lib/propertyApi";
 import { printRecord } from "../../actions";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
+import AddSellerDialog from "../dialogs/AddSellerDialog";
+import SellerProfileDialog from "../dialogs/SellerProfileDialog";
+import LogInteractionDialog from "../dialogs/LogInteractionDialog";
+import AddRoleDialog from "../dialogs/AddRoleDialog";
 
 type Props = { refresh: number; onRefresh: () => void };
 
+const ROLE_LABELS: Record<string, string> = {
+  buyer: "Buyer", seller: "Seller", agent: "Agent", other: "Other",
+};
+const ROLE_COLORS: Record<string, string> = {
+  buyer: "#3b82f6", seller: "#10b981", agent: "#8b5cf6", both: "#8b5cf6", other: "#6b7280",
+};
+const KYC_COLORS: Record<string, string> = {
+  pending: "#f59e0b", in_review: "#3b82f6", verified: "#10b981", rejected: "#ef4444",
+};
+function formatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const roles = role.split(",").map(r => r.trim()).filter(Boolean);
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {roles.map(r => {
+        const c = ROLE_COLORS[r] ?? "#6b7280";
+        return (
+          <span key={r} className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+            style={{ background: `${c}18`, color: c }}>
+            {ROLE_LABELS[r] ?? r}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function KYCStatusBadge({ status }: { status: string }) {
+  const c = KYC_COLORS[status] ?? "#6b7280";
+  return (
+    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+      style={{ background: `${c}18`, color: c }}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 export default function SellersTab({ refresh, onRefresh }: Props) {
-  const [sellers, setSellers] = useState<Seller[]>([]);
-  const [open, setOpen]       = useState(false);
-  const [total, setTotal]             = useState(0);
-  const [loading, setLoading]         = useState(false);
+  const [contacts, setContacts]     = useState<Contact[]>([]);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(false);
   const paramsRef = useRef<any>(null);
 
-  const [name, setName]       = useState("");
-  const [email, setEmail]     = useState("");
-  const [phone, setPhone]     = useState("");
-  const [address, setAddr]    = useState("");
-  const [notes, setNotes]     = useState("");
+  // ── Add/Edit dialog ──
+  const [addOpen, setAddOpen]           = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
 
-  const fetchSellers = async (params: any) => {
+  // ── Profile dialog ──
+  const [profileOpen, setProfileOpen]       = useState(false);
+  const [profileContactId, setProfileContactId] = useState<number | null>(null);
+
+  // ── Log Interaction dialog ──
+  const [commOpen, setCommOpen]         = useState(false);
+  const [commContactId, setCommContactId] = useState(0);
+
+  // ── Add Role dialog ──
+  const [addRoleOpen, setAddRoleOpen]     = useState(false);
+  const [addRoleContactId, setAddRoleContactId] = useState(0);
+  const [addRoleValue, setAddRoleValue]   = useState("");
+
+  // ── Data fetching ──
+  const fetchContacts = async (params: any) => {
     paramsRef.current = params;
     setLoading(true);
     try {
-      const res = await api.get<Seller[]>("/properties/sellers/all", {
+      const res = await api.get<Contact[]>("/properties/contacts/all", {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
           search: params.search || undefined,
+          role: "seller",
+          kyc_status: params.status || undefined,
+          city: params.propertyType || undefined,
           filter: params.dateFilter || undefined,
           startDate: params.startDate || undefined,
           endDate: params.endDate || undefined,
         }
       });
-      const data = res.data;
-      setSellers(Array.isArray(data) ? data : []);
-      const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
-      setTotal(totalCount);
-    } catch (err) {
-      console.error(err);
-      setSellers([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
+      setContacts(Array.isArray(res.data) ? res.data : []);
+      setTotal(Number(res.headers["x-total-count"] || 0));
+    } catch { setContacts([]); setTotal(0); }
+    finally { setLoading(false); }
   };
 
-  const refreshTable = () => {
-    if (paramsRef.current) {
-      fetchSellers(paramsRef.current);
-    }
+  const refreshTable = () => { if (paramsRef.current) fetchContacts(paramsRef.current); };
+  useEffect(() => { refreshTable(); }, [refresh]);
+
+  // ── Dialog openers ──
+  const openAdd = () => {
+    setEditingContact(null);
+    setAddOpen(true);
   };
 
-  useEffect(() => {
+  const openEdit = (contact: Contact) => {
+    setEditingContact(contact);
+    setAddOpen(true);
+  };
+
+  const openDetail = (contact: Contact) => {
+    setProfileContactId(contact.id);
+    setProfileOpen(true);
+  };
+
+  const openComm = (contact: Contact) => {
+    setCommContactId(contact.id);
+    setCommOpen(true);
+  };
+
+  const openAddRole = (contact: Contact) => {
+    setAddRoleContactId(contact.id);
+    setAddRoleValue(contact.role.includes("buyer") ? "seller" : "buyer");
+    setAddRoleOpen(true);
+  };
+
+  // ── Archive ──
+  const archiveContact = async (contact: Contact) => {
+    await propApi.updateContact(contact.id, { archived: true });
     refreshTable();
-  }, [refresh]);
-
-  const reset = () => { setName(""); setEmail(""); setPhone(""); setAddr(""); setNotes(""); };
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    await propApi.createSeller({ name, email: email || null, phone: phone || null, address: address || null, notes: notes || null });
-    reset(); setOpen(false); onRefresh();
   };
 
+  // ── Columns ──
   const columns = [
     {
-      key: "tid",
-      label: "TID",
-      className: "font-mono text-xs text-blue-400"
+      key: "name", label: "Name",
+      render: (_: any, row: Contact) => (
+        <div className="flex items-center gap-2">
+          {row.contact_type === "company" ? <Building2 size={12} className="text-muted" /> : <User size={12} className="text-muted" />}
+          <span className="text-primary font-medium text-xs">{row.name}</span>
+        </div>
+      ),
     },
     {
-      key: "name",
-      label: "Name",
-      className: "text-primary font-medium"
+      key: "contact_type", label: "Type",
+      render: (val: string) => (
+        <span className="text-[10px] text-muted">{val === "company" ? "Company" : "Individual"}</span>
+      ),
     },
     {
-      key: "email",
-      label: "Email",
-      render: (val: any) => val || "—",
-      className: "text-secondary"
+      key: "cnic", label: "CNIC / NTN",
+      render: (_: any, row: Contact) => (
+        <span className="text-secondary font-mono text-[10px]">{row.cnic || row.ntn || row.tax_ntn || "—"}</span>
+      ),
+    },
+    { key: "phone", label: "Phone", render: (val: any) => <span className="text-secondary text-xs">{val || "—"}</span> },
+    { key: "city", label: "City", render: (val: any) => <span className="text-secondary text-xs">{val || "—"}</span> },
+    {
+      key: "role", label: "Role",
+      render: (val: string) => <RoleBadge role={val} />,
     },
     {
-      key: "phone",
-      label: "Phone",
-      render: (val: any) => val || "—",
-      className: "text-secondary"
+      key: "kyc_status", label: "KYC",
+      render: (val: string) => <KYCStatusBadge status={val} />,
     },
     {
-      key: "address",
-      label: "Address",
-      render: (val: any) => val || "—",
-      className: "text-secondary"
-    }
+      key: "sale_count", label: "Linked",
+      render: (_: any, row: Contact) => (
+        <span className="text-secondary text-xs">{row.sale_count != null ? `${row.sale_count} sales` : "—"}</span>
+      ),
+    },
+    {
+      key: "created_at", label: "Added",
+      render: (val: any) => <span className="text-secondary text-xs">{formatDate(val)}</span>,
+    },
   ];
 
   const rowActions = [
+    { key: "view", label: "View Profile", icon: Eye, onClick: (row: Contact) => openDetail(row) },
+    { key: "edit", label: "Edit Contact", icon: Edit2, onClick: (row: Contact) => openEdit(row) },
     {
-      key: "print",
-      label: "Print",
-      icon: Printer,
-      onClick: (row: Seller) => printRecord(`Seller ${row.tid}`, [
+      key: "addRole", label: "Add Role", icon: ChevronRight,
+      onClick: (row: Contact) => openAddRole(row),
+      hidden: (row: Contact) => row.role.includes("both") || (row.role.includes("buyer") && row.role.includes("seller")),
+    },
+    {
+      key: "comm", label: "Send Communication", icon: Mail,
+      onClick: (row: Contact) => openComm(row),
+    },
+    {
+      key: "archive", label: "Archive Contact", icon: Archive,
+      onClick: (row: Contact) => { if (confirm("Archive this contact?")) archiveContact(row); },
+    },
+    {
+      key: "print", label: "Print", icon: Printer,
+      onClick: (row: Contact) => printRecord(`Contact ${row.tid}`, [
         { label: "Name", value: row.name },
         { label: "Email", value: row.email || "—" },
         { label: "Phone", value: row.phone || "—" },
-        { label: "Address", value: row.address || "—" },
-      ])
-    }
+        { label: "City", value: row.city || "—" },
+        { label: "KYC", value: row.kyc_status },
+        { label: "Role", value: row.role },
+      ]),
+    },
   ];
 
   return (
     <>
       <SmartTable
         storageKey="rems_sellers"
-        data={sellers}
+        data={contacts}
         columns={columns}
         rowActions={rowActions}
         loading={loading}
         total={total}
-        onParamsChange={fetchSellers}
+        onParamsChange={fetchContacts}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Pending", value: "pending" },
+          { label: "In Review", value: "in_review" },
+          { label: "Verified", value: "verified" },
+          { label: "Rejected", value: "rejected" },
+        ]}
+        showTypeFilter={true}
+        typeOptions={[
+          { label: "All Cities", value: "" },
+          ...[...new Set(contacts.map(c => c.city).filter(Boolean))].map(c => ({ label: c!, value: c! })),
+        ]}
         showDateFilter={true}
         toolbarActions={
-          <button type="button" onClick={() => { reset(); setOpen(true); }}
-            className="btn-primary flex items-center gap-2 px-3 py-2 text-xs">
-            <Plus size={13} /> New Seller
+          <button type="button" onClick={openAdd}
+            className="btn-property flex items-center gap-2 px-3 py-2 text-xs">
+            <Plus size={13} /> Add Seller
           </button>
         }
       />
 
-      <Modal open={open} onClose={() => setOpen(false)} title="New Seller">
-        <form onSubmit={submit} className="space-y-3">
-          <input className="input-dark w-full px-4 py-2.5 text-sm" value={name}
-            onChange={(e) => setName(e.target.value)} placeholder="Full name *" required />
-          <input className="input-dark w-full px-4 py-2.5 text-sm" type="email" value={email}
-            onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input className="input-dark w-full px-4 py-2.5 text-sm" value={phone}
-            onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-          <input className="input-dark w-full px-4 py-2.5 text-sm" value={address}
-            onChange={(e) => setAddr(e.target.value)} placeholder="Address" />
-          <textarea className="input-dark w-full px-4 py-2.5 text-sm resize-none" rows={2} value={notes}
-            onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
-          <button className="btn-primary w-full py-3 text-sm mt-1" type="submit">Save Seller</button>
-        </form>
-      </Modal>
+      <AddSellerDialog
+        isOpen={addOpen}
+        onClose={() => { setAddOpen(false); setEditingContact(null); }}
+        onSaved={onRefresh}
+        editContact={editingContact}
+      />
+
+      <SellerProfileDialog
+        isOpen={profileOpen}
+        onClose={() => { setProfileOpen(false); setProfileContactId(null); }}
+        contactId={profileContactId}
+      />
+
+      <LogInteractionDialog
+        isOpen={commOpen}
+        onClose={() => setCommOpen(false)}
+        onSaved={() => {}}
+        contactId={commContactId}
+      />
+
+      <AddRoleDialog
+        isOpen={addRoleOpen}
+        onClose={() => setAddRoleOpen(false)}
+        onSaved={refreshTable}
+        contactId={addRoleContactId}
+        initialRole={addRoleValue}
+      />
     </>
   );
 }

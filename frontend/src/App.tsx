@@ -11,6 +11,7 @@ import FeatureGuard from "./components/FeatureGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
 import { ErrorTrackerPanel } from "./components/ErrorTracker";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import UpdateNotification from "./components/UpdateNotification";
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
@@ -30,6 +31,7 @@ import CRMPage from "./pages/CRM";
 import LeadDetail from "./pages/crm/LeadDetail";
 import ClientDetail from "./pages/crm/ClientDetail";
 import DealDetail from "./pages/crm/DealDetail";
+import DealerDetail from "./pages/crm/DealerDetail";
 import InstallmentPlanBuilder from "./pages/crm/InstallmentPlanBuilder";
 import FinancePage from "./pages/Finance";
 import AdminPage from "./pages/Admin";
@@ -88,7 +90,7 @@ function DisabledModule() {
   return (
     <div className="flex flex-col items-center justify-center h-full py-24 text-center">
       <p className="text-2xl font-semibold mb-2">Module Disabled</p>
-      <p className="text-gray-500">This module is not enabled for your company.</p>
+      <p className="text-muted">This module is not enabled for your company.</p>
     </div>
   );
 }
@@ -262,6 +264,15 @@ export default function App() {
             <CompanyLayout>
               <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                 <InstallmentPlanBuilder />
+              </FeatureGuard>
+            </CompanyLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/crm/dealers/:id" element={
+          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <CompanyLayout>
+              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                <DealerDetail />
               </FeatureGuard>
             </CompanyLayout>
           </ProtectedRoute>
@@ -469,6 +480,7 @@ export default function App() {
         <Route path="*" element={<Navigate to={token ? "/" : "/login"} replace />} />
       </Routes>
       <ToastContainer />
+      <UpdateNotification />
       <ErrorTrackerPanel />
     </>
   );

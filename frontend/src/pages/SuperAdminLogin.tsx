@@ -31,34 +31,34 @@ export default function SuperAdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#080a12] text-white px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/80 p-8 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+    <div className="min-h-screen flex items-center justify-center bg-base text-primary px-4 py-10">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-base/80 p-8 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
         <div className="mb-8 text-center">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Super Admin</p>
           <h1 className="mt-3 text-3xl font-semibold text-white">Super Admin Login</h1>
-          <p className="mt-2 text-sm text-slate-400">Access the master tenant admin console.</p>
+          <p className="mt-2 text-sm text-muted">Access the master tenant admin console.</p>
         </div>
 
         <form onSubmit={submit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-300">Email</label>
+            <label className="block text-sm font-medium text-secondary">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-500"
+              className="mt-2 w-full rounded-2xl border border-theme bg-surface px-4 py-3 text-white outline-none transition focus:border-cyan-500"
               placeholder="admin@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300">Password</label>
+            <label className="block text-sm font-medium text-secondary">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-500"
+              className="mt-2 w-full rounded-2xl border border-theme bg-surface px-4 py-3 text-white outline-none transition focus:border-cyan-500"
               placeholder="Enter your password"
               required
             />

@@ -70,20 +70,20 @@ function SimpleTreeNode({
   return (
     <div>
       <div 
-        className="flex items-center gap-2 p-2 hover:bg-gray-800 cursor-pointer"
+        className="flex items-center gap-2 p-2 hover:bg-hover cursor-pointer"
         style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={handleClick}
       >
         {account.children.length > 0 && (
           <button 
             onClick={handleToggle}
-            className="w-4 h-4 text-gray-400 hover:text-gray-200"
+            className="w-4 h-4 text-muted hover:text-primary"
           >
             {expanded ? '▼' : '▶'}
           </button>
         )}
         
-        <span className="font-mono text-xs text-gray-400">{account.code}</span>
+        <span className="font-mono text-xs text-muted">{account.code}</span>
         <span className="text-sm flex-1">{account.name}</span>
         
         {account.balance !== 0 && (
@@ -93,7 +93,7 @@ function SimpleTreeNode({
         )}
         
         {!account.is_active && (
-          <span className="text-xs px-2 py-1 bg-gray-700 text-gray-400 rounded">
+          <span className="text-xs px-2 py-1 bg-tertiary text-muted rounded">
             Inactive
           </span>
         )}
@@ -157,7 +157,7 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
       <div className="p-8 text-center">
         <AlertCircle size={48} className="mx-auto mb-4 text-red-400" />
         <h3 className="text-lg font-semibold text-red-400 mb-2">Error Loading Accounts</h3>
-        <p className="text-sm text-gray-400 mb-4">{error}</p>
+        <p className="text-sm text-muted mb-4">{error}</p>
         <button 
           onClick={loadData}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -171,10 +171,10 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
   return (
     <div className="h-full flex">
       {/* Left Panel - Account Tree */}
-      <div className="flex-1 border-r border-gray-700">
-        <div className="p-4 border-b border-gray-700">
+      <div className="flex-1 border-r border-theme">
+        <div className="p-4 border-b border-theme">
           <div className="flex items-center gap-2">
-            <BookOpen size={16} className="text-gray-400" />
+            <BookOpen size={16} className="text-muted" />
             <h2 className="text-sm font-semibold">Chart of Accounts (Minimal)</h2>
           </div>
         </div>
@@ -183,12 +183,12 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-sm text-gray-400">Loading accounts...</p>
+              <p className="text-sm text-muted">Loading accounts...</p>
             </div>
           ) : accounts.length === 0 ? (
             <div className="p-8 text-center">
-              <BookOpen size={32} className="mx-auto mb-4 text-gray-500 opacity-50" />
-              <p className="text-sm text-gray-400">No accounts found</p>
+              <BookOpen size={32} className="mx-auto mb-4 text-muted opacity-50" />
+              <p className="text-sm text-muted">No accounts found</p>
             </div>
           ) : (
             <div className="p-2">
@@ -211,29 +211,29 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
             <h3 className="text-lg font-semibold mb-2">{selected.name}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Code:</span>
+                <span className="text-muted">Code:</span>
                 <span className="font-mono">{selected.code}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Type:</span>
+                <span className="text-muted">Type:</span>
                 <span>{selected.account_type}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Balance:</span>
+                <span className="text-muted">Balance:</span>
                 <span className="font-semibold">
                   {formatSimpleCurrency(selected.balance)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Status:</span>
-                <span className={selected.is_active ? 'text-green-400' : 'text-gray-400'}>
+                <span className="text-muted">Status:</span>
+                <span className={selected.is_active ? 'text-green-400' : 'text-muted'}>
                   {selected.is_active ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-400">
+          <div className="text-center text-muted">
             <BookOpen size={32} className="mx-auto mb-4 opacity-50" />
             <p className="text-sm">Select an account to view details</p>
           </div>

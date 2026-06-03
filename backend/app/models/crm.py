@@ -1,9 +1,12 @@
-"""CRM models — Leads, Clients, Dealers, Deals, InstallmentPlans, Communications, Activities."""
+"""CRM models — Enterprise Real Estate CRM.
+Includes: Leads, Clients, Dealers, Deals, FollowUps, SiteVisits,
+InstallmentPlans, Payments, Communications, Activities, Timeline, Audit.
+"""
 from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, ForeignKey, Integer,
-    Numeric, String, Text,
+    Numeric, String, Text, JSON,
 )
 from sqlalchemy.orm import relationship
 
@@ -18,15 +21,147 @@ class Lead(Base):
 
     id         = Column(Integer, primary_key=True)
     lead_id    = Column(String(20), unique=True, nullable=False)
+
+    # Identity
     name       = Column(String(120), nullable=False)
     phone      = Column(String(50), nullable=True)
+    whatsapp   = Column(String(50), nullable=True)
     email      = Column(String(255), nullable=True)
+    cnic       = Column(String(20), nullable=True)
+    address    = Column(Text, nullable=True)
+    city       = Column(String(80), nullable=True)
+
+    # Business
+    occupation   = Column(String(120), nullable=True)
+    company      = Column(String(120), nullable=True)
+    monthly_income = Column(Numeric(14, 2), nullable=True)
+
+    # Property Interest
+    budget_min           = Column(Numeric(14, 2), nullable=True)
+    budget_max           = Column(Numeric(14, 2), nullable=True)
+    preferred_town       = Column(String(80), nullable=True)
+    preferred_property_type = Column(String(80), nullable=True)
+    unit_preference      = Column(String(80), nullable=True)
+
+    # Acquisition
     source     = Column(String(80), nullable=True)
+    campaign   = Column(String(120), nullable=True)
+    referral   = Column(String(120), nullable=True)
+    assigned_dealer_id = Column(Integer, ForeignKey("dealers.id"), nullable=True)
+
+    # Tag: investor | end_user
+    investor_type = Column(String(20), nullable=True)
+
+    # Status: new | contacted | interested | site_visit_scheduled | site_visit_completed | negotiation | converted | lost
+    status     = Column(String(30), nullable=False, default="new")
     notes      = Column(Text, nullable=True)
-    status     = Column(String(20), nullable=False, default="new")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    client        = relationship("Client", back_populates="lead", uselist=False)
+    assigned_dealer = relationship("Dealer", foreign_keys=[assigned_dealer_id])
+    followups     = relationship("FollowUp", back_populates="lead", cascade="all, delete-orphan")
+    site_visits   = relationship("SiteVisit", back_populates="lead", cascade="all, delete-orphan")
+
+
+# ── FollowUp ──────────────────────────────────────────────────────────────────
+
+class FollowUp(Base):
+    """Dedicated follow-up management."""
+    __tablename__ = "followups"
+
+    id      = Column(Integer, primary_key=True)
+    fu_id   = Column(String(20), unique=True, nullable=False)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    date        = Column(Date, nullable=False)
+    time        = Column(String(10), nullable=True)  # HH:MM
+    # type: call | whatsapp | sms | meeting | email
+    fu_type     = Column(String(20), nullable=False, default="call")
+    # status: pending | completed | missed
+    fu_status   = Column(String(20), nullable=False, default="pending")
+    notes       = Column(Text, nullable=True)
+    reminded    = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    lead = relationship("Lead", back_populates="followups")
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
+
+
+# ── SiteVisit ─────────────────────────────────────────────────────────────────
+
+class SiteVisit(Base):
+    """Site visit management."""
+    __tablename__ = "site_visits"
+
+    id          = Column(Integer, primary_key=True)
+    visit_id    = Column(String(20), unique=True, nullable=False)
+    lead_id     = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True)
+    dealer_id   = Column(Integer, ForeignKey("dealers.id"), nullable=True)
+
+    date       = Column(Date, nullable=False)
+    time       = Column(String(10), nullable=True)
+    # status: scheduled | completed | cancelled | no_show
+    sv_status  = Column(String(20), nullable=False, default="scheduled")
+    remarks    = Column(Text, nullable=True)
+    # Post-visit client feedback (filled when status changes to completed)
+    feedback   = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    client = relationship("Client", back_populates="lead", uselist=False)
+    lead     = relationship("Lead", back_populates="site_visits")
+    property = relationship("Property", foreign_keys=[property_id])
+    dealer   = relationship("Dealer", foreign_keys=[dealer_id])
+
+
+# ── Payment (standalone) ──────────────────────────────────────────────────────
+
+class Payment(Base):
+    """Standalone payment record — can be linked to deals, bookings, or installments."""
+    __tablename__ = "crm_payments"
+
+    id          = Column(Integer, primary_key=True)
+    payment_id  = Column(String(20), unique=True, nullable=False)
+    client_id   = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
+    deal_id     = Column(Integer, ForeignKey("deals.id"), nullable=True)
+    booking_id  = Column(Integer, ForeignKey("bookings.id"), nullable=True)
+    installment_id = Column(Integer, ForeignKey("installments.id"), nullable=True)
+
+    amount          = Column(Numeric(14, 2), nullable=False)
+    payment_date    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    payment_method  = Column(String(30), nullable=False, default="cash")
+    receipt_number  = Column(String(100), nullable=True)
+    reference       = Column(String(255), nullable=True)
+    notes           = Column(Text, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    journal_id = Column(Integer, ForeignKey("journals.id"), nullable=True)
+
+    client      = relationship("Client", foreign_keys=[client_id])
+    deal        = relationship("Deal", foreign_keys=[deal_id])
+    booking     = relationship("Booking", foreign_keys=[booking_id])
+    installment = relationship("Installment", foreign_keys=[installment_id])
+    journal     = relationship("Journal", foreign_keys=[journal_id])
+
+
+# ── CrmTimelineEntry (Centralized Timeline) ───────────────────────────────────
+
+class CrmTimelineEntry(Base):
+    """Centralized timeline engine for all CRM entities."""
+    __tablename__ = "crm_timeline_entries"
+
+    id          = Column(Integer, primary_key=True)
+    entity_type = Column(String(30), nullable=False, index=True)  # lead | client | dealer | deal | booking
+    entity_id   = Column(Integer, nullable=False, index=True)
+    action      = Column(String(50), nullable=False)  # lead_created | lead_converted | followup_added | visit_scheduled | deal_created | deal_won | booking_created | payment_received | etc.
+    description = Column(Text, nullable=True)
+    old_value   = Column(String(255), nullable=True)
+    new_value   = Column(String(255), nullable=True)
+    performed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    performed_by = relationship("User", foreign_keys=[performed_by_id])
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -38,17 +173,34 @@ class Client(Base):
     client_id              = Column(String(20), unique=True, nullable=False)
     tracking_id            = Column(String(20), unique=True, nullable=False)
     lead_id                = Column(Integer, ForeignKey("leads.id"), nullable=True)
+
+    # Personal
     name                   = Column(String(120), nullable=False)
     phone                  = Column(String(50), nullable=True)
+    whatsapp               = Column(String(50), nullable=True)
     email                  = Column(String(255), nullable=True)
-    cnic                   = Column(String(20), nullable=True)          # XXXXX-XXXXXXX-X
-    status                 = Column(String(20), nullable=False, default="active")  # active|inactive|potential
-    company_name           = Column(String(120), nullable=True)
+    cnic                   = Column(String(20), nullable=True)
     address                = Column(Text, nullable=True)
+    mailing_address        = Column(Text, nullable=True)
+    permanent_address      = Column(Text, nullable=True)
+    city                   = Column(String(80), nullable=True)
+
+    # Business
+    company_name           = Column(String(120), nullable=True)
+    occupation             = Column(String(120), nullable=True)
+
+    # Next of Kin
+    next_of_kin_name       = Column(String(120), nullable=True)
+    next_of_kin_cnic       = Column(String(20), nullable=True)
+    next_of_kin_phone      = Column(String(50), nullable=True)
+
+    # Status: active | inactive | potential
+    status                 = Column(String(20), nullable=False, default="active")
     dealer_id              = Column(Integer, ForeignKey("dealers.id"), nullable=True)
     interested_property_id = Column(Integer, ForeignKey("properties.id"), nullable=True)
     notes                  = Column(Text, nullable=True)
     created_at             = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at             = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     lead                = relationship("Lead", back_populates="client")
     assigned_dealer     = relationship("Dealer", foreign_keys=[dealer_id])
@@ -93,6 +245,8 @@ class Dealer(Base):
     cnic             = Column(String(20), nullable=True)
     address          = Column(Text, nullable=True)
     notes            = Column(Text, nullable=True)
+    is_active        = Column(Boolean, nullable=False, default=True)
+    monthly_target   = Column(Numeric(12, 2), nullable=True)
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     deals       = relationship("Deal", back_populates="dealer")
@@ -128,11 +282,8 @@ class InstallmentType(Base):
 
 class Deal(Base):
     """
-    Negotiation record only. Deals track the sales pipeline and proposed terms.
-    They do NOT own financial data, installment plans, or payments.
-
-    Status: open | negotiating | won | lost
-    When status → won: a Booking should be created to capture the financial commitment.
+    Deal with full lifecycle: draft → negotiation → won → lost / cancelled.
+    When status becomes `won`, a Booking should be created automatically.
     """
     __tablename__ = "deals"
 
@@ -149,23 +300,27 @@ class Deal(Base):
     deal_title   = Column(String(255), nullable=True)
     client_role  = Column(String(20), nullable=True)   # Buyer | Seller | Investor
 
-    # ── Negotiation fields (proposed, not final) ──────────────────────────────
-    deal_value                 = Column(Numeric(14, 2), nullable=False)  # proposed price
-    proposed_discount          = Column(Numeric(14, 2), nullable=True)
-    proposed_installment_type  = Column(String(30), nullable=True)  # monthly|quarterly|etc.
+    # ── Financial ─────────────────────────────────────────────────────────────
+    deal_value      = Column(Numeric(14, 2), nullable=False)  # proposed price
+    down_payment    = Column(Numeric(14, 2), nullable=True)
+    discount        = Column(Numeric(14, 2), nullable=True)
+    tax             = Column(Numeric(14, 2), nullable=True)
+    commission      = Column(Numeric(14, 2), nullable=True)
+    net_amount      = Column(Numeric(14, 2), nullable=True)
+
+    proposed_installment_type  = Column(String(30), nullable=True)
     proposed_installment_count = Column(Integer, nullable=True)
     negotiation_notes          = Column(Text, nullable=True)
 
-    # ── Pipeline ──────────────────────────────────────────────────────────────
-    # status: open | negotiating | won | lost
-    # Legacy values (pending|closed|cancelled) are treated as: pending→open,
-    # closed→won, cancelled→lost at the application layer.
-    status     = Column(String(20), nullable=False, default="open")
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+    # draft → negotiation → won → lost → cancelled
+    status     = Column(String(20), nullable=False, default="draft")
     deal_date  = Column(Date, nullable=True)
     due_date   = Column(Date, nullable=True)
     description = Column(Text, nullable=True)
     notes      = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     client      = relationship("Client", back_populates="deals")
     dealer      = relationship("Dealer", back_populates="deals")
@@ -173,7 +328,6 @@ class Deal(Base):
     unit        = relationship("Unit",     foreign_keys=[unit_id])
     attachments = relationship("DealAttachment", back_populates="deal",
                                cascade="all, delete-orphan")
-    # Bookings created from this deal (one deal can produce one booking)
     bookings    = relationship("Booking", foreign_keys="Booking.deal_id",
                                back_populates="deal")
 
@@ -308,3 +462,18 @@ class LeadActivity(Base):
     notified    = Column(Boolean, nullable=False, default=False)
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+# ── AutomationRule ────────────────────────────────────────────────────────────
+
+class AutomationRule(Base):
+    """CRM automation rules: trigger → action mapping."""
+    __tablename__ = "automation_rules"
+
+    id          = Column(Integer, primary_key=True)
+    name        = Column(String(120), nullable=False)
+    trigger     = Column(String(50), nullable=False)   # lead_converted | deal_won | booking_confirmed | installment_overdue | payment_received
+    action      = Column(String(50), nullable=False)   # create_client | suggest_booking | generate_installments | create_reminder | update_balance
+    config      = Column(JSON, nullable=True)           # rule-specific config
+    enabled     = Column(Boolean, default=True, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)

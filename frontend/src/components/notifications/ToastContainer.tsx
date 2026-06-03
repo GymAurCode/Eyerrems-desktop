@@ -12,7 +12,7 @@ const PRIORITY_ICONS: Record<string, React.ReactNode> = {
   urgent: <AlertCircle size={16} className="text-red-400 shrink-0" />,
   high:   <AlertTriangle size={16} className="text-orange-400 shrink-0" />,
   medium: <Bell size={16} className="text-blue-400 shrink-0" />,
-  low:    <Info size={16} className="text-gray-400 shrink-0" />,
+  low:    <Info size={16} className="text-muted shrink-0" />,
 };
 
 export default function ToastContainer() {

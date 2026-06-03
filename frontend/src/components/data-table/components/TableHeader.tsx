@@ -1,8 +1,3 @@
-/**
- * TableHeader Component
- * Professional table header with sorting and selection
- */
-
 import React from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { TableColumn, SortConfig } from '../types';
@@ -35,13 +30,10 @@ export default function TableHeader<T = any>({
 
   const handleSort = (columnKey: string) => {
     if (!onSort) return;
-
     let direction: 'asc' | 'desc' = 'asc';
-    
     if (sortConfig?.key === columnKey) {
       direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
     }
-
     onSort({ key: columnKey, direction });
   };
 
@@ -57,70 +49,64 @@ export default function TableHeader<T = any>({
     if (!sortConfig || sortConfig.key !== columnKey) {
       return <ArrowUpDown size={12} className="opacity-40" />;
     }
-    
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp size={12} className="text-blue-400" />
-      : <ArrowDown size={12} className="text-blue-400" />;
+    return sortConfig.direction === 'asc'
+      ? <ArrowUp size={12} style={{ color: 'var(--table-header-text)' }} />
+      : <ArrowDown size={12} style={{ color: 'var(--table-header-text)' }} />;
   };
 
-  const headerClasses = `
-    px-4 py-3 text-left text-xs font-bold uppercase tracking-wider
-    border-b border-border bg-card text-foreground
-    ${stickyHeader ? 'sticky top-0 z-10' : ''}
-  `.trim();
+  const headerBase: React.CSSProperties = {
+    padding: '0 16px',
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    color: 'var(--table-header-text)',
+    background: 'var(--table-header-bg)',
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+    height: 44,
+  };
 
   return (
     <thead>
-      <tr>
-        {/* Selection column */}
+      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
         {selectable && (
-          <th className={`${headerClasses} w-12`}>
-            <div className="flex items-center justify-center">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                ref={(input) => {
-                  if (input) {
-                    input.indeterminate = isPartiallySelected;
-                  }
-                }}
-                onChange={handleSelectAll}
-                className="w-4 h-4 rounded border-border bg-background text-blue-600 focus:ring-blue-500 focus:ring-2"
-              />
-            </div>
+          <th style={{ ...headerBase, width: 48 }}>
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              ref={(input) => {
+                if (input) input.indeterminate = isPartiallySelected;
+              }}
+              onChange={handleSelectAll}
+            />
           </th>
         )}
 
-        {/* Data columns */}
         {columns.map((column) => {
-          const isSortable = column.sortable !== false && onSort;
-          const width = column.width;
-          const align = column.align || 'left';
-          
+          const isSortable = column.sortable !== false && !!onSort;
           return (
             <th
               key={column.key}
-              className={`
-                ${headerClasses} 
-                ${column.headerClassName || ''} 
-                ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}
-                ${isSortable ? 'cursor-pointer hover:bg-background/80 select-none' : ''}
-              `.trim()}
-              style={{ width }}
+              style={{
+                ...headerBase,
+                width: column.width,
+                textAlign: column.align || 'left',
+                cursor: isSortable ? 'pointer' : undefined,
+                userSelect: 'none',
+                background: sortConfig?.key === column.key ? 'var(--table-row-hover)' : undefined,
+              }}
               onClick={isSortable ? () => handleSort(column.key) : undefined}
+              onMouseEnter={e => { if (isSortable) e.currentTarget.style.background = 'var(--table-row-hover)' }}
+              onMouseLeave={e => { if (isSortable) e.currentTarget.style.background = sortConfig?.key === column.key ? 'var(--table-row-hover)' : '' }}
             >
-              <div className={`flex items-center gap-2 ${
-                align === 'center' ? 'justify-center' : 
-                align === 'right' ? 'justify-end' : 'justify-start'
-              }`}>
-                <span className="truncate">{column.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{column.label}</span>
                 {isSortable && getSortIcon(column.key)}
               </div>
             </th>
           );
         })}
-
-        {/* Actions column placeholder - will be handled by parent */}
       </tr>
     </thead>
   );

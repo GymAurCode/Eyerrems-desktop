@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import Modal from "../components/Modal";
 import { auditApi, type AuditLogEntry, type AuditLogsResponse, type AuditStats } from "../lib/auditApi";
+import { DataTable } from "../components/data-table";
 
 const MODULES = ["All Modules", "Property", "Tenant", "CRM", "HR", "Maintenance", "Finance", "User", "Settings", "Construction"];
 const ACTIONS = ["All Actions", "CREATE", "UPDATE", "DELETE"];
@@ -94,56 +95,36 @@ function DiffSummary({ diff }: { diff: Record<string, { from: any; to: any }> | 
   );
 }
 
-function DataTable({ rows }: { rows: Record<string, any> }) {
+function FieldValueTable({ rows }: { rows: Record<string, any> }) {
   if (!rows || Object.keys(rows).length === 0) return <p className="text-xs text-muted py-4 text-center">No data</p>;
   return (
-    <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border)" }}>
-      <table className="w-full text-xs">
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--hover-bg-sm)" }}>
-            <th className="text-left px-4 py-2 text-muted font-semibold uppercase tracking-wider w-1/3">Field</th>
-            <th className="text-left px-4 py-2 text-muted font-semibold uppercase tracking-wider">Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(rows).map(([key, value]) => (
-            <tr key={key} className="row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-              <td className="px-4 py-2 font-medium text-secondary font-mono">{key}</td>
-              <td className="px-4 py-2 text-primary">{value ?? "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      data={Object.entries(rows).map(([k, v]) => ({ key: k, value: v }))}
+      columns={[
+        { key: "key", label: "Field", render: (val) => <span className="font-medium text-secondary font-mono">{val}</span> },
+        { key: "value", label: "Value", render: (val) => <span className="text-primary">{val ?? "—"}</span> },
+      ]}
+      variant="bordered"
+      searchable={false}
+      emptyTitle="No data"
+    />
   );
 }
 
 function DiffTable({ diff }: { diff: Record<string, { from: any; to: any }> }) {
+  const data = Object.entries(diff).map(([k, v]) => ({ field: k, from: v?.from, to: v?.to }));
   return (
-    <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border)" }}>
-      <table className="w-full text-xs">
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--hover-bg-sm)" }}>
-            <th className="text-left px-4 py-2 text-muted font-semibold uppercase tracking-wider">Field</th>
-            <th className="text-left px-4 py-2 text-muted font-semibold uppercase tracking-wider">Before</th>
-            <th className="text-left px-4 py-2 text-muted font-semibold uppercase tracking-wider">After</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(diff).map(([key, val]) => (
-            <tr key={key} className="row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-              <td className="px-4 py-2 font-medium text-secondary font-mono">{key}</td>
-              <td className="px-4 py-2">
-                <span className="text-red-400 line-through">{val?.from ?? "—"}</span>
-              </td>
-              <td className="px-4 py-2">
-                <span className="text-emerald-400">{val?.to ?? "—"}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      data={data}
+      columns={[
+        { key: "field", label: "Field", render: (val) => <span className="font-medium text-secondary font-mono">{val}</span> },
+        { key: "from", label: "Before", render: (val) => <span className="text-red-400 line-through">{val ?? "—"}</span> },
+        { key: "to", label: "After", render: (val) => <span className="text-emerald-400">{val ?? "—"}</span> },
+      ]}
+      variant="bordered"
+      searchable={false}
+      emptyTitle="No changes"
+    />
   );
 }
 
@@ -196,8 +177,8 @@ function ViewDetailsModal({ log, open, onClose }: { log: AuditLogEntry | null; o
         <div style={{ borderTop: "1px solid var(--border)" }} className="pt-4">
           <p className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Changes</p>
           {log.action === "UPDATE" && log.diff && <DiffTable diff={log.diff} />}
-          {log.action === "CREATE" && log.new_data && <DataTable rows={log.new_data} />}
-          {log.action === "DELETE" && log.old_data && <DataTable rows={log.old_data} />}
+          {log.action === "CREATE" && log.new_data && <FieldValueTable rows={log.new_data} />}
+          {log.action === "DELETE" && log.old_data && <FieldValueTable rows={log.old_data} />}
           {log.action === "UPDATE" && !log.diff && (
             <p className="text-xs text-muted py-4 text-center">No diff data available</p>
           )}
@@ -330,92 +311,34 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="card-dark overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-10 text-center">
-            <div className="w-5 h-5 border border-white/20 border-t-white rounded-full animate-spin mx-auto" />
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="p-10 text-center">
-            <Clock size={28} className="text-muted mx-auto mb-2" />
-            <p className="text-secondary text-sm">No activity logs found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Date & Time", "Module", "Action", "Record", "Changed By", "Changes", ""].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="transition-colors row-hover" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td className="px-4 py-3 text-secondary whitespace-nowrap text-[11px]">
-                      {formatDate(log.created_at)}
-                    </td>
-                    <td className="px-4 py-3"><ModuleBadge module={log.module} /></td>
-                    <td className="px-4 py-3"><ActionBadge action={log.action} /></td>
-                    <td className="px-4 py-3 text-primary max-w-[160px] truncate font-medium">
-                      {log.record_label ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-secondary text-[11px]">{log.changed_by}</span>
-                        {log.changed_by_role && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
-                            {log.changed_by_role}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 max-w-[220px]">
-                      <DiffSummary diff={log.diff} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => { setSelectedLog(log); setShowDetails(true); }}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-lg transition-colors text-blue-400 hover:bg-blue-500/10"
-                        style={{ border: "1px solid rgba(59,130,246,0.2)" }}>
-                        <Eye size={11} /> View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
-            <p className="text-[10px] text-muted">
-              Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                <ChevronLeft size={14} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={`w-7 h-7 rounded-lg text-[11px] font-medium transition-all ${
-                    p === page ? "text-white" : "text-secondary hover:text-primary"
-                  }`}
-                  style={p === page ? { background: "linear-gradient(135deg,#3b82f6,#6366f1)" } : {}}>
-                  {p}
-                </button>
-              ))}
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                <ChevronRight size={14} />
-              </button>
+      <DataTable
+        data={logs}
+        loading={loading}
+        columns={[
+          { key: "created_at", label: "Date & Time", render: (val) => <span className="text-secondary whitespace-nowrap text-[11px]">{formatDate(val)}</span> },
+          { key: "module", label: "Module", render: (val) => <ModuleBadge module={val} /> },
+          { key: "action", label: "Action", render: (val) => <ActionBadge action={val} /> },
+          { key: "record_label", label: "Record", render: (val) => <span className="text-primary max-w-[160px] truncate font-medium">{val ?? "—"}</span> },
+          { key: "changed_by", label: "Changed By", render: (val, row) => (
+            <div className="flex items-center gap-1.5">
+              <span className="text-secondary text-[11px]">{val}</span>
+              {row.changed_by_role && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                  {row.changed_by_role}
+                </span>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          )},
+          { key: "diff", label: "Changes", render: (val) => <div className="max-w-[220px]"><DiffSummary diff={val} /></div> },
+        ]}
+        pagination={{ page, pageSize: perPage, total }}
+        onPaginationChange={(p) => setPage(p.page)}
+        searchable={false}
+        emptyTitle="No activity logs found"
+        emptyIcon={Clock}
+        onView={(row) => { setSelectedLog(row); setShowDetails(true); }}
+      />
 
       <ViewDetailsModal log={selectedLog} open={showDetails} onClose={() => setShowDetails(false)} />
     </div>

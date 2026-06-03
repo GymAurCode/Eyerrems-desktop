@@ -4,6 +4,7 @@
  */
 import { ArrowLeft, Edit2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { DataTable as DataTableImpl } from "../data-table";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DetailPage — outermost wrapper
@@ -221,39 +222,21 @@ export function DataTable({
   emptyText?: string;
   onRowClick?: (row: Record<string, React.ReactNode>, idx: number) => void;
 }) {
+  const dtColumns = columns.map((c) => ({
+    key: c.key,
+    label: c.label,
+    align: c.align || ("left" as const),
+    render: (_: any, row: any) => row[c.key],
+  }));
   return (
-    <div className="overflow-x-auto">
-      <table className="erp-table">
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key} className={`text-${c.align ?? "left"}`}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="text-center py-10" style={{ color: "var(--text-muted)" }}>
-                {emptyText}
-              </td>
-            </tr>
-          ) : (
-            rows.map((row, i) => (
-              <tr
-                key={i}
-                onClick={onRowClick ? () => onRowClick(row, i) : undefined}
-                style={{ cursor: onRowClick ? "pointer" : "default" }}
-              >
-                {columns.map((c) => (
-                  <td key={c.key} className={`text-${c.align ?? "left"}`}>{row[c.key]}</td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <DataTableImpl
+      data={rows}
+      columns={dtColumns}
+      searchable={false}
+      sortable={false}
+      emptyTitle={emptyText}
+      onRowClick={onRowClick ? (row, idx) => onRowClick(row as Record<string, React.ReactNode>, idx) : undefined}
+    />
   );
 }
 

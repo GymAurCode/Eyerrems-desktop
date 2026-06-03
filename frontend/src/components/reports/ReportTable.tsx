@@ -8,6 +8,8 @@
 import React from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { ReportColumn, ReportMeta, SortConfig } from "./types";
+import { DataTable } from "../data-table";
+import type { TableColumn, PaginationConfig, SortConfig as DTSortConfig } from "../data-table";
 
 interface Props {
   columns: ReportColumn[];
@@ -100,178 +102,41 @@ export default function ReportTable({
 }: Props) {
   const visible = columns.filter((c) => c.visible !== false);
 
-  const handleSort = (col: ReportColumn) => {
-    if (!col.sortable || !onSort) return;
-    const order = sortConfig?.key === col.key && sortConfig.order === "asc" ? "desc" : "asc";
-    onSort(col.key, order);
+  const dtColumns: TableColumn[] = visible.map((col) => ({
+    key: col.key,
+    label: col.label,
+    sortable: col.sortable,
+    align: (col.align || 'left') as 'left' | 'center' | 'right',
+    width: col.width,
+    render: (val: any) => formatCell(val, col),
+  }));
+
+  const handleSort = (config: DTSortConfig) => {
+    const order = config.direction === 'desc' ? 'desc' : 'asc';
+    onSort?.(config.key, order);
   };
 
-  // ── Loading skeleton ──────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr style={{ background: "var(--bg-surface2)" }}>
-              {visible.map((_, i) => (
-                <th key={i} className="px-3 py-2.5">
-                  <div className="h-3 rounded animate-pulse" style={{ background: "var(--border)" }} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 8 }).map((_, ri) => (
-              <tr key={ri} style={{ borderBottom: "1px solid var(--border)" }}>
-                {visible.map((_, ci) => (
-                  <td key={ci} className="px-3 py-2">
-                    <div
-                      className="h-3 rounded animate-pulse"
-                      style={{ background: "var(--border)", width: `${60 + Math.random() * 30}%` }}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
+  const handlePaginationChange = (config: PaginationConfig) => {
+    onPageChange?.(config.page);
+  };
+
+  const dtSortConfig: DTSortConfig | undefined = sortConfig ? { key: sortConfig.key, direction: sortConfig.order } : undefined;
 
   return (
-    <div>
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          {/* Header */}
-          <thead>
-            <tr style={{ background: "var(--bg-surface2)", borderBottom: "1px solid var(--border)" }}>
-              {visible.map((col) => (
-                <th
-                  key={col.key}
-                  className={`px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap select-none
-                    ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}
-                    ${col.sortable && onSort ? "cursor-pointer hover:opacity-80" : ""}
-                  `}
-                  style={{ color: "var(--text-muted)", width: col.width }}
-                  onClick={() => handleSort(col)}
-                >
-                  {col.label}
-                  {col.sortable && onSort && <SortIcon columnKey={col.key} sortConfig={sortConfig} />}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          {/* Body */}
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={visible.length}
-                  className="px-4 py-12 text-center"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="w-8 h-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="text-xs font-medium">No data available</p>
-                    <p className="text-[10px]">Try adjusting your filters</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, ri) => (
-                <tr
-                  key={ri}
-                  className="transition-colors duration-100"
-                  style={{
-                    borderBottom: "1px solid var(--border)",
-                    background: ri % 2 === 0 ? "transparent" : "var(--hover-bg-sm)",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover-bg)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = ri % 2 === 0 ? "transparent" : "var(--hover-bg-sm)")}
-                >
-                  {visible.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`px-3 py-2.5 whitespace-nowrap
-                        ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}
-                      `}
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {formatCell(row[col.key], col)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {showPagination && meta && meta.total_pages > 1 && (
-        <div
-          className="flex items-center justify-between px-3 py-2.5 border-t"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            Page {meta.page} of {meta.total_pages} · {meta.total_records.toLocaleString()} records
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onPageChange?.(meta.page - 1)}
-              disabled={meta.page <= 1}
-              className="px-2.5 py-1 text-[10px] rounded border transition-colors disabled:opacity-30"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-            >
-              Prev
-            </button>
-            {Array.from({ length: Math.min(5, meta.total_pages) }, (_, i) => {
-              let p: number;
-              if (meta.total_pages <= 5) p = i + 1;
-              else if (meta.page <= 3) p = i + 1;
-              else if (meta.page >= meta.total_pages - 2) p = meta.total_pages - 4 + i;
-              else p = meta.page - 2 + i;
-              return (
-                <button
-                  key={p}
-                  onClick={() => onPageChange?.(p)}
-                  className="px-2.5 py-1 text-[10px] rounded border transition-colors"
-                  style={{
-                    borderColor: p === meta.page ? "#3b82f6" : "var(--border)",
-                    background: p === meta.page ? "rgba(59,130,246,0.15)" : "transparent",
-                    color: p === meta.page ? "#60a5fa" : "var(--text-secondary)",
-                  }}
-                >
-                  {p}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => onPageChange?.(meta.page + 1)}
-              disabled={meta.page >= meta.total_pages}
-              className="px-2.5 py-1 text-[10px] rounded border transition-colors disabled:opacity-30"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Record count */}
-      {rows.length > 0 && (!showPagination || !meta || meta.total_pages <= 1) && (
-        <div className="px-3 py-2 border-t" style={{ borderColor: "var(--border)" }}>
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            {rows.length.toLocaleString()} record{rows.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      )}
-    </div>
+    <DataTable
+      data={rows}
+      columns={dtColumns}
+      loading={loading}
+      sortable={true}
+      sortConfig={dtSortConfig}
+      onSort={handleSort}
+      searchable={false}
+      pagination={meta ? { page: meta.page, pageSize: meta.page_size || 25, total: meta.total_records } : undefined}
+      onPaginationChange={handlePaginationChange}
+      emptyTitle="No data available"
+      emptyDescription="Try adjusting your filters"
+      bordered={false}
+      striped={true}
+    />
   );
 }

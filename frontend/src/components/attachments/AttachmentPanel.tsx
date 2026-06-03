@@ -135,9 +135,9 @@ export default function AttachmentPanel({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Paperclip size={16} className="text-blue-400" />
-          <h3 className="text-sm font-medium text-gray-200">{title}</h3>
+          <h3 className="text-sm font-medium text-primary">{title}</h3>
           {!loading && (
-            <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">
+            <span className="text-xs text-muted bg-tertiary px-1.5 py-0.5 rounded">
               {attachments.length}
             </span>
           )}
@@ -160,12 +160,12 @@ export default function AttachmentPanel({
 
       {/* Upload progress */}
       {uploading && (
-        <div className="mb-3 bg-gray-800/60 rounded p-2.5">
-          <div className="flex items-center gap-2 text-xs text-gray-300 mb-1">
+        <div className="mb-3 bg-tertiary/60 rounded p-2.5">
+          <div className="flex items-center gap-2 text-xs text-secondary mb-1">
             <Loader2 size={12} className="animate-spin" />
             Uploading {uploading}...
           </div>
-          <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-tertiary rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-500 rounded-full transition-all duration-200"
               style={{ width: `${uploadProgress}%` }}
@@ -176,7 +176,7 @@ export default function AttachmentPanel({
 
       {/* Loading state */}
       {loading && (
-        <div className="flex items-center justify-center py-4 text-gray-500 text-xs">
+        <div className="flex items-center justify-center py-4 text-muted text-xs">
           <Loader2 size={14} className="animate-spin mr-2" />
           Loading attachments...
         </div>
@@ -184,7 +184,7 @@ export default function AttachmentPanel({
 
       {/* Empty state */}
       {!loading && attachments.length === 0 && (
-        <div className="text-center py-6 text-gray-500 text-xs border border-dashed border-gray-700 rounded-lg">
+        <div className="text-center py-6 text-muted text-xs border border-dashed border-theme rounded-lg">
           No attachments yet. Click "Upload Files" to add.
         </div>
       )}
@@ -195,15 +195,15 @@ export default function AttachmentPanel({
           {attachments.map((att) => (
             <div
               key={att.id}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-800/40 hover:bg-gray-800/70 transition-colors group"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg bg-tertiary/40 hover:bg-hover transition-colors group"
             >
               {/* File icon */}
               <span className="text-lg shrink-0">{getFileIcon(att.file_type)}</span>
 
               {/* File info */}
               <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-200 truncate">{att.document_name}</p>
-                <p className="text-xs text-gray-500">
+                  <p className="text-sm text-primary truncate">{att.document_name}</p>
+                <p className="text-xs text-muted">
                   {formatFileSize(att.file_size_kb)} &middot;{" "}
                   {new Date(att.created_at).toLocaleDateString()}
                   {att.uploaded_by ? ` \u00B7 ${att.uploaded_by}` : ""}
@@ -214,21 +214,21 @@ export default function AttachmentPanel({
               <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setPreviewAttachment(att)}
-                  className="p-1.5 rounded text-gray-400 hover:text-blue-400 hover:bg-gray-700 transition-colors"
+                  className="p-1.5 rounded text-muted hover:text-blue-400 hover:bg-hover transition-colors"
                   title="View"
                 >
                   <Eye size={14} />
                 </button>
                 <button
                   onClick={() => handlePrint(att)}
-                  className="p-1.5 rounded text-gray-400 hover:text-green-400 hover:bg-gray-700 transition-colors"
+                  className="p-1.5 rounded text-muted hover:text-green-400 hover:bg-hover transition-colors"
                   title="Print"
                 >
                   <Printer size={14} />
                 </button>
                 <button
                   onClick={() => setDeleteTarget(att)}
-                  className="p-1.5 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 transition-colors"
+                  className="p-1.5 rounded text-muted hover:text-red-400 hover:bg-hover transition-colors"
                   title="Delete"
                 >
                   <Trash2 size={14} />

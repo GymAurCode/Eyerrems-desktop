@@ -5,7 +5,7 @@ from app.models.crm import (
     Client, ClientAttachment, Communication, Deal, DealAttachment,
     Dealer, DealerAttachment, Installment, InstallmentPayment, InstallmentPlan, InstallmentType, Lead,
 )
-from app.models.finance import Account, Commission, Expense, Invoice, Journal, JournalEntry, Payment
+from app.models.finance import Account, AuditLog, Commission, Expense, Invoice, Journal, JournalEntry, Payment, SyncLog
 from app.models.finance_operations import FinanceOperation
 from app.models.property import (
     Amenity, Buyer, Floor, Lease, Location,

@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
+const log = require("electron-log");
 const path = require("path");
 const fs = require("fs").promises;
 const fsSync = require("fs");
@@ -149,6 +151,8 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  setupAutoUpdater(mainWindow);
 }
 
 /**
@@ -180,6 +184,97 @@ function createPdfWindow(filePath) {
   });
 
   return pdfWindow;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUTO-UPDATER
+// ══════════════════════════════════════════════════════════════════════════════
+
+function setupAutoUpdater(mainWindow) {
+  if (!app.isPackaged) {
+    console.log("[Updater] Skipping auto-update in development mode");
+    return;
+  }
+
+  autoUpdater.logger = log;
+  autoUpdater.logger.transports.file.level = "info";
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(err => {
+      console.error("[Updater] Update check failed:", err.message);
+    });
+  }, 3000);
+
+  autoUpdater.on("update-available", (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Available",
+      message: `Version ${info.version} is available.`,
+      detail: `You are currently on version ${app.getVersion()}.\n\nWould you like to download and install the update now?`,
+      buttons: ["Download Update", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(result => {
+      if (result.response === 0) {
+        mainWindow.webContents.send("update-download-started");
+        autoUpdater.downloadUpdate();
+      }
+    });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.log("[Updater] App is up to date.");
+  });
+
+  autoUpdater.on("download-progress", (progressObj) => {
+    mainWindow.webContents.send("update-download-progress", {
+      percent: Math.round(progressObj.percent),
+      transferred: progressObj.transferred,
+      total: progressObj.total,
+      bytesPerSecond: progressObj.bytesPerSecond,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Ready",
+      message: "Update downloaded successfully.",
+      detail: `Version ${info.version} has been downloaded.\n\nThe application will restart to apply the update.`,
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(result => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  });
+
+  autoUpdater.on("error", (err) => {
+    console.error("[Updater] Error:", err.message);
+    if (!err.message.includes("net::") && !err.message.includes("404")) {
+      dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: "Update Check Failed",
+        message: "Could not check for updates.",
+        detail: "Please check your internet connection and try again later.",
+        buttons: ["OK"],
+      });
+    }
+  });
+
+  ipcMain.on("check-for-updates", () => {
+    autoUpdater.checkForUpdates().catch(err => {
+      console.error("[Updater] Manual check failed:", err.message);
+    });
+  });
+
+  ipcMain.handle("get-app-version", () => {
+    return app.getVersion();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -50,7 +50,7 @@ def create_option(
     log_action(
         db=db, module="settings", action="CREATE",
         record_id=str(row.id), record_label=f"Option: {row.code} ({row.category})",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in row.__dict__.items() if not k.startswith('_')},
     )
     return row
@@ -76,7 +76,7 @@ def update_option(
     log_action(
         db=db, module="settings", action="UPDATE",
         record_id=str(option_id), record_label=f"Option: {row.code} ({row.category})",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
     return row

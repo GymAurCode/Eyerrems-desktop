@@ -120,7 +120,7 @@ export default function ReportViewer({
       {/* Generation time */}
       {result && result.generation_time_ms > 0 && (
         <div className="text-right">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted">
             Generated in {result.generation_time_ms}ms
           </span>
         </div>

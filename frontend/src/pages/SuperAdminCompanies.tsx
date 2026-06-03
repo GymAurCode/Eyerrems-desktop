@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Plus, Edit2, Trash2, Pause, Play, Calendar, AlertTriangle } from "lucide-react";
+import { DataTable } from "../components/data-table";
 
 interface Company {
   id: number;
@@ -99,13 +100,13 @@ export default function SuperAdminCompanies() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="min-h-screen bg-base p-6 text-primary">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold">Companies</h1>
-            <p className="text-slate-400 mt-2">Manage all tenant companies and their lifecycle</p>
+            <p className="text-muted mt-2">Manage all tenant companies and their lifecycle</p>
           </div>
           <button
             onClick={() => setShowCreateForm(true)}
@@ -134,96 +135,57 @@ export default function SuperAdminCompanies() {
         )}
 
         {/* Companies Table */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-800/50">
-                  <th className="px-6 py-3 text-left font-semibold">Company</th>
-                  <th className="px-6 py-3 text-left font-semibold">Email</th>
-                  <th className="px-6 py-3 text-left font-semibold">Users</th>
-                  <th className="px-6 py-3 text-left font-semibold">Status</th>
-                  <th className="px-6 py-3 text-left font-semibold">Expires</th>
-                  <th className="px-6 py-3 text-left font-semibold">DB Size</th>
-                  <th className="px-6 py-3 text-left font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map((company) => (
-                  <tr key={company.id} className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium">{company.name}</p>
-                        <p className="text-xs text-slate-400">{company.slug}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">{company.email}</td>
-                    <td className="px-6 py-4">
-                      <div className="text-center">
-                        <p className="font-medium">{company.active_user_count}</p>
-                        <p className="text-xs text-slate-400">of {company.user_count}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                          company.status === "active"
-                            ? "bg-green-500/10 text-green-200"
-                            : "bg-yellow-500/10 text-yellow-200"
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        {company.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {company.is_expired ? (
-                        <span className="text-red-300 font-medium">Expired</span>
-                      ) : company.expiry_date ? (
-                        <span className="text-slate-300">
-                          {formatExpiryDate(company.expiry_date)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-slate-400">{formatBytes(company.db_size_bytes)}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            handleStatusChange(company.id, company.status === "active" ? "suspended" : "active")
-                          }
-                          className={`p-2 rounded-lg transition-colors ${
-                            company.status === "active"
-                              ? "hover:bg-red-500/10 text-slate-400 hover:text-red-400"
-                              : "hover:bg-green-500/10 text-slate-400 hover:text-green-400"
-                          }`}
-                          title={company.status === "active" ? "Suspend" : "Activate"}
-                        >
-                          {company.status === "active" ? <Pause size={16} /> : <Play size={16} />}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(company.id)}
-                          className="p-2 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {companies.length === 0 && (
-            <div className="p-12 text-center">
-              <p className="text-slate-400">No companies found</p>
-            </div>
-          )}
-        </div>
+        <DataTable
+          data={companies}
+          columns={[
+            { key: "name", label: "Company", render: (val, row) => (
+              <div>
+                <p className="font-medium">{val}</p>
+                <p className="text-xs text-muted">{row.slug}</p>
+              </div>
+            )},
+            { key: "email", label: "Email", render: (val) => <span className="text-secondary">{val}</span> },
+            { key: "active_user_count", label: "Users", render: (val, row) => (
+              <div className="text-center">
+                <p className="font-medium">{val}</p>
+                <p className="text-xs text-muted">of {row.user_count}</p>
+              </div>
+            )},
+            { key: "status", label: "Status", render: (val) => (
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                val === "active" ? "bg-green-500/10 text-green-200" : "bg-yellow-500/10 text-yellow-200"
+              }`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {val}
+              </span>
+            )},
+            { key: "expiry_date", label: "Expires", render: (val, row) => row.is_expired ? (
+              <span className="text-red-300 font-medium">Expired</span>
+            ) : val ? (
+              <span className="text-secondary">{formatExpiryDate(val)}</span>
+            ) : (
+              <span className="text-muted">—</span>
+            )},
+            { key: "db_size_bytes", label: "DB Size", render: (val) => <span className="text-muted">{formatBytes(val)}</span> },
+          ]}
+          rowActions={(row) => [
+            {
+              label: row.status === "active" ? "Suspend" : "Activate",
+              icon: row.status === "active" ? Pause : Play,
+              onClick: () => handleStatusChange(row.id, row.status === "active" ? "suspended" : "active"),
+              color: row.status === "active" ? "#ef4444" : "#10b981",
+            },
+            {
+              label: "Delete",
+              icon: Trash2,
+              onClick: () => handleDelete(row.id),
+              color: "#ef4444",
+            },
+          ]}
+          variant="bordered"
+          searchable={false}
+          emptyTitle="No companies found"
+        />
       </div>
     </div>
   );
@@ -269,7 +231,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full max-h-[90vh] overflow-y-auto p-8">
+      <div className="bg-surface rounded-3xl border border-theme max-w-lg w-full max-h-[90vh] overflow-y-auto p-8">
         <h2 className="text-2xl font-bold mb-6">Create Company</h2>
 
         {error && (
@@ -286,7 +248,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+              className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               placeholder="Acme Corp"
               required
             />
@@ -298,7 +260,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+              className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               placeholder="acme-corp"
               required
             />
@@ -311,7 +273,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                 placeholder="info@acme.com"
                 required
               />
@@ -322,7 +284,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                 placeholder="+1234567890"
               />
             </div>
@@ -334,7 +296,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
               <select
                 value={formData.plan}
                 onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               >
                 <option>starter</option>
                 <option>professional</option>
@@ -346,7 +308,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
               <select
                 value={formData.currency_code}
                 onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               >
                 <option>USD</option>
                 <option>EUR</option>
@@ -361,7 +323,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                 type="number"
                 value={formData.expiry_days}
                 onChange={(e) => setFormData({ ...formData, expiry_days: parseInt(e.target.value) })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                 min="1"
                 required
               />
@@ -369,7 +331,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
           </div>
 
           {/* Admin User Info */}
-          <hr className="border-slate-700" />
+          <hr className="border-theme" />
           <h3 className="font-semibold text-lg">Admin User</h3>
 
           <div>
@@ -383,7 +345,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                   admin_user: { ...formData.admin_user, email: e.target.value },
                 })
               }
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+              className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               placeholder="admin@acme.com"
               required
             />
@@ -400,7 +362,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                   admin_user: { ...formData.admin_user, name: e.target.value },
                 })
               }
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+              className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               placeholder="John Doe"
               required
             />
@@ -417,7 +379,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
                   admin_user: { ...formData.admin_user, password: e.target.value },
                 })
               }
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+              className="w-full bg-tertiary border border-theme rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
               placeholder="••••••••"
               required
             />
@@ -428,7 +390,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors"
+              className="flex-1 px-4 py-2 rounded-lg border border-theme hover:bg-hover transition-colors"
             >
               Cancel
             </button>

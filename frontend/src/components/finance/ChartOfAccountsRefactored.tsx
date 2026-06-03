@@ -35,7 +35,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
       isActive 
         ? 'bg-green-600/20 text-green-400' 
-        : 'bg-gray-600/20 text-gray-400'
+        : 'bg-gray-600/20 text-muted'
     }`}>
       {isActive ? 'Active' : 'Inactive'}
     </span>
@@ -111,7 +111,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
       width: 100,
       render: (value, row) => (
         <div className="flex items-center gap-2" style={{ paddingLeft: `${row.level * 20}px` }}>
-          <span className="font-mono text-xs text-gray-400">{value}</span>
+          <span className="font-mono text-xs text-muted">{value}</span>
         </div>
       ),
     },
@@ -120,7 +120,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
       label: 'Account Name',
       render: (value, row) => (
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-medium ${row.is_active ? 'text-gray-200' : 'text-gray-500'}`}>
+          <span className={`text-sm font-medium ${row.is_active ? 'text-primary' : 'text-muted'}`}>
             {value}
           </span>
         </div>
@@ -144,7 +144,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
             {formatCurrency(Math.abs(value))}
           </span>
         ) : (
-          <span className="text-gray-500">—</span>
+          <span className="text-muted">—</span>
         )
       ),
     },

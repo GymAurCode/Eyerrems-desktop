@@ -3,6 +3,7 @@ import { Plus, X, Check, Trash2, Search, Loader2 } from "lucide-react";
 import { lookupApi, LookupValue } from "../lib/lookupApi";
 import { invalidateLookupCache } from "../hooks/useLookup";
 import ConfirmDialog from "../components/actions/ConfirmDialog";
+import { DataTable } from "../components/data-table";
 
 const CATEGORY_LABELS: Record<string, string> = {
   property_type: "Property Type",
@@ -47,161 +48,14 @@ const slugify = (text: string): string =>
     .trim()
     .replace(/\s+/g, "_");
 
-function EditableRow({
-  item,
-  onSave,
-  onDelete,
-  isNew,
-  onCancelNew,
-}: {
-  item: Partial<LookupValue> & { id?: number };
-  onSave: (data: Partial<LookupValue> & { id?: number }) => Promise<void>;
-  onDelete: (id: number) => void;
-  isNew?: boolean;
-  onCancelNew?: () => void;
-}) {
-  const [label, setLabel] = useState(item.label ?? "");
-  const [value, setValue] = useState(item.value ?? "");
-  const [sortOrder, setSortOrder] = useState(item.sort_order ?? 0);
-  const [isDefault, setIsDefault] = useState(item.is_default ?? false);
-  const [isActive, setIsActive] = useState(item.is_active ?? true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (isNew && label && !value) {
-      setValue(slugify(label));
-    }
-  }, [label, isNew, value]);
-
-  const handleSave = async () => {
-    if (!label.trim() || !value.trim()) return;
-    setSaving(true);
-    try {
-      await onSave({
-        id: item.id,
-        label: label.trim(),
-        value: value.trim(),
-        sort_order: sortOrder,
-        is_default: isDefault,
-        is_active: isActive,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // error handled upstream
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <tr className="border-t" style={{ borderColor: "var(--border)" }}>
-      <td className="p-1.5">
-        <input
-          type="number"
-          value={sortOrder}
-          onChange={(e) => setSortOrder(Number(e.target.value))}
-          className="w-14 px-1.5 py-1 text-xs rounded outline-none text-center"
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-            color: "var(--text-primary)",
-          }}
-        />
-      </td>
-      <td className="p-1.5">
-        <input
-          type="text"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          className="w-full px-1.5 py-1 text-xs rounded outline-none"
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-            color: "var(--text-primary)",
-          }}
-        />
-      </td>
-      <td className="p-1.5">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="w-full px-1.5 py-1 text-xs rounded outline-none font-mono"
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-          }}
-        />
-      </td>
-      <td className="p-1.5 text-center">
-        <input
-          type="radio"
-          name="default-radio"
-          checked={isDefault}
-          onChange={() => setIsDefault(true)}
-        />
-      </td>
-      <td className="p-1.5 text-center">
-        <button
-          type="button"
-          onClick={() => setIsActive(!isActive)}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-            isActive ? "bg-green-500" : "bg-gray-600"
-          }`}
-        >
-          <span
-            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-              isActive ? "translate-x-4" : "translate-x-1"
-            }`}
-          />
-        </button>
-      </td>
-      <td className="p-1.5">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !label.trim() || !value.trim()}
-            className="p-1 rounded transition-colors disabled:opacity-40"
-            style={{
-              color: saved ? "#22c55e" : "#3b82f6",
-            }}
-            title="Save"
-          >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Check size={14} />
-            )}
-          </button>
-          {isNew ? (
-            <button
-              type="button"
-              onClick={onCancelNew}
-              className="p-1 rounded transition-colors"
-              style={{ color: "#ef4444" }}
-              title="Cancel"
-            >
-              <X size={14} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onDelete(item.id!)}
-              className="p-1 rounded transition-colors hover:bg-red-500/20"
-              style={{ color: "#ef4444" }}
-              title="Delete"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
+interface RowEditState {
+  label: string;
+  value: string;
+  sort_order: number;
+  is_default: boolean;
+  is_active: boolean;
+  saving: boolean;
+  saved: boolean;
 }
 
 export default function AdvanceOptionsPage() {
@@ -211,6 +65,7 @@ export default function AdvanceOptionsPage() {
   const [newRows, setNewRows] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [editStates, setEditStates] = useState<Record<string, RowEditState>>({});
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -279,6 +134,64 @@ export default function AdvanceOptionsPage() {
   const removeNewRow = (key: number) => {
     setNewRows((prev) => prev.filter((k) => k !== key));
   };
+
+  useEffect(() => {
+    const next: Record<string, RowEditState> = {};
+    currentValues.forEach((item) => {
+      const k = `v-${item.id}`;
+      next[k] = {
+        label: item.label ?? "",
+        value: item.value ?? "",
+        sort_order: item.sort_order ?? 0,
+        is_default: item.is_default ?? false,
+        is_active: item.is_active ?? true,
+        saving: false,
+        saved: false,
+      };
+    });
+    newRows.forEach((key) => {
+      const k = `n-${key}`;
+      next[k] = {
+        label: "",
+        value: "",
+        sort_order: currentValues.length + 1,
+        is_default: false,
+        is_active: true,
+        saving: false,
+        saved: false,
+      };
+    });
+    setEditStates(next);
+  }, [currentValues, newRows]);
+
+  const updateEdit = (rk: string, patch: Partial<RowEditState>) => {
+    setEditStates((prev) => ({ ...prev, [rk]: { ...prev[rk], ...patch } }));
+  };
+
+  const handleSaveEdit = async (rk: string, item: Partial<LookupValue> & { id?: number }) => {
+    const st = editStates[rk];
+    if (!st || !st.label.trim() || !st.value.trim()) return;
+    updateEdit(rk, { saving: true });
+    try {
+      await handleSaveRow({
+        id: item.id,
+        label: st.label.trim(),
+        value: st.value.trim(),
+        sort_order: st.sort_order,
+        is_default: st.is_default,
+        is_active: st.is_active,
+      });
+      updateEdit(rk, { saved: true, saving: false });
+      setTimeout(() => updateEdit(rk, { saved: false }), 2000);
+    } catch {
+      updateEdit(rk, { saving: false });
+    }
+  };
+
+  const combinedData = [
+    ...newRows.map((key) => ({ _key: `n-${key}`, _isNew: true, sort_order: currentValues.length + 1, is_active: true } as any)),
+    ...currentValues.map((item) => ({ _key: `v-${item.id}`, _isNew: false, ...item })),
+  ];
 
   return (
     <div className="flex h-[calc(100vh-64px)] gap-0">
@@ -370,64 +283,94 @@ export default function AdvanceOptionsPage() {
               </button>
             </div>
 
-            <div className="overflow-x-auto rounded-lg" style={{ border: "1px solid var(--border)" }}>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr style={{ background: "var(--bg-surface-hover)" }}>
-                    <th className="p-2 text-left font-medium w-16" style={{ color: "var(--text-secondary)" }}>
-                      Sort Order
-                    </th>
-                    <th className="p-2 text-left font-medium" style={{ color: "var(--text-secondary)" }}>
-                      Label
-                    </th>
-                    <th className="p-2 text-left font-medium" style={{ color: "var(--text-secondary)" }}>
-                      Value
-                    </th>
-                    <th className="p-2 text-center font-medium w-16" style={{ color: "var(--text-secondary)" }}>
-                      Default
-                    </th>
-                    <th className="p-2 text-center font-medium w-20" style={{ color: "var(--text-secondary)" }}>
-                      Active
-                    </th>
-                    <th className="p-2 text-center font-medium w-20" style={{ color: "var(--text-secondary)" }}>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* New rows */}
-                  {newRows.map((key) => (
-                    <EditableRow
-                      key={key}
-                      item={{ sort_order: currentValues.length + 1, is_active: true }}
-                      isNew
-                      onSave={handleSaveRow}
-                      onDelete={() => {}}
-                      onCancelNew={() => removeNewRow(key)}
+            <DataTable
+              data={combinedData}
+              getRowId={(row) => row._key}
+              columns={[
+                { key: "sort_order", label: "Sort Order", width: 80, render: (val, row) => {
+                  const st = editStates[row._key];
+                  if (!st) return val;
+                  return (
+                    <input type="number" value={st.sort_order}
+                      onChange={(e) => updateEdit(row._key, { sort_order: Number(e.target.value) })}
+                      className="w-14 px-1.5 py-1 text-xs rounded outline-none text-center"
+                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                     />
-                  ))}
-                  {/* Existing rows */}
-                  {currentValues.length === 0 && newRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-4 text-center" style={{ color: "var(--text-secondary)" }}>
-                        No values found. Click "+ Add New Value" to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    currentValues.map((item) => (
-                      <EditableRow
-                        key={item.id}
-                        item={item}
-                        onSave={handleSaveRow}
-                        onDelete={(id) =>
-                          setDeleteTarget({ id, label: item.label })
-                        }
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  );
+                }},
+                { key: "label", label: "Label", render: (val, row) => {
+                  const st = editStates[row._key];
+                  if (!st) return val;
+                  return (
+                    <input type="text" value={st.label}
+                      onChange={(e) => { updateEdit(row._key, { label: e.target.value }); if (row._isNew && !editStates[row._key]?.value) updateEdit(row._key, { value: slugify(e.target.value) }); }}
+                      className="w-full px-1.5 py-1 text-xs rounded outline-none"
+                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                    />
+                  );
+                }},
+                { key: "value", label: "Value", render: (val, row) => {
+                  const st = editStates[row._key];
+                  if (!st) return val;
+                  return (
+                    <input type="text" value={st.value}
+                      onChange={(e) => updateEdit(row._key, { value: e.target.value })}
+                      className="w-full px-1.5 py-1 text-xs rounded outline-none font-mono"
+                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                    />
+                  );
+                }},
+                { key: "is_default", label: "Default", align: "center", render: (val, row) => {
+                  const st = editStates[row._key];
+                  if (!st) return val ? "✓" : "";
+                  return <input type="radio" name="default-radio" checked={st.is_default} onChange={() => updateEdit(row._key, { is_default: true })} />;
+                }},
+                { key: "is_active", label: "Active", align: "center", render: (val, row) => {
+                  const st = editStates[row._key];
+                  if (!st) return val ? "✓" : "";
+                  return (
+                    <button type="button" onClick={() => updateEdit(row._key, { is_active: !st.is_active })}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${st.is_active ? "bg-green-500" : "bg-tertiary"}`}>
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${st.is_active ? "translate-x-4" : "translate-x-1"}`} />
+                    </button>
+                  );
+                }},
+                { key: "actions", label: "Actions", align: "center", render: (val, row) => {
+                  const st = editStates[row._key];
+                  const saving = st?.saving;
+                  const saved = st?.saved;
+                  const canSave = st?.label.trim() && st?.value.trim();
+                  return (
+                    <div className="flex items-center gap-1">
+                      {saving ? (
+                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
+                      ) : (
+                        <button type="button" onClick={() => handleSaveEdit(row._key, row)} disabled={!canSave}
+                          className="p-1 rounded transition-colors disabled:opacity-40"
+                          style={{ color: saved ? "#22c55e" : "#3b82f6" }} title={saved ? "Saved" : "Save"}>
+                          <Check size={14} />
+                        </button>
+                      )}
+                      {row._isNew ? (
+                        <button type="button" onClick={() => removeNewRow(Number(row._key.slice(2)))}
+                          className="p-1 rounded transition-colors" style={{ color: "#ef4444" }} title="Cancel">
+                          <X size={14} />
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setDeleteTarget({ id: row.id, label: row.label })}
+                          className="p-1 rounded transition-colors hover:bg-red-500/20" style={{ color: "#ef4444" }} title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                }},
+              ]}
+              variant="bordered"
+              searchable={false}
+              emptyTitle="No values found"
+              emptyDescription='Click "+ Add New Value" to get started'
+            />
           </>
         )}
       </div>

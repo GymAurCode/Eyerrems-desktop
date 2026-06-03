@@ -41,7 +41,7 @@ export default function ReportFilters({
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
       <div className="flex items-center gap-2 mb-3">
-        <Filter size={16} className="text-gray-500" />
+        <Filter size={16} className="text-muted" />
         <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
       </div>
 
@@ -51,7 +51,7 @@ export default function ReportFilters({
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
             <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+              <Search size={14} className="absolute left-2.5 top-2.5 text-muted" />
               <input
                 type="text"
                 value={filters.search || ""}
@@ -69,7 +69,7 @@ export default function ReportFilters({
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
             <div className="relative">
-              <Calendar size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+              <Calendar size={14} className="absolute left-2.5 top-2.5 text-muted" />
               <input
                 type="date"
                 value={filters.date_from || ""}
@@ -85,7 +85,7 @@ export default function ReportFilters({
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
             <div className="relative">
-              <Calendar size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+              <Calendar size={14} className="absolute left-2.5 top-2.5 text-muted" />
               <input
                 type="date"
                 value={filters.date_to || ""}

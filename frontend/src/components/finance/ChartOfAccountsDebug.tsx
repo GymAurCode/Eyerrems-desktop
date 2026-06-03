@@ -25,7 +25,7 @@ export default function ChartOfAccountsDebug() {
     return (
       <div className="p-8 text-center bg-red-900/20 border border-red-500/30 rounded-lg">
         <h3 className="text-lg font-semibold text-red-400 mb-2">Debug Error</h3>
-        <p className="text-sm text-gray-400 mb-4">{error}</p>
+        <p className="text-sm text-muted mb-4">{error}</p>
         <button 
           onClick={() => setError(null)}
           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -40,7 +40,7 @@ export default function ChartOfAccountsDebug() {
     return (
       <div className="p-8 text-center">
         <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-        <p className="text-sm text-gray-400">Loading debug component...</p>
+        <p className="text-sm text-muted">Loading debug component...</p>
       </div>
     );
   }
@@ -49,18 +49,18 @@ export default function ChartOfAccountsDebug() {
     <div className="p-8 bg-green-900/20 border border-green-500/30 rounded-lg">
       <h3 className="text-lg font-semibold text-green-400 mb-4">Chart of Accounts - Debug Mode</h3>
       <div className="space-y-4">
-        <div className="bg-gray-800 p-4 rounded">
+        <div className="bg-tertiary p-4 rounded">
           <h4 className="text-sm font-semibold text-white mb-2">Component Status</h4>
-          <ul className="text-xs text-gray-300 space-y-1">
+          <ul className="text-xs text-secondary space-y-1">
             <li>✅ Component mounted successfully</li>
             <li>✅ No JavaScript errors detected</li>
             <li>✅ React rendering working</li>
           </ul>
         </div>
         
-        <div className="bg-gray-800 p-4 rounded">
+        <div className="bg-tertiary p-4 rounded">
           <h4 className="text-sm font-semibold text-white mb-2">Next Steps</h4>
-          <ul className="text-xs text-gray-300 space-y-1">
+          <ul className="text-xs text-secondary space-y-1">
             <li>1. Check browser console for any errors</li>
             <li>2. Verify API endpoints are accessible</li>
             <li>3. Test with the robust ChartOfAccounts component</li>

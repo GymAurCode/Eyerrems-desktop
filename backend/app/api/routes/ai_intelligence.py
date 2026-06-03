@@ -68,7 +68,10 @@ def _company_id(request: Request) -> int:
         if getattr(request.state, "is_super_admin", False):
             return 1
         raise HTTPException(status_code=403, detail="User has no company assigned. Contact admin.")
-    return cid
+    try:
+        return int(cid)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=403, detail="User has no company assigned. Contact admin.")
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────

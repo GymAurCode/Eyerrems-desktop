@@ -40,6 +40,7 @@ from app.schemas.booking import (
     InstallmentPlanOut,
     PaginatedBookings,
 )
+from app.core.journal_service import JournalService, JournalEntryData
 from app.services.booking_service import (
     BookingService,
     booking_total_payable,
@@ -73,14 +74,11 @@ def _save_file(file: UploadFile, sub: str) -> tuple[str, str]:
 
 # ── Loader helpers ────────────────────────────────────────────────────────────
 
-def _load_booking(db: Session, booking_id: int) -> Booking:
-    booking = (
-        db.query(Booking)
-        .options(
-            joinedload(Booking.client),
-            joinedload(Booking.property),
-            joinedload(Booking.unit),
-            joinedload(Booking.assigned_dealer),
+def _load_booking(db: Session, booking_id: str | int) -> Booking:
+    def q():
+        return db.query(Booking).options(
+            joinedload(Booking.client), joinedload(Booking.property),
+            joinedload(Booking.unit), joinedload(Booking.assigned_dealer),
             joinedload(Booking.assigned_staff),
             joinedload(Booking.logs).joinedload(BookingLog.performed_by),
             joinedload(Booking.attachments),
@@ -88,9 +86,17 @@ def _load_booking(db: Session, booking_id: int) -> Booking:
                 .joinedload(InstallmentPlan.installments)
                 .joinedload(Installment.payments),
         )
-        .filter(Booking.id == booking_id)
-        .first()
-    )
+    booking = None
+    if isinstance(booking_id, str):
+        if booking_id.startswith("BKG-"):
+            booking = q().filter(Booking.booking_id == booking_id).first()
+        else:
+            try:
+                booking = q().filter(Booking.id == int(booking_id)).first()
+            except ValueError:
+                booking = q().filter(Booking.booking_id == booking_id).first()
+    else:
+        booking = q().filter(Booking.id == booking_id).first()
     if not booking:
         raise HTTPException(404, "Booking not found")
     return booking
@@ -400,7 +406,7 @@ def expire_old_bookings(
 
 @router.get("/{booking_id}", response_model=BookingOut)
 def get_booking(
-    booking_id: int,
+    booking_id: str,
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
@@ -699,6 +705,44 @@ def update_down_payment_status(
     booking = _load_booking(db, booking_id)
     old = booking.down_payment_status
     booking.down_payment_status = status
+
+    # ── Finance sync: journalize down payment when marked paid ──────────────
+    if status == "paid" and booking.down_payment > 0:
+        try:
+            from app.models.finance import Account
+            cash_account = db.query(Account).filter(Account.code == "1100").first()
+
+            # Resolve property revenue account
+            revenue_account = None
+            if booking.property_id:
+                prop = db.query(Property).filter(Property.id == booking.property_id).first()
+                if prop and prop.income_gl_account_id:
+                    revenue_account = db.query(Account).filter(Account.id == prop.income_gl_account_id).first()
+            if not revenue_account:
+                revenue_account = db.query(Account).filter(Account.code == "4300").first()
+
+            if cash_account and revenue_account:
+                journal = JournalService.create_journal_entry(
+                    db=db,
+                    entries=[
+                        JournalEntryData(
+                            account_id=cash_account.id,
+                            debit=booking.down_payment,
+                            description=f"Down payment {booking.booking_id}",
+                        ),
+                        JournalEntryData(
+                            account_id=revenue_account.id,
+                            credit=booking.down_payment,
+                            description=f"Down payment {booking.booking_id} revenue",
+                        ),
+                    ],
+                    reference_type="down_payment",
+                    reference_id=str(booking.id),
+                    description=f"Booking {booking.booking_id} down payment — {booking.down_payment}",
+                )
+        except ValueError:
+            pass  # journal creation failed silently
+
     BookingService.create_log(
         db=db, booking_id=booking.id, action="down_payment_updated",
         old_value=old, new_value=status, performed_by_id=current_user.id,

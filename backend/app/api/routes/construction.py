@@ -52,7 +52,7 @@ def create_project(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Project: {result.name}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
     return result
@@ -105,7 +105,7 @@ def update_project(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(project_id), record_label=f"Project: {project_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -119,7 +119,7 @@ def delete_project(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(project_id), record_label=f"Project: {project_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ProjectService.delete(db, project_id)
 
@@ -138,7 +138,7 @@ def create_phase(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Phase: {result.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
     return result
@@ -155,7 +155,7 @@ def update_phase(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(phase_id), record_label=f"Phase: {phase_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -169,7 +169,7 @@ def delete_phase(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(phase_id), record_label=f"Phase: {phase_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ProjectService.delete_phase(db, phase_id)
 
@@ -188,7 +188,7 @@ def upsert_budget(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.project_id), record_label=f"Budget: Project {result.project_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -204,7 +204,7 @@ def patch_budget(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(project_id), record_label=f"Budget: Project {project_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -223,7 +223,7 @@ def create_contractor(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Contractor: {result.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
     return result
@@ -240,7 +240,7 @@ def update_contractor(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -254,7 +254,7 @@ def delete_contractor(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ContractorService.delete(db, contractor_id)
 
@@ -269,7 +269,7 @@ def assign_contractor(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Contractor Assignment: {result.id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -283,7 +283,7 @@ def remove_assignment(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(assignment_id), record_label=f"Contractor Assignment: {assignment_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ContractorService.remove_assignment(db, assignment_id)
 
@@ -302,7 +302,7 @@ def create_procurement(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Procurement: {result.id}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
     return result
@@ -319,7 +319,7 @@ def update_procurement(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -335,7 +335,7 @@ def update_procurement_status(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(procurement_id), record_label=f"Procurement status: {procurement_id}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
     return result
 
@@ -349,7 +349,7 @@ def delete_procurement(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ProcurementService.delete(db, procurement_id)
 
@@ -368,7 +368,7 @@ def log_progress(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Progress: Project {payload.project_id}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
     return result
 
@@ -384,7 +384,7 @@ def update_progress(
     log_action(
         db=db, module="construction", action="UPDATE",
         record_id=str(progress_id), record_label=f"Progress: {progress_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     return result
 
@@ -398,7 +398,7 @@ def delete_progress(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(progress_id), record_label=f"Progress: {progress_id}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
     ExecutionService.delete_progress(db, progress_id)
 
@@ -417,7 +417,7 @@ def add_expense(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(result.id), record_label=f"Expense: {result.description}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
     return result
 
@@ -473,7 +473,7 @@ async def upload_document(
     log_action(
         db=db, module="construction", action="CREATE",
         record_id=str(doc.id), record_label=f"Document: {doc.name}",
-        changed_by=user.email, changed_by_role=getattr(user, 'role', None),
+        changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
     )
     return doc
@@ -512,7 +512,7 @@ def delete_document(
     log_action(
         db=db, module="construction", action="DELETE",
         record_id=str(document_id), record_label=f"Document: {doc.name}",
-        changed_by=current_user.email, changed_by_role=getattr(current_user, 'role', None),
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
     )
     db.delete(doc)

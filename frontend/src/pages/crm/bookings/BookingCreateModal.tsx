@@ -8,6 +8,7 @@ import AttachmentsButton from "../../../components/attachments/AttachmentsButton
 import { bookingApi, BookingCreatePayload } from "../../../lib/bookingApi";
 import { crmApi, Client, Dealer } from "../../../lib/crmApi";
 import { propApi, Property, FloorWithUnits, Unit } from "../../../lib/propertyApi";
+import { syncApi } from "../../../lib/financeApi";
 import { formatCurrency } from "../../../lib/currency";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -329,7 +330,15 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
         nominee_cnic:  nomineeCnic || undefined,
         notes:         notes || undefined,
       };
-      await bookingApi.create(payload);
+      const booking = await bookingApi.create(payload);
+      syncApi.bookingToken({
+        booking_id: booking.id,
+        amount: Number(bookingAmt),
+        client_name: "",
+        property_name: selectedProp?.name || "",
+        unit_name: selectedUnit?.unit_number || "",
+        payment_method: "bank",
+      }).catch(() => {});
       onCreated();
     } catch (e: any) {
       const detail = e?.response?.data?.detail;

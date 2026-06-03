@@ -21,6 +21,7 @@ import { generateReport, exportReport, downloadBlob } from "../../lib/reportsApi
 import { ReportRequest, ReportResult } from "../../components/reports/types";
 import ReportTable from "../../components/reports/ReportTable";
 import ReportSummaryCards from "../../components/reports/ReportSummaryCards";
+import ReportErrorBoundary from "../../components/reports/ReportErrorBoundary";
 
 // Minimal category config for the breadcrumb icon in the runner
 import {
@@ -61,6 +62,21 @@ const REPORT_META: Record<string, {
   rent_ledger:              { name: "Rent Ledger",              description: "Rent payment history with running balance",         filters: ["date_range"],                            requiresEntity: "tenant"  },
   rent_due_report:          { name: "Rent Due Report",          description: "All pending and overdue rent records",              filters: ["date_range"]                                                   },
   security_deposit_report:  { name: "Security Deposit",         description: "Security deposits held for all tenants",           filters: ["status"]                                                       },
+
+  // Construction reports
+  material_usage:           { name: "Material Usage",           description: "Materials consumed per project phase",             filters: ["date_range", "search"]                                         },
+  work_progress:            { name: "Work Progress Summary",    description: "Phase completion status and progress",             filters: ["date_range", "status"]                                         },
+
+  // Maintenance reports
+  complaint_report:         { name: "Complaint Report",         description: "All maintenance complaints and status",           filters: ["date_range", "search", "status"]                               },
+  pending_requests:         { name: "Pending Requests",         description: "Open and unresolved maintenance requests",        filters: ["date_range", "status"]                                         },
+
+  // CRM inline button reports (used via ReportModal)
+  deal_report:              { name: "Deal Summary Report",      description: "Complete deal summary with financial details",    filters: []                                          },
+  outstanding_payments:     { name: "Outstanding Payments",     description: "Customer outstanding payment summary",            filters: ["date_range"]                                                   },
+  token_receipt:            { name: "Token Receipt",            description: "Booking token payment receipt",                   filters: []                                          },
+  unit_statement:           { name: "Unit Statement",           description: "Complete unit financial statement",               filters: ["date_range"]                            },
+  tenant_history:           { name: "Tenant History",           description: "Tenant occupancy history for a unit",             filters: []                                          },
 };
 
 const DEFAULT_FILTERS: ReportRequest = { page: 1, page_size: 100, sort_order: "asc" };
@@ -375,6 +391,10 @@ export default function ReportRunner() {
     inventory_report: "property", available_units: "property", floor_wise_report: "property", category_wise_report: "property",
     cash_flow: "finance", daily_collection: "finance", monthly_collection: "finance", expense_report: "finance",
     tenant_profile: "tenant", rent_ledger: "tenant", rent_due_report: "tenant", security_deposit_report: "tenant",
+    material_usage: "construction", work_progress: "construction",
+    complaint_report: "maintenance", pending_requests: "maintenance",
+    deal_report: "crm", outstanding_payments: "client", token_receipt: "client",
+    unit_statement: "property", tenant_history: "tenant",
   };
   const groupId = reportKey ? (KEY_TO_GROUP[reportKey] ?? "client") : "client";
   const cat = CAT_CONFIG[groupId] ?? CAT_CONFIG["client"];
@@ -458,6 +478,7 @@ export default function ReportRunner() {
   }
 
   return (
+    <ReportErrorBoundary key={reportKey}>
     <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg-base)" }}>
 
       {/* ── Top bar: breadcrumb + title + actions ─────────────────────────── */}
@@ -558,5 +579,6 @@ export default function ReportRunner() {
         />
       </div>
     </div>
+    </ReportErrorBoundary>
   );
 }

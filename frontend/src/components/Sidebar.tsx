@@ -17,7 +17,7 @@ const NAV_COLORS: Record<string, {
   hoverBg:   string;  // hover item background
 }> = {
   "/":             { icon: "#FBBF24", iconHover: "#FBBF24", activeBg: "rgba(251,191,36,0.12)", hoverBg: "#1e2d3d" }, // Dashboard
-  "/property":     { icon: "#34D399", iconHover: "#34D399", activeBg: "rgba(52,211,153,0.12)",    hoverBg: "#1e2d3d" }, // Properties
+  "/property":     { icon: "var(--property-accent)", iconHover: "var(--property-accent)", activeBg: "var(--property-accent-soft)",    hoverBg: "var(--property-accent-soft)" }, // Properties
   "/towns":        { icon: "#22D3EE", iconHover: "#22D3EE", activeBg: "rgba(34,211,238,0.12)",    hoverBg: "#1e2d3d" }, // Towns
   "/crm":          { icon: "#C084FC", iconHover: "#C084FC", activeBg: "rgba(192,132,252,0.12)",    hoverBg: "#1e2d3d" }, // CRM
   "/tenants":      { icon: "#60A5FA", iconHover: "#60A5FA", activeBg: "rgba(96,165,250,0.12)",    hoverBg: "#1e2d3d" }, // Tenants

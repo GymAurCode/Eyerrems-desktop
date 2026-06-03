@@ -7,12 +7,16 @@ import {
 } from "lucide-react";
 import { tenantApi, type Maintenance, type MaintenanceAnalytics, type UnitTenantInfo } from "../lib/tenantApi";
 import { propApi, type Property, type Unit } from "../lib/propertyApi";
+import { syncApi } from "../lib/financeApi";
 import { formatCurrency } from "../lib/currency";
 import PortalModal from "../components/Modal";
-import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { printRecord } from "../components/actions";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
 import { useLookup } from "../hooks/useLookup";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
+import { DataTable } from "../components/data-table";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -197,7 +201,14 @@ function MaintenanceFormModal({
       if (record) {
         await tenantApi.updateMaintenance(record.id, payload);
       } else {
-        await tenantApi.createMaintenance(payload);
+        const created = await tenantApi.createMaintenance(payload);
+        syncApi.maintenance({
+          property_id: Number(form.property_id),
+          description: form.title || form.description || "Maintenance",
+          amount: Number(form.estimated_cost) || 0,
+          maintenance_id: created.id,
+          is_payable: false,
+        }).catch(() => {});
       }
       onSaved();
     } catch (e: any) {
@@ -870,75 +881,46 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
       </div>
 
       {/* Table */}
-      <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        {loading ? (
-          <div className="p-10 text-center">
-            <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <Wrench size={28} className="text-muted mx-auto mb-2" />
-            <p className="text-sm text-secondary">No maintenance requests found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Date","Property","Unit","Title / Description","Category","Priority","Status","Cost","Tenant"].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-muted font-semibold uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                  <ActionsTh />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => (
-                  <tr key={r.id} className="row-hover transition-colors cursor-pointer"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    onClick={() => onSelect(r)}>
-                    <td className="px-4 py-3 text-secondary whitespace-nowrap">{r.date}</td>
-                    <td className="px-4 py-3 text-primary font-medium max-w-[120px] truncate">{r.property_name ?? `#${r.property_id}`}</td>
-                    <td className="px-4 py-3 text-secondary text-xs whitespace-nowrap">{r.unit_number ?? <span className="text-muted">—</span>}</td>
-                    <td className="px-4 py-3 text-secondary max-w-xs">
-                      {r.title
-                        ? <><p className="font-medium text-primary truncate">{r.title}</p><p className="text-muted truncate">{r.description}</p></>
-                        : <p className="truncate">{r.description}</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full capitalize"
-                        style={{ background: "var(--border)", color: "var(--text-secondary)" }}>{r.category}</span>
-                    </td>
-                    <td className="px-4 py-3"><PriorityBadge priority={r.priority} /></td>
-                    <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                    <td className="px-4 py-3 font-semibold whitespace-nowrap" style={{ color: "#f87171" }}>
-                      {formatCurrency(r.actual_cost ?? r.cost ?? 0)}
-                    </td>
-                    <td className="px-4 py-3 text-secondary">{r.tenant_name ?? "—"}</td>
-                    <ActionsCell className="px-4 py-3">
-                      <QuickRowActions
-                        row={r}
-                        compact
-                        onView={(row) => onSelect(row)}
-                        onDelete={async (row) => {
-                          await tenantApi.deleteMaintenance(row.id);
-                          void load();
-                        }}
-                        onPrint={(row) => printRecord(`Maintenance #${row.id}`, [
-                          { label: "Title", value: row.title ?? row.description?.slice(0, 80) ?? "—" },
-                          { label: "Property", value: row.property_name ?? String(row.property_id) },
-                          { label: "Status", value: row.status },
-                          { label: "Priority", value: row.priority },
-                          { label: "Cost", value: formatCurrency(row.actual_cost ?? row.cost ?? 0) },
-                        ])}
-                      />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        data={filtered}
+        loading={loading}
+        columns={[
+          { key: "date", label: "Date", render: (val) => <span className="text-secondary whitespace-nowrap">{val}</span> },
+          { key: "property_name", label: "Property", render: (val, row) => <span className="text-primary font-medium max-w-[120px] truncate">{val ?? `#${row.property_id}`}</span> },
+          { key: "unit_number", label: "Unit", render: (val) => <span className="text-secondary text-xs whitespace-nowrap">{val ?? <span className="text-muted">—</span>}</span> },
+          { key: "title", label: "Title / Description", render: (val, row) => val
+            ? <><p className="font-medium text-primary truncate">{val}</p><p className="text-muted truncate">{row.description}</p></>
+            : <p className="truncate">{row.description}</p>
+          },
+          { key: "category", label: "Category", render: (val) => (
+            <span className="text-[10px] px-2 py-0.5 rounded-full capitalize" style={{ background: "var(--border)", color: "var(--text-secondary)" }}>{val}</span>
+          )},
+          { key: "priority", label: "Priority", render: (val) => <PriorityBadge priority={val} /> },
+          { key: "status", label: "Status", render: (val) => <StatusBadge status={val} /> },
+          { key: "actual_cost", label: "Cost", render: (val, row) => {
+            const cost = val ?? row.cost ?? 0;
+            return <span className="font-semibold whitespace-nowrap" style={{ color: "#f87171" }}>{formatCurrency(cost)}</span>;
+          }},
+          { key: "tenant_name", label: "Tenant", render: (val) => <span className="text-secondary">{val ?? "—"}</span> },
+        ]}
+        onRowClick={(row) => onSelect(row)}
+        onView={(row) => onSelect(row)}
+        onDelete={async (row) => {
+          await tenantApi.deleteMaintenance(row.id);
+          void load();
+        }}
+        onPrint={(row) => printRecord(`Maintenance #${row.id}`, [
+          { label: "Title", value: row.title ?? row.description?.slice(0, 80) ?? "—" },
+          { label: "Property", value: row.property_name ?? String(row.property_id) },
+          { label: "Status", value: row.status },
+          { label: "Priority", value: row.priority },
+          { label: "Cost", value: formatCurrency(row.actual_cost ?? row.cost ?? 0) },
+        ])}
+        variant="bordered"
+        searchable={false}
+        emptyTitle="No maintenance requests found"
+        emptyIcon={Wrench}
+      />
 
       {showForm && (
         <MaintenanceFormModal onClose={() => setShowForm(false)}
@@ -1005,23 +987,15 @@ export default function MaintenancePage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="flex gap-0">
-          {([
-            { id: "requests",  label: "Requests",  icon: Wrench    },
-            { id: "analytics", label: "Analytics", icon: BarChart2 },
-          ] as const).map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className="flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap"
-              style={{
-                borderBottomColor: tab === id ? "#f97316" : "transparent",
-                color: tab === id ? "#f97316" : "var(--text-muted)",
-              }}>
-              <Icon size={13} /> {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ModuleTabs
+        tabs={[
+          { label: "Requests", value: "requests", icon: Wrench },
+          { label: "Analytics", value: "analytics", icon: BarChart2 },
+        ]}
+        activeTab={tab}
+        onChange={(v) => setTab(v as Tab)}
+        moduleColor={MODULE_COLORS.maintenance}
+      />
 
       {tab === "requests"  && <RequestsTab onSelect={setSelected} />}
       {tab === "analytics" && <AnalyticsTab />}

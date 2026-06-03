@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download, Filter } from "lucide-react";
 import { formatCurrency } from "../../lib/currency";
+import { DataTable } from "../data-table";
 
 interface GeneralLedgerProps {
   accountId: number;
@@ -140,60 +141,20 @@ export default function GeneralLedger({
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-secondary">
-              <th className="text-left p-2 text-muted">Date</th>
-              <th className="text-left p-2 text-muted">Type</th>
-              <th className="text-left p-2 text-muted">Reference</th>
-              <th className="text-left p-2 text-muted">Description</th>
-              <th className="text-right p-2 text-muted">Debit</th>
-              <th className="text-right p-2 text-muted">Credit</th>
-              <th className="text-right p-2 text-muted font-semibold">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEntries.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center p-4 text-muted">
-                  No entries
-                </td>
-              </tr>
-            ) : (
-              filteredEntries.map((entry) => (
-                <tr key={entry.id} className="border-b border-secondary/50 hover:bg-secondary/30">
-                  <td className="p-2">{new Date(entry.date).toLocaleDateString()}</td>
-                  <td className="p-2">
-                    <span className="text-xs px-2 py-1 rounded bg-primary/20 text-primary">
-                      {entry.reference_type}
-                    </span>
-                  </td>
-                  <td className="p-2">{entry.reference_id || "-"}</td>
-                  <td className="p-2 text-muted">{entry.description || "-"}</td>
-                  <td className="text-right p-2">
-                    {entry.debit && Number(entry.debit) > 0 ? (
-                      <span className="text-blue-400">{formatCurrency(entry.debit)}</span>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="text-right p-2">
-                    {entry.credit && Number(entry.credit) > 0 ? (
-                      <span className="text-red-400">{formatCurrency(entry.credit)}</span>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="text-right p-2 font-semibold">
-                    {formatCurrency(entry.balance)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={filteredEntries}
+        columns={[
+          { key: 'date', label: 'Date', render: (val) => new Date(val).toLocaleDateString() },
+          { key: 'reference_type', label: 'Type', render: (val) => <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.2)', color: '#60a5fa' }}>{val}</span> },
+          { key: 'reference_id', label: 'Reference', render: (val) => val || "-" },
+          { key: 'description', label: 'Description', render: (val) => <span style={{ color: 'var(--text-muted)' }}>{val || "-"}</span> },
+          { key: 'debit', label: 'Debit', align: 'right', render: (val) => val && Number(val) > 0 ? <span className="text-blue-400">{formatCurrency(val)}</span> : "-" },
+          { key: 'credit', label: 'Credit', align: 'right', render: (val) => val && Number(val) > 0 ? <span className="text-red-400">{formatCurrency(val)}</span> : "-" },
+          { key: 'balance', label: 'Balance', align: 'right', render: (val) => <span className="font-semibold">{formatCurrency(val)}</span> },
+        ]}
+        searchable={false}
+        sortable={false}
+      />
     </div>
   );
 }

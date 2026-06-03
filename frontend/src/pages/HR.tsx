@@ -12,10 +12,12 @@ import {
 import Modal from "../components/Modal";
 import { formatCurrency } from "../lib/currency";
 import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
-import { SmartTable } from "../components/data-table";
+import { DataTable, SmartTable } from "../components/data-table";
 import { api } from "../lib/api";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import ModuleTabs from "../components/ui/ModuleTabs";
+import { MODULE_COLORS } from "../config/moduleColors";
 import {
   departmentsApi, positionsApi, branchesApi, employeesApi,
   attendanceApi, leaveTypesApi, leavesApi, payrollApi, holidaysApi,
@@ -35,6 +37,8 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "payroll",    label: "Payroll",    icon: DollarSign },
   { id: "setup",      label: "Setup",      icon: Settings2 },
 ];
+
+const TAB_ITEMS = TABS.map((t) => ({ label: t.label, value: t.id, icon: t.icon }));
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -137,19 +141,12 @@ export default function HRPage() {
         </button>
       </div>
 
-      <div style={{ borderBottom: "1px solid var(--border)" }} className="overflow-x-auto">
-        <div className="flex gap-0 min-w-max">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-                tab === id ? "border-blue-500 text-blue-400" : "border-transparent hover:text-primary"
-              }`}
-              style={{ color: tab === id ? "#60a5fa" : "var(--text-muted)" }}>
-              <Icon size={13} />{label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ModuleTabs
+        tabs={TAB_ITEMS}
+        activeTab={tab}
+        onChange={(v) => setTab(v as Tab)}
+        moduleColor={MODULE_COLORS.hr}
+      />
 
       <div>
         {tab === "dashboard"  && <DashboardTab employees={employees} departments={departments} />}
@@ -216,26 +213,20 @@ function DashboardTab({ employees, departments }: { employees: Employee[]; depar
           </div>
         </div>
       </div>
-      <div className="detail-container">
-        <div className="detail-section"><p className="detail-section-title">Recent Employees</p></div>
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Type</th><th>Status</th><th>Joined</th></tr></thead>
-            <tbody>
-              {employees.slice(0, 8).map(emp => (
-                <tr key={emp.id}>
-                  <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{emp.employee_id}</td>
-                  <td className="font-medium text-primary">{emp.full_name}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.department?.name ?? "—"}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.employment_type}</td>
-                  <td><StatusBadge status={emp.employment_status} /></td>
-                  <td style={{ color: "var(--text-secondary)" }}>{emp.joining_date ? new Date(emp.joining_date).toLocaleDateString() : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        title="Recent Employees"
+        data={employees.slice(0, 8)}
+        columns={[
+          { key: "employee_id", label: "ID", render: (val: any) => <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{val}</span> },
+          { key: "full_name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+          { key: "department", label: "Department", render: (val: any, row: any) => <span style={{ color: "var(--text-secondary)" }}>{row.department?.name ?? "—"}</span> },
+          { key: "employment_type", label: "Type", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+          { key: "employment_status", label: "Status", render: (val: string) => <StatusBadge status={val} /> },
+          { key: "joining_date", label: "Joined", render: (val: string) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleDateString() : "—"}</span> },
+        ]}
+        sortable={false}
+        searchable={false}
+      />
     </div>
   );
 }
@@ -459,7 +450,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
               if (salary) setSalForm({ basic_salary: salary.basic_salary, house_rent_allowance: salary.house_rent_allowance, conveyance_allowance: salary.conveyance_allowance, medical_allowance: salary.medical_allowance, special_allowance: salary.special_allowance, other_allowances: salary.other_allowances, provident_fund: salary.provident_fund, professional_tax: salary.professional_tax, income_tax: salary.income_tax, other_deductions: salary.other_deductions, overtime_hourly_rate: salary.overtime_hourly_rate, effective_from: salary.effective_from });
               setShowSalary(true);
             }} className="btn-primary px-3 py-1.5 text-xs">{salary ? "Edit Salary" : "Set Salary"}</button>
-          <div className="pt-2 border-t border-gray-700/50">
+          <div className="pt-2 border-t border-theme/50">
             <AttachmentPanel module="employee" recordId={selected.id} title="Documents" />
           </div>
           </div>
@@ -548,30 +539,23 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
         ))}
       </div>
 
-      <div className="detail-container">
-        <div className="detail-section"><p className="detail-section-title">Daily Attendance — {new Date(reportDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p></div>
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>OT</th><th>Late (min)</th></tr></thead>
-            <tbody>
-              {dailyReport.length === 0 && <tr><td colSpan={9} className="text-center py-10" style={{ color: "var(--text-muted)" }}>No data for this date</td></tr>}
-              {dailyReport.map(r => (
-                <tr key={r.employee_id}>
-                  <td className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{r.employee_code}</td>
-                  <td className="font-medium text-primary">{r.full_name}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{r.department ?? "—"}</td>
-                  <td><StatusBadge status={r.status} /></td>
-                  <td style={{ color: "var(--text-secondary)" }}>{r.check_in ? new Date(r.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{r.check_out ? new Date(r.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                  <td style={{ color: "var(--text-secondary)" }}>{r.total_hours ?? "—"}</td>
-                  <td style={{ color: r.overtime_hours > 0 ? "#10b981" : "var(--text-secondary)" }}>{r.overtime_hours ?? "—"}</td>
-                  <td style={{ color: r.late_minutes > 0 ? "#f59e0b" : "var(--text-secondary)" }}>{r.late_minutes ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        title={`Daily Attendance — ${new Date(reportDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
+        data={dailyReport}
+        columns={[
+          { key: "employee_code", label: "ID", render: (val: any) => <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{val}</span> },
+          { key: "full_name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+          { key: "department", label: "Department", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+          { key: "status", label: "Status", render: (val: string) => <StatusBadge status={val} /> },
+          { key: "check_in", label: "Check In", render: (val: string) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</span> },
+          { key: "check_out", label: "Check Out", render: (val: string) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</span> },
+          { key: "total_hours", label: "Hours", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+          { key: "overtime_hours", label: "OT", render: (val: number) => <span style={{ color: val > 0 ? "#10b981" : "var(--text-secondary)" }}>{val ?? "—"}</span> },
+          { key: "late_minutes", label: "Late (min)", render: (val: number) => <span style={{ color: val > 0 ? "#f59e0b" : "var(--text-secondary)" }}>{val ?? "—"}</span> },
+        ]}
+        sortable={false}
+        searchable={false}
+      />
 
       <Modal open={showMark} title="Mark Attendance" onClose={() => setShowMark(false)}>
         <div className="grid grid-cols-2 gap-3">
@@ -1301,150 +1285,149 @@ function SetupTab({
 
       {/* ── Departments ── */}
       {section === "departments" && (
-        <div className="detail-container">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <p className="text-sm font-semibold text-primary">Departments ({departments.length})</p>
+        <DataTable
+          title={`Departments (${departments.length})`}
+          data={departments}
+          columns={[
+            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "description", label: "Description", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "Actions", render: (val: any, row: any) => (
+              <div className="flex gap-1">
+                <button onClick={() => openDept(row)}
+                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                  Edit
+                </button>
+                <button onClick={() => deleteDept(row.id)}
+                  style={{ color: "#EF4444", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                  Delete
+                </button>
+              </div>
+            )},
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
             <button onClick={() => openDept()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead><tr><th>Name</th><th>Code</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {departments.length === 0 && <tr><td colSpan={5} className="text-center py-8" style={{ color: "var(--text-muted)" }}>No departments yet.</td></tr>}
-                {departments.map(d => (
-                  <tr key={d.id}>
-                    <td className="font-medium text-primary">{d.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{d.code}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{d.description ?? "—"}</td>
-                    <td><StatusBadge status={d.is_active ? "Active" : "Inactive"} /></td>
-                    <ActionsCell>
-                      <QuickRowActions row={d} compact onEdit={openDept} onDelete={() => deleteDept(d.id)} hiddenActions={["view", "print"]} />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* ── Positions ── */}
       {section === "positions" && (
-        <div className="detail-container">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <p className="text-sm font-semibold text-primary">Positions ({positions.length})</p>
+        <DataTable
+          title={`Positions (${positions.length})`}
+          data={positions}
+          columns={[
+            { key: "title", label: "Title", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "grade", label: "Grade", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "min_salary", label: "Min Salary", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ? formatCurrency(val) : "—"}</span> },
+            { key: "max_salary", label: "Max Salary", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ? formatCurrency(val) : "—"}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "Actions", render: (val: any, row: any) => (
+              <div className="flex gap-1">
+                <button onClick={() => openPos(row)}
+                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                  Edit
+                </button>
+              </div>
+            )},
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
             <button onClick={() => openPos()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead><tr><th>Title</th><th>Code</th><th>Grade</th><th>Min Salary</th><th>Max Salary</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {positions.length === 0 && <tr><td colSpan={7} className="text-center py-8" style={{ color: "var(--text-muted)" }}>No positions yet.</td></tr>}
-                {positions.map(p => (
-                  <tr key={p.id}>
-                    <td className="font-medium text-primary">{p.title}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{p.code}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{p.grade ?? "—"}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{p.min_salary ? formatCurrency(p.min_salary) : "—"}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{p.max_salary ? formatCurrency(p.max_salary) : "—"}</td>
-                    <td><StatusBadge status={p.is_active ? "Active" : "Inactive"} /></td>
-                    <ActionsCell>
-                      <QuickRowActions row={p} compact onEdit={openPos} hiddenActions={["view", "delete", "print"]} />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* ── Branches ── */}
       {section === "branches" && (
-        <div className="detail-container">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <p className="text-sm font-semibold text-primary">Branches ({branches.length})</p>
+        <DataTable
+          title={`Branches (${branches.length})`}
+          data={branches}
+          columns={[
+            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "city", label: "City", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "country", label: "Country", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "phone", label: "Phone", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "Actions", render: (val: any, row: any) => (
+              <div className="flex gap-1">
+                <button onClick={() => openBranch(row)}
+                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                  Edit
+                </button>
+              </div>
+            )},
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
             <button onClick={() => openBranch()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead><tr><th>Name</th><th>Code</th><th>City</th><th>Country</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {branches.length === 0 && <tr><td colSpan={7} className="text-center py-8" style={{ color: "var(--text-muted)" }}>No branches yet.</td></tr>}
-                {branches.map(b => (
-                  <tr key={b.id}>
-                    <td className="font-medium text-primary">{b.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{b.code}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{b.city ?? "—"}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{b.country ?? "—"}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{b.phone ?? "—"}</td>
-                    <td><StatusBadge status={b.is_active ? "Active" : "Inactive"} /></td>
-                    <ActionsCell>
-                      <QuickRowActions row={b} compact onEdit={openBranch} hiddenActions={["view", "delete", "print"]} />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* ── Leave Types ── */}
       {section === "leaveTypes" && (
-        <div className="detail-container">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <p className="text-sm font-semibold text-primary">Leave Types ({leaveTypes.length})</p>
+        <DataTable
+          title={`Leave Types (${leaveTypes.length})`}
+          data={leaveTypes}
+          columns={[
+            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "days_per_year", label: "Days/Year", align: "center" },
+            { key: "is_paid", label: "Paid", align: "center", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "carry_forward", label: "Carry Forward", align: "center", render: (val: any, row: any) => row.carry_forward ? `Yes${row.max_carry_forward ? ` (max ${row.max_carry_forward})` : ""}` : "No" },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
             <button onClick={openLT} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead><tr><th>Name</th><th>Code</th><th>Days/Year</th><th>Paid</th><th>Carry Forward</th><th>Status</th></tr></thead>
-              <tbody>
-                {leaveTypes.length === 0 && <tr><td colSpan={6} className="text-center py-8" style={{ color: "var(--text-muted)" }}>No leave types yet.</td></tr>}
-                {leaveTypes.map(lt => (
-                  <tr key={lt.id}>
-                    <td className="font-medium text-primary">{lt.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{lt.code}</td>
-                    <td className="text-center">{lt.days_per_year}</td>
-                    <td className="text-center"><StatusBadge status={lt.is_paid ? "Active" : "Inactive"} /></td>
-                    <td className="text-center">{lt.carry_forward ? `Yes${lt.max_carry_forward ? ` (max ${lt.max_carry_forward})` : ""}` : "No"}</td>
-                    <td><StatusBadge status={lt.is_active ? "Active" : "Inactive"} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* ── Holidays ── */}
       {section === "holidays" && (
-        <div className="detail-container">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <p className="text-sm font-semibold text-primary">Holidays ({holidays.length})</p>
+        <DataTable
+          title={`Holidays (${holidays.length})`}
+          data={holidays}
+          columns={[
+            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "holiday_date", label: "Date", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
+            { key: "description", label: "Description", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "is_recurring", label: "Recurring", align: "center", render: (val: boolean) => val ? "Yes" : "No" },
+            { key: "actions", label: "Actions", render: (val: any, row: any) => (
+              <div className="flex gap-1">
+                <button onClick={() => deleteHol(row.id)}
+                  style={{ color: "#EF4444", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                  Delete
+                </button>
+              </div>
+            )},
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
             <button onClick={openHol} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead><tr><th>Name</th><th>Date</th><th>Description</th><th>Recurring</th><th>Actions</th></tr></thead>
-              <tbody>
-                {holidays.length === 0 && <tr><td colSpan={5} className="text-center py-8" style={{ color: "var(--text-muted)" }}>No holidays yet.</td></tr>}
-                {holidays.map(h => (
-                  <tr key={h.id}>
-                    <td className="font-medium text-primary">{h.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{h.holiday_date}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{h.description ?? "—"}</td>
-                    <td className="text-center">{h.is_recurring ? "Yes" : "No"}</td>
-                    <ActionsCell>
-                      <QuickRowActions row={h} compact onDelete={() => deleteHol(h.id)} hiddenActions={["view", "edit", "print"]} />
-                    </ActionsCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* ── Department Modal ── */}

@@ -77,6 +77,31 @@ def get_db(request: Request = None):
             if company_info:
                 _, SessionClass = get_schema_engine(company_info["schema_name"])
                 db = SessionClass()
+                # Resolve master UUID → tenant integer PK so routes can query
+                # Company.id / *_company_id FK columns without type mismatch.
+                resolved = False
+                try:
+                    row = db.execute(
+                        text("SELECT id FROM companies WHERE master_id = :mid"),
+                        {"mid": str(company_id)},
+                    ).fetchone()
+                    if row:
+                        request.state.company_id = row[0]
+                        resolved = True
+                except Exception:
+                    log.debug(f"[DB] master_id column not available")
+                if not resolved:
+                    # Fallback: match by slug (which equals schema_name during provisioning)
+                    try:
+                        slug_row = db.execute(
+                            text("SELECT id FROM companies WHERE slug = :slug"),
+                            {"slug": company_info["schema_name"]},
+                        ).fetchone()
+                        if slug_row:
+                            request.state.company_id = slug_row[0]
+                            resolved = True
+                    except Exception:
+                        log.debug(f"[DB] slug lookup fallback failed")
                 log.debug(f"[DB] Resolved schema-based tenant session for schema '{company_info['schema_name']}'")
             else:
                 # Fallback to SQLite tenant

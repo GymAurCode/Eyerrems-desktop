@@ -127,7 +127,7 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       align: 'right',
       render: (value) => React.createElement(
         'span',
-        { className: 'font-mono text-xs text-gray-400' },
+        { className: 'font-mono text-xs text-muted' },
         `#${value}`
       ),
     },
@@ -137,7 +137,7 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       label: 'Name',
       render: (value) => React.createElement(
         'span',
-        { className: 'font-medium text-gray-200' },
+        { className: 'font-medium text-primary' },
         value
       ),
     },
@@ -213,7 +213,7 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       width: 120,
       render: (value) => React.createElement(
         'span',
-        { className: 'text-xs text-gray-400' },
+        { className: 'text-xs text-muted' },
         formatDate(value)
       ),
     },
@@ -224,7 +224,7 @@ export function createCommonColumns<T = any>(): Record<string, TableColumn<T>> {
       width: 120,
       render: (value) => React.createElement(
         'span',
-        { className: 'text-xs text-gray-400' },
+        { className: 'text-xs text-muted' },
         formatDate(value)
       ),
     },

@@ -104,8 +104,8 @@ export default function EmployeeTable() {
             <User size={16} className="text-white" />
           </div>
           <div>
-            <div className="font-medium text-gray-200">{value}</div>
-            <div className="text-xs text-gray-400">{row.position}</div>
+            <div className="font-medium text-primary">{value}</div>
+            <div className="text-xs text-muted">{row.position}</div>
           </div>
         </div>
       ),
@@ -116,12 +116,12 @@ export default function EmployeeTable() {
       render: (value, row) => (
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm">
-            <Mail size={12} className="text-gray-400" />
+            <Mail size={12} className="text-muted" />
             <span className="text-blue-400">{value}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Phone size={12} className="text-gray-400" />
-            <span className="text-gray-300">{row.phone}</span>
+            <Phone size={12} className="text-muted" />
+            <span className="text-secondary">{row.phone}</span>
           </div>
         </div>
       ),
@@ -132,8 +132,8 @@ export default function EmployeeTable() {
       width: 120,
       render: (value, row) => (
         <div>
-          <div className="text-sm font-medium text-gray-200">{value}</div>
-          <div className="text-xs text-gray-400">{row.location}</div>
+          <div className="text-sm font-medium text-primary">{value}</div>
+          <div className="text-xs text-muted">{row.location}</div>
         </div>
       ),
     },
@@ -143,7 +143,7 @@ export default function EmployeeTable() {
       width: 100,
       align: 'center',
       render: (value) => (
-        <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300 capitalize">
+        <span className="text-xs px-2 py-1 rounded-full bg-tertiary text-secondary capitalize">
           {value.replace('_', ' ')}
         </span>
       ),

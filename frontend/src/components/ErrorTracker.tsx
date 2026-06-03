@@ -215,9 +215,9 @@ export function ErrorTrackerPanel() {
       {/* Error panel */}
       {isOpen && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+          <div className="bg-surface rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-theme">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="text-red-400" size={20} />
                 <h2 className="text-lg font-semibold text-white">Error Tracker</h2>
@@ -235,13 +235,13 @@ export function ErrorTrackerPanel() {
                 </button>
                 <button
                   onClick={clearErrors}
-                  className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  className="px-3 py-1 bg-tertiary text-white rounded hover:bg-hover"
                 >
                   Clear
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  className="px-3 py-1 bg-tertiary text-white rounded hover:bg-hover"
                 >
                   Close
                 </button>
@@ -250,19 +250,19 @@ export function ErrorTrackerPanel() {
 
             <div className="flex h-96">
               {/* Error list */}
-              <div className="w-1/2 border-r border-gray-700 overflow-y-auto">
+              <div className="w-1/2 border-r border-theme overflow-y-auto">
                 {errors.map((error) => (
                   <div
                     key={error.id}
-                    className={`p-3 border-b border-gray-700 cursor-pointer hover:bg-gray-800 ${
-                      selectedError?.id === error.id ? 'bg-gray-800' : ''
+                    className={`p-3 border-b border-theme cursor-pointer hover:bg-hover ${
+                      selectedError?.id === error.id ? 'bg-tertiary' : ''
                     }`}
                     onClick={() => setSelectedError(error)}
                   >
                     <div className="text-sm font-medium text-red-400 truncate">
                       {error.message}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
+                    <div className="text-xs text-muted mt-1">
                       {new Date(error.timestamp).toLocaleString()}
                     </div>
                     {error.component && (
@@ -280,7 +280,7 @@ export function ErrorTrackerPanel() {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-semibold text-white mb-2">Error Message</h3>
-                      <div className="bg-gray-800 p-3 rounded text-sm text-red-400">
+                      <div className="bg-tertiary p-3 rounded text-sm text-red-400">
                         {selectedError.message}
                       </div>
                     </div>
@@ -290,13 +290,13 @@ export function ErrorTrackerPanel() {
                         <h3 className="text-sm font-semibold text-white">Stack Trace</h3>
                         <button
                           onClick={() => copyToClipboard(selectedError.stack || '')}
-                          className="flex items-center gap-1 px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600"
+                          className="flex items-center gap-1 px-2 py-1 bg-tertiary text-white rounded text-xs hover:bg-gray-600"
                         >
                           <Copy size={12} />
                           Copy
                         </button>
                       </div>
-                      <pre className="bg-gray-800 p-3 rounded text-xs text-gray-300 overflow-x-auto">
+                      <pre className="bg-tertiary p-3 rounded text-xs text-secondary overflow-x-auto">
                         {selectedError.stack || 'No stack trace available'}
                       </pre>
                     </div>
@@ -304,13 +304,13 @@ export function ErrorTrackerPanel() {
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div>
                         <h4 className="font-semibold text-white mb-1">Timestamp</h4>
-                        <div className="text-gray-400">
+                        <div className="text-muted">
                           {new Date(selectedError.timestamp).toLocaleString()}
                         </div>
                       </div>
                       <div>
                         <h4 className="font-semibold text-white mb-1">URL</h4>
-                        <div className="text-gray-400 truncate">
+                        <div className="text-muted truncate">
                           {selectedError.url}
                         </div>
                       </div>
@@ -325,7 +325,7 @@ export function ErrorTrackerPanel() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-400 mt-8">
+                  <div className="text-center text-muted mt-8">
                     Select an error to view details
                   </div>
                 )}

@@ -67,8 +67,8 @@ function initials(name: string): string {
 // ── Status icon ───────────────────────────────────────────────────────────────
 
 function MsgStatus({ status }: { status: WaMessage["status"] }) {
-  if (status === "sent")      return <Check size={12} className="text-slate-400" />;
-  if (status === "delivered") return <CheckCheck size={12} className="text-slate-400" />;
+  if (status === "sent")      return <Check size={12} className="text-muted" />;
+  if (status === "delivered") return <CheckCheck size={12} className="text-muted" />;
   if (status === "read")      return <CheckCheck size={12} style={{ color: "#25D366" }} />;
   return <AlertCircle size={12} className="text-red-400" />;
 }
