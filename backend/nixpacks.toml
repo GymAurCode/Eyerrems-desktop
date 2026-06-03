@@ -1,2 +1,2 @@
 [phases.setup]
-aptPkgs = ["libcairo2-dev", "pkg-config", "libxcb1-dev", "xcb-proto"]
+cmds = ["apt-get update -qq && apt-get install -y -qq libcairo2-dev pkg-config libxcb1-dev xcb-proto"]
