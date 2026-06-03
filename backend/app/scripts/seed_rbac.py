@@ -35,6 +35,7 @@ def seed_rbac(db: Session):
         )
         db.add(company)
         db.flush()
+        db.commit()  # Commit so tenant init sees it in a new session
         print(f"✅ Created default company: {company.name}")
     else:
         print(f"ℹ️  Default company already exists")
