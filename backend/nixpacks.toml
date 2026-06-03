@@ -1,2 +1,2 @@
 [phases.setup]
-aptPkgs = ["libcairo2-dev", "pkg-config"]
+aptPkgs = ["libcairo2-dev", "pkg-config", "libxcb1-dev", "xcb-proto"]
