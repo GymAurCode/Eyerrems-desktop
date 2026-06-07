@@ -20,14 +20,35 @@ export default function SlugSetupPage() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.post("/api/rbac/setup-slug", { slug: slug.trim().toLowerCase() });
+      const { data } = await api.post("/api/rbac/setup-slug", { company_slug: slug.trim().toLowerCase() });
       if (data.access_token) {
         const { setAuthToken: setToken } = await import("../lib/api");
         setToken(data.access_token);
       }
+      const u = data.user;
       useAuthStore.setState({
         token: data.access_token || token,
-        user: data.user || user,
+        user: u ? {
+          id: u.id,
+          email: u.email,
+          full_name: u.full_name,
+          role: u.role_name ?? "role_user",
+          roles: [],
+          permissions: [],
+          approval_status: "approved",
+          status: "active",
+          is_active: true,
+          is_approved: true,
+          company_id: null,
+          is_super_admin: false,
+          features: {},
+          user_type: "role_user",
+          role_name: u.role_name,
+          company_slug: u.company_slug,
+          slug_locked: u.slug_locked,
+          must_change_password: u.must_change_password,
+          rbac_permissions: u.permissions ?? {},
+        } : user,
       });
       setSuccess(true);
       setTimeout(() => navigate("/dashboard"), 1200);

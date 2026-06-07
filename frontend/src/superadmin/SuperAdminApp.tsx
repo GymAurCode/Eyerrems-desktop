@@ -14,6 +14,7 @@ interface Company {
   phone: string | null;
   status: string;
   schema_name: string;
+  slug: string | null;
   expiry_date: string | null;
   created_at: string | null;
 }
@@ -205,6 +206,7 @@ function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [extendModal, setExtendModal] = useState<{ id: string; name: string } | null>(null);
+  const [slugModal, setSlugModal] = useState<{ id: string; name: string; slug: string | null } | null>(null);
 
   useEffect(() => { fetchCompanies(); }, []);
 
@@ -269,7 +271,12 @@ function CompaniesPage() {
           data={companies}
           columns={[
             { key: 'name', label: 'Company', render: (val: any, row: any) => (
-              <div><p className="font-medium text-sm">{val}</p><p className="text-xs" style={{ color: "var(--text-muted)" }}>{row.schema_name}</p></div>
+              <div>
+                <p className="font-medium text-sm">{val}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  slug: <span className="font-mono">{row.slug || row.schema_name}</span>
+                </p>
+              </div>
             )},
             { key: 'admin_email', label: 'Email', render: (val: any) => <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{val}</span> },
             { key: 'status', label: 'Status', render: (_: any, row: any) => <StatusBadge status={row.status} expiryDate={row.expiry_date} /> },
@@ -283,6 +290,7 @@ function CompaniesPage() {
                   ) : (
                     <button onClick={() => handleActivate(row.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#10b981", background: "rgba(16,185,129,0.1)" }}>Activate</button>
                   )}
+                  <button onClick={() => setSlugModal({ id: row.id, name: row.name, slug: row.slug })} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#06b6d4", background: "rgba(6,182,212,0.1)" }}>Slug</button>
                   <button onClick={() => setExtendModal({ id: row.id, name: row.name })} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>Extend</button>
                   <Link to={`/superadmin/companies/${row.id}/permissions`} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all inline-block" style={{ color: "#8b5cf6", background: "rgba(139,92,246,0.1)" }}>Permissions</Link>
                   <button onClick={() => handleDelete(row.id)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }}>Delete</button>
@@ -304,6 +312,55 @@ function CompaniesPage() {
           onClose={() => setExtendModal(null)}
         />
       )}
+
+      {/* Edit Slug Modal */}
+      {slugModal && (
+        <SlugModal
+          companyName={slugModal.name}
+          currentSlug={slugModal.slug}
+          onSave={async (newSlug) => {
+            await api.patch(`/superadmin/companies/${slugModal.id}/slug`, { slug: newSlug });
+            fetchCompanies();
+            setSlugModal(null);
+          }}
+          onClose={() => setSlugModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SlugModal({ companyName, currentSlug, onSave, onClose }: { companyName: string; currentSlug: string | null; onSave: (slug: string) => Promise<void>; onClose: () => void }) {
+  const [slug, setSlug] = useState(currentSlug || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!slug.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(slug.trim().toLowerCase().replace(/\s+/g, "-"));
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to update slug");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="rounded-xl border p-6 w-80" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold mb-2">Edit Slug</h3>
+        <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Set the slug for <strong>{companyName}</strong>. Role users enter this to connect.</p>
+        <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="e.g. acme-properties" className="w-full px-3 py-2 rounded-lg border text-sm mb-2" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+        {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+        <p className="text-[10px] mb-3" style={{ color: "var(--text-muted)" }}>Lowercase letters, numbers, and hyphens only.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-3 py-2 rounded-lg text-sm border" style={{ borderColor: "var(--border)" }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={saving || !slug.trim()} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50" style={{ background: "#06b6d4", color: "#fff" }}>{saving ? "Saving..." : "Save"}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -339,6 +396,7 @@ function CreateCompanyPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
+    slug: "",
     admin_email: "",
     admin_password: "",
     phone: "",
@@ -380,6 +438,13 @@ function CreateCompanyPage() {
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Company Name *</label>
           <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>
+            Company Slug <span className="text-muted font-normal">(for role user login)</span>
+          </label>
+          <input type="text" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="e.g. acme-properties" className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+          <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>Role users enter this slug to connect to your company. Auto-generated if left blank.</p>
         </div>
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Email *</label>

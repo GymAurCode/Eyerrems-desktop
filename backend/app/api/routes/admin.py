@@ -33,7 +33,7 @@ def list_audit_logs(
     _=Depends(require_permissions("audit.view"))
 ):
     """List audit logs with optional filters"""
-    query = db.query(AuditLog).options(joinedload(AuditLog.user))
+    query = db.query(AuditLog)
     
     if module:
         query = query.filter(AuditLog.module == module)

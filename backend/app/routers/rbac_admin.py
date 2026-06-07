@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from pydantic import BaseModel
 from typing import Optional, List
-from app.core.database import get_db
-from app.models.rbac import (Role, RolePermission, RoleUser,
+from app.core.database import get_master_db
+from app.models.rbac import (RbacRole, RolePermission, RoleUser,
                                LoginHistory, ActivityLog, AdminNotification)
 from app.core.security import (decode_access_token, hash_password,
                                 create_access_token)
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/rbac", tags=["rbac-admin"])
 
 # ── Dependencies (defined first — required by route decorators) ──────────────
 
-def get_current_role_user(request: Request, db: Session = Depends(get_db)):
+def get_current_role_user(request: Request, db: Session = Depends(get_master_db)):
     """Extract role user from JWT (used by rbac_auth endpoints)."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -39,8 +39,8 @@ def get_current_role_user(request: Request, db: Session = Depends(get_db)):
     return payload
 
 
-def get_super_admin_user(request: Request, db: Session = Depends(get_db)):
-    """Extract super admin user from JWT."""
+def get_admin_user(request: Request, db: Session = Depends(get_master_db)):
+    """Accepts both super admins and company admins (User model with Admin role)."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -49,8 +49,15 @@ def get_super_admin_user(request: Request, db: Session = Depends(get_db)):
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     is_super_admin = payload.get("is_super_admin", False) or payload.get("role") == "superadmin"
-    if not is_super_admin:
-        raise HTTPException(status_code=403, detail="Super admin access required")
+    if is_super_admin:
+        payload["id"] = payload.get("sub")
+        return payload
+    user_type = payload.get("user_type")
+    if user_type == "role_user":
+        raise HTTPException(status_code=403, detail="Role users cannot access admin functions")
+    company_id = payload.get("company_id")
+    if not company_id:
+        raise HTTPException(status_code=403, detail="Admin access requires a company context")
     payload["id"] = payload.get("sub")
     return payload
 
@@ -105,22 +112,22 @@ class TemplateRoleRequest(BaseModel):
 # ── ROLE CRUD ────────────────────────────────────────────────────────────────
 
 @router.get("/roles")
-def list_roles(db: Session = Depends(get_db),
-               _=Depends(get_super_admin_user)):
-    roles = db.query(Role).options(
-        joinedload(Role.users), joinedload(Role.permissions)
-    ).order_by(Role.name).all()
+def list_roles(db: Session = Depends(get_master_db),
+               _=Depends(get_admin_user)):
+    roles = db.query(RbacRole).options(
+        joinedload(RbacRole.users), joinedload(RbacRole.permissions)
+    ).order_by(RbacRole.name).all()
     return [r.to_dict() for r in roles]
 
 
 @router.post("/roles", status_code=201)
 def create_role(payload: RoleCreateRequest,
-                db: Session = Depends(get_db),
-                _=Depends(get_super_admin_user)):
-    existing = db.query(Role).filter(Role.name == payload.name).first()
+                db: Session = Depends(get_master_db),
+                _=Depends(get_admin_user)):
+    existing = db.query(RbacRole).filter(RbacRole.name == payload.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Role '{payload.name}' already exists")
-    role = Role(
+    role = RbacRole(
         id=str(uuid.uuid4()),
         name=payload.name,
         description=payload.description,
@@ -133,11 +140,11 @@ def create_role(payload: RoleCreateRequest,
 
 @router.get("/roles/{role_id}")
 def get_role(role_id: str,
-             db: Session = Depends(get_db),
-             _=Depends(get_super_admin_user)):
-    role = db.query(Role).options(
-        joinedload(Role.users), joinedload(Role.permissions)
-    ).filter(Role.id == role_id).first()
+             db: Session = Depends(get_master_db),
+             _=Depends(get_admin_user)):
+    role = db.query(RbacRole).options(
+        joinedload(RbacRole.users), joinedload(RbacRole.permissions)
+    ).filter(RbacRole.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     result = role.to_dict()
@@ -148,13 +155,13 @@ def get_role(role_id: str,
 @router.put("/roles/{role_id}")
 def update_role(role_id: str,
                 payload: RoleUpdateRequest,
-                db: Session = Depends(get_db),
-                _=Depends(get_super_admin_user)):
-    role = db.query(Role).filter(Role.id == role_id).first()
+                db: Session = Depends(get_master_db),
+                _=Depends(get_admin_user)):
+    role = db.query(RbacRole).filter(RbacRole.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     if payload.name is not None:
-        existing = db.query(Role).filter(Role.name == payload.name, Role.id != role_id).first()
+        existing = db.query(RbacRole).filter(RbacRole.name == payload.name, RbacRole.id != role_id).first()
         if existing:
             raise HTTPException(status_code=400, detail=f"Role name '{payload.name}' already taken")
         role.name = payload.name
@@ -167,9 +174,9 @@ def update_role(role_id: str,
 
 @router.delete("/roles/{role_id}")
 def delete_role(role_id: str,
-                db: Session = Depends(get_db),
-                _=Depends(get_super_admin_user)):
-    role = db.query(Role).options(joinedload(Role.users)).filter(Role.id == role_id).first()
+                db: Session = Depends(get_master_db),
+                _=Depends(get_admin_user)):
+    role = db.query(RbacRole).options(joinedload(RbacRole.users)).filter(RbacRole.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     if role.users and len(role.users) > 0:
@@ -183,9 +190,9 @@ def delete_role(role_id: str,
 @router.put("/roles/{role_id}/permissions")
 def update_role_permissions(role_id: str,
                             payload: BulkPermissionsRequest,
-                            db: Session = Depends(get_db),
-                            _=Depends(get_super_admin_user)):
-    role = db.query(Role).filter(Role.id == role_id).first()
+                            db: Session = Depends(get_master_db),
+                            _=Depends(get_admin_user)):
+    role = db.query(RbacRole).filter(RbacRole.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
 
@@ -208,17 +215,28 @@ def update_role_permissions(role_id: str,
 
     db.commit()
 
-    updated = db.query(RolePermission).filter(
-        RolePermission.role_id == role_id
+    # Return full role with fresh permissions for optimistic update
+    updated_role = db.query(RbacRole).options(
+        joinedload(RbacRole.users), joinedload(RbacRole.permissions)
+    ).filter(RbacRole.id == role_id).first()
+    return updated_role.to_dict()
+
+
+@router.get("/roles/{role_id}/users")
+def list_role_users_for_role(role_id: str,
+                             db: Session = Depends(get_master_db),
+                             _=Depends(get_admin_user)):
+    users = db.query(RoleUser).options(joinedload(RoleUser.role)).filter(
+        RoleUser.role_id == role_id
     ).all()
-    return {"permissions": [p.to_dict() for p in updated]}
+    return [u.to_dict() for u in users]
 
 
 # ── USER CRUD ────────────────────────────────────────────────────────────────
 
 @router.get("/users")
-def list_role_users(db: Session = Depends(get_db),
-                    _=Depends(get_super_admin_user)):
+def list_role_users(db: Session = Depends(get_master_db),
+                    _=Depends(get_admin_user)):
     users = db.query(RoleUser).options(joinedload(RoleUser.role)).order_by(
         RoleUser.created_at.desc()
     ).all()
@@ -227,13 +245,13 @@ def list_role_users(db: Session = Depends(get_db),
 
 @router.post("/users", status_code=201)
 def create_role_user(payload: UserCreateRequest,
-                     db: Session = Depends(get_db),
-                     _=Depends(get_super_admin_user)):
+                     db: Session = Depends(get_master_db),
+                     _=Depends(get_admin_user)):
     existing = db.query(RoleUser).filter(RoleUser.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    role = db.query(Role).filter(Role.id == payload.role_id).first()
+    role = db.query(RbacRole).filter(RbacRole.id == payload.role_id).first()
     if not role:
         raise HTTPException(status_code=400, detail="Role not found")
 
@@ -264,8 +282,8 @@ def create_role_user(payload: UserCreateRequest,
 @router.put("/users/{user_id}")
 def update_role_user(user_id: str,
                      payload: UserUpdateRequest,
-                     db: Session = Depends(get_db),
-                     _=Depends(get_super_admin_user)):
+                     db: Session = Depends(get_master_db),
+                     _=Depends(get_admin_user)):
     user = db.query(RoleUser).options(joinedload(RoleUser.role)).filter(
         RoleUser.id == user_id
     ).first()
@@ -274,7 +292,7 @@ def update_role_user(user_id: str,
     if payload.full_name is not None:
         user.full_name = payload.full_name
     if payload.role_id is not None:
-        role = db.query(Role).filter(Role.id == payload.role_id).first()
+        role = db.query(RbacRole).filter(RbacRole.id == payload.role_id).first()
         if not role:
             raise HTTPException(status_code=400, detail="Role not found")
         user.role_id = payload.role_id
@@ -288,8 +306,8 @@ def update_role_user(user_id: str,
 @router.post("/users/{user_id}/reset-password")
 def reset_user_password(user_id: str,
                         payload: ResetPasswordRequest,
-                        db: Session = Depends(get_db),
-                        _=Depends(get_super_admin_user)):
+                        db: Session = Depends(get_master_db),
+                        _=Depends(get_admin_user)):
     user = db.query(RoleUser).filter(RoleUser.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -306,8 +324,8 @@ def reset_user_password(user_id: str,
 
 @router.post("/users/{user_id}/deactivate")
 def deactivate_user(user_id: str,
-                    db: Session = Depends(get_db),
-                    _=Depends(get_super_admin_user)):
+                    db: Session = Depends(get_master_db),
+                    _=Depends(get_admin_user)):
     user = db.query(RoleUser).filter(RoleUser.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -318,14 +336,32 @@ def deactivate_user(user_id: str,
 
 @router.post("/users/{user_id}/activate")
 def activate_user(user_id: str,
-                  db: Session = Depends(get_db),
-                  _=Depends(get_super_admin_user)):
+                  db: Session = Depends(get_master_db),
+                  _=Depends(get_admin_user)):
     user = db.query(RoleUser).filter(RoleUser.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.is_active = True
     db.commit()
     return {"success": True, "message": "User activated"}
+
+
+@router.post("/users/{user_id}/force-logout")
+def force_logout_role_user(user_id: str,
+                           db: Session = Depends(get_master_db),
+                           _=Depends(get_admin_user)):
+    user = db.query(RoleUser).filter(RoleUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    now = datetime.utcnow()
+    latest_login = db.query(LoginHistory).filter(
+        LoginHistory.user_id == user_id,
+        LoginHistory.logout_at == None
+    ).order_by(desc(LoginHistory.login_at)).first()
+    if latest_login:
+        latest_login.logout_at = now
+    db.commit()
+    return {"success": True, "message": "User force logged out"}
 
 
 # ── LOGIN HISTORY ────────────────────────────────────────────────────────────
@@ -338,8 +374,8 @@ def list_login_history(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
-    db: Session = Depends(get_db),
-    _=Depends(get_super_admin_user)
+    db: Session = Depends(get_master_db),
+    _=Depends(get_admin_user)
 ):
     query = db.query(LoginHistory).order_by(desc(LoginHistory.login_at))
     if user_id:
@@ -374,8 +410,8 @@ def list_activity_logs(
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
-    db: Session = Depends(get_db),
-    _=Depends(get_super_admin_user)
+    db: Session = Depends(get_master_db),
+    _=Depends(get_admin_user)
 ):
     query = db.query(ActivityLog).order_by(desc(ActivityLog.timestamp))
     if user_id:
@@ -404,8 +440,8 @@ def list_activity_logs(
 # ── ADMIN NOTIFICATIONS ──────────────────────────────────────────────────────
 
 @router.get("/notifications")
-def list_notifications(db: Session = Depends(get_db),
-                       _=Depends(get_super_admin_user)):
+def list_notifications(db: Session = Depends(get_master_db),
+                       _=Depends(get_admin_user)):
     notifs = db.query(AdminNotification).order_by(
         desc(AdminNotification.created_at)
     ).limit(100).all()
@@ -413,8 +449,8 @@ def list_notifications(db: Session = Depends(get_db),
 
 
 @router.get("/notifications/count")
-def unread_notification_count(db: Session = Depends(get_db),
-                               _=Depends(get_super_admin_user)):
+def unread_notification_count(db: Session = Depends(get_master_db),
+                               _=Depends(get_admin_user)):
     count = db.query(AdminNotification).filter(
         AdminNotification.is_read == False
     ).count()
@@ -423,8 +459,8 @@ def unread_notification_count(db: Session = Depends(get_db),
 
 @router.put("/notifications/{notif_id}/read")
 def mark_notification_read(notif_id: str,
-                           db: Session = Depends(get_db),
-                           _=Depends(get_super_admin_user)):
+                           db: Session = Depends(get_master_db),
+                           _=Depends(get_admin_user)):
     notif = db.query(AdminNotification).filter(
         AdminNotification.id == notif_id
     ).first()
@@ -436,8 +472,8 @@ def mark_notification_read(notif_id: str,
 
 
 @router.post("/notifications/read-all")
-def mark_all_notifications_read(db: Session = Depends(get_db),
-                                _=Depends(get_super_admin_user)):
+def mark_all_notifications_read(db: Session = Depends(get_master_db),
+                                _=Depends(get_admin_user)):
     db.query(AdminNotification).filter(
         AdminNotification.is_read == False
     ).update({"is_read": True})
@@ -449,8 +485,8 @@ def mark_all_notifications_read(db: Session = Depends(get_db),
 
 @router.post("/roles/from-template")
 def create_role_from_template(payload: TemplateRoleRequest,
-                               db: Session = Depends(get_db),
-                               _=Depends(get_super_admin_user)):
+                               db: Session = Depends(get_master_db),
+                               _=Depends(get_admin_user)):
     from app.data.role_templates import ROLE_TEMPLATES
 
     template = ROLE_TEMPLATES.get(payload.template_key)
@@ -461,11 +497,11 @@ def create_role_from_template(payload: TemplateRoleRequest,
         )
 
     role_name = payload.name or template["name"]
-    existing = db.query(Role).filter(Role.name == role_name).first()
+    existing = db.query(RbacRole).filter(RbacRole.name == role_name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Role '{role_name}' already exists")
 
-    role = Role(
+    role = RbacRole(
         id=str(uuid.uuid4()),
         name=role_name,
         description=template["description"],

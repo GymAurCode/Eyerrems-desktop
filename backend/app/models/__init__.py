@@ -43,5 +43,5 @@ from app.models.import_batch import ImportBatch, ImportRowLog
 from app.models.attachment import Attachment  # noqa: F401
 from app.models.lookup import LookupValue  # noqa: F401
 from app.models.rbac import (
-    Role, RolePermission, RoleUser, LoginHistory, ActivityLog, AdminNotification,
+    RbacRole, RolePermission, RoleUser, LoginHistory, ActivityLog, AdminNotification,
 )

@@ -214,6 +214,7 @@ def on_startup():
                     # Migrate old audit_logs if needed
                     try:
                         with tenant_engine.connect() as conn:
+                            conn.execute(text("SET lock_timeout = '5s'"))
                             # Check if old audit_logs table exists with company_id column
                             import sqlalchemy as sa
                             insp = sa.inspect(tenant_engine)
@@ -229,6 +230,7 @@ def on_startup():
                     sync_attachments_table(tenant_engine)
                     # Ensure master_id column exists (used for UUID → integer PK resolution)
                     with tenant_engine.connect() as conn:
+                        conn.execute(text("SET lock_timeout = '5s'"))
                         conn.execute(
                             text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)")
                         )

@@ -14,8 +14,9 @@ interface PermissionsMap {
 
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
 
-  const isAdmin = user?.role === "Admin" || user?.roles?.includes("Admin") || false;
+  const isAdmin = isSuperAdmin || user?.role === "Admin" || user?.roles?.includes("Admin") || false;
   const permissions: PermissionsMap = (user as any)?.rbac_permissions || {};
 
   const can = (module: string, action: string = "view", tab: string | null = null): boolean => {

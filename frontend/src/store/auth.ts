@@ -4,7 +4,7 @@ import { api, registerLogoutCallback, getAuthToken, setAuthToken } from "../lib/
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type User = {
-  id: number;
+  id: number | string;
   email: string;
   full_name: string;
   role: string | null;
@@ -18,6 +18,13 @@ export type User = {
   company_id: number | null;
   is_super_admin: boolean;
   features: Record<string, boolean>;
+  // RBAC role user fields
+  user_type?: "role_user" | "admin";
+  role_name?: string | null;
+  company_slug?: string | null;
+  slug_locked?: boolean;
+  must_change_password?: boolean;
+  rbac_permissions?: Record<string, Record<string, boolean>>;
 };
 
 type AuthState = {
@@ -83,32 +90,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   _bootstrapFetchedAt: null,
 
   login: async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
-    setAuthToken(data.access_token);
-    const role = data.role ?? "company_admin";
-    const isSuperAdmin = role === "superadmin";
-    if (data.company_id != null) {
+    let data: any;
+    let isRbacLogin = false;
+    try {
+      const res = await api.post("/auth/login", { email, password });
+      data = res.data;
+    } catch (err: any) {
+      if (err.response?.status !== 401) throw err;
       try {
-        localStorage.setItem("company_id", String(data.company_id));
-        sessionStorage.setItem("company_id", String(data.company_id));
-      } catch {}
-    } else {
+        try { localStorage.removeItem("company_id"); sessionStorage.removeItem("company_id"); } catch {}
+        const res = await api.post("/api/rbac/login", { email, password });
+        data = res.data;
+        isRbacLogin = true;
+      } catch {
+        throw err;
+      }
+    }
+    setAuthToken(data.access_token);
+    if (isRbacLogin) {
+      const u = data.user;
       try {
         localStorage.removeItem("company_id");
         sessionStorage.removeItem("company_id");
       } catch {}
-    }
-    // Invalidate bootstrap cache on login
-    _bootstrapCache = null;
-    _bootstrapCacheAt = 0;
-    set({
-      token: data.access_token,
-      companyId: data.company_id ?? null,
-      isSuperAdmin,
-      _bootstrapFetchedAt: null,
-    });
-    if (!isSuperAdmin) {
-      await useAuthStore.getState().fetchMe();
+      _bootstrapCache = null;
+      _bootstrapCacheAt = 0;
+      const rbacPermissions = u.permissions ?? {};
+      set({
+        token: data.access_token,
+        user: {
+          id: u.id,
+          email: u.email,
+          full_name: u.full_name,
+          role: u.role_name ?? "role_user",
+          roles: [],
+          permissions: [],
+          approval_status: "approved",
+          status: "active",
+          is_active: true,
+          is_approved: true,
+          company_id: null,
+          is_super_admin: false,
+          features: {},
+          user_type: "role_user",
+          role_name: u.role_name,
+          company_slug: u.company_slug,
+          slug_locked: u.slug_locked,
+          must_change_password: u.must_change_password,
+          rbac_permissions: rbacPermissions,
+        },
+        companyId: null,
+        isSuperAdmin: false,
+        _bootstrapFetchedAt: null,
+      });
+    } else {
+      const role = data.role ?? "company_admin";
+      const isSuperAdmin = role === "superadmin";
+      if (data.company_id != null) {
+        try {
+          localStorage.setItem("company_id", String(data.company_id));
+          sessionStorage.setItem("company_id", String(data.company_id));
+        } catch {}
+      } else {
+        try {
+          localStorage.removeItem("company_id");
+          sessionStorage.removeItem("company_id");
+        } catch {}
+      }
+      _bootstrapCache = null;
+      _bootstrapCacheAt = 0;
+      set({
+        token: data.access_token,
+        companyId: data.company_id ?? null,
+        isSuperAdmin,
+        _bootstrapFetchedAt: null,
+      });
+      if (!isSuperAdmin) {
+        await useAuthStore.getState().fetchMe();
+      }
     }
   },
   loginSuperAdmin: async (email, password) => {
@@ -140,7 +199,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err: any) {
       if (err.response?.status === 401) {
-        get().logout();
+        try {
+          const { data } = await api.get("/api/rbac/me");
+          const rbacPermissions = data.permissions ?? {};
+          set({
+            user: {
+              id: data.id,
+              email: data.email,
+              full_name: data.full_name,
+              role: data.role_name ?? "role_user",
+              roles: [],
+              permissions: [],
+              approval_status: "approved",
+              status: "active",
+              is_active: data.is_active ?? true,
+              is_approved: true,
+              company_id: null,
+              is_super_admin: false,
+              features: {},
+              user_type: "role_user",
+              role_name: data.role_name,
+              company_slug: data.company_slug,
+              slug_locked: data.slug_locked,
+              must_change_password: data.must_change_password,
+              rbac_permissions: rbacPermissions,
+            },
+            permissions: [],
+            features: {},
+            companyId: null,
+            isSuperAdmin: false,
+            _bootstrapFetchedAt: null,
+          });
+          return;
+        } catch {
+          get().logout();
+          throw err;
+        }
       }
       throw err;
     }
@@ -153,7 +247,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     try {
       const { data } = await api.get<BootstrapData>("/bootstrap");
-      // Hydrate auth state from bootstrap response
       set({
         user: data.user,
         permissions: data.user.permissions ?? [],
@@ -169,10 +262,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err: any) {
       _bootstrapCache = null;
       _bootstrapCacheAt = 0;
-      if (err.response?.status === 401) {
+      if (err.response?.status !== 401) throw err;
+      try {
+        const { data } = await api.get("/api/rbac/me");
+        const rbacPermissions = data.permissions ?? {};
+        set({
+          user: {
+            id: data.id,
+            email: data.email,
+            full_name: data.full_name,
+            role: data.role_name ?? "role_user",
+            roles: [],
+            permissions: [],
+            approval_status: "approved",
+            status: "active",
+            is_active: data.is_active ?? true,
+            is_approved: true,
+            company_id: null,
+            is_super_admin: false,
+            features: {},
+            user_type: "role_user",
+            role_name: data.role_name,
+            company_slug: data.company_slug,
+            slug_locked: data.slug_locked,
+            must_change_password: data.must_change_password,
+            rbac_permissions: rbacPermissions,
+          },
+          permissions: [],
+          features: {},
+          companyId: null,
+          isSuperAdmin: false,
+          _bootstrapFetchedAt: Date.now(),
+        });
+        return null;
+      } catch {
         get().logout();
+        throw err;
       }
-      throw err;
     }
   },
 

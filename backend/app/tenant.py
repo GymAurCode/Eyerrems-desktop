@@ -121,10 +121,6 @@ def get_tenant_db_optional(x_company_id: Optional[str] = Header(None)) -> Option
 
 def get_master_session() -> Session:
     """Get a session against the database for master schema operations.
-    Uses the public search_path so master.companies is accessible."""
-    engine = create_engine(
-        settings.database_url_fixed,
-        pool_pre_ping=True,
-    )
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
+    Uses the cached engine from tenant_manager to avoid connection floods."""
+    from app.core.tenant_manager import tenant_manager
+    return tenant_manager.get_master_session()

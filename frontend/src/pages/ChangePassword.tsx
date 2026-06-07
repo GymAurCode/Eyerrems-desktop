@@ -28,10 +28,18 @@ export default function ChangePasswordPage() {
     setLoading(true);
     setError("");
     try {
-      await api.post("/api/rbac/change-password", {
+      const { data } = await api.post("/api/rbac/change-password", {
         current_password: currentPassword,
         new_password: newPassword,
       });
+      if (data.access_token) {
+        const { setAuthToken: setToken } = await import("../lib/api");
+        setToken(data.access_token);
+        useAuthStore.setState((prev) => ({
+          token: data.access_token,
+          user: prev.user ? { ...prev.user, must_change_password: false } : prev.user,
+        }));
+      }
       setSuccess(true);
       setTimeout(() => navigate("/dashboard"), 1500);
     } catch (err: any) {

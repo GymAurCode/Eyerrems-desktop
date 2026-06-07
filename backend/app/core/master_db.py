@@ -48,12 +48,19 @@ ALTER TABLE {MASTER_SCHEMA}.companies
 ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{{}}';
 """
 
+ALTER_ADD_SLUG_SQL = f"""
+ALTER TABLE {MASTER_SCHEMA}.companies
+ADD COLUMN IF NOT EXISTS slug TEXT;
+"""
+
 
 def ensure_master_schema(db: Session) -> None:
     """Create master schema and companies table if they don't exist."""
+    db.execute(text("SET lock_timeout = '5s'"))
     db.execute(text(CREATE_MASTER_SCHEMA_SQL))
     db.execute(text(CREATE_COMPANIES_TABLE_SQL))
     db.execute(text(ALTER_ADD_PERMISSIONS_SQL))
+    db.execute(text(ALTER_ADD_SLUG_SQL))
     db.commit()
     log.info("[Master] Master schema and companies table ensured.")
 
@@ -137,6 +144,7 @@ def sync_attachments_table(engine) -> None:
     """Migrate existing attachments table columns (rename, add, convert)."""
     try:
         with engine.connect() as conn:
+            conn.execute(text("SET lock_timeout = '5s'"))
             conn.execute(text(SYNC_ATTACHMENTS_SQL))
             conn.commit()
         log.info("[Master] Attachments table synced.")

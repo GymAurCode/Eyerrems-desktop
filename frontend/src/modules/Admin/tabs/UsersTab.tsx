@@ -5,22 +5,20 @@ import {
   Users, Plus, Pencil, Trash2, Save, AlertCircle, Key, Copy, CheckCircle, Eye, EyeOff, RefreshCw,
 } from "lucide-react";
 
-interface Role {
-  id: number;
-  name: string;
-  description: string;
-}
+import type { Role, Permission } from "./PermissionMatrixDialog";
+import PermissionMatrixDialog from "./PermissionMatrixDialog";
 
 interface UserRow {
-  id: number;
+  id: string;
   email: string;
   full_name: string;
-  status: string;
-  role: string;
+  role_id: string;
+  role_name: string;
   company_slug: string;
   last_login: string;
   is_active: boolean;
   slug_locked: boolean;
+  must_change_password: boolean;
 }
 
 function generatePassword(): string {
@@ -40,7 +38,7 @@ function StatusBadge({ user }: { user: UserRow }) {
       </span>
     );
   }
-  if (user.status === "active") {
+  if (user.is_active) {
     return (
       <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
         style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
@@ -67,7 +65,7 @@ export default function UsersTab() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
+  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [tempPassword, setTempPassword] = useState(generatePassword());
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");
@@ -76,10 +74,12 @@ export default function UsersTab() {
   const [copied, setCopied] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
+  const [permRole, setPermRole] = useState<Role | null>(null);
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get<UserRow[]>("/admin/users");
+      const { data } = await api.get<UserRow[]>("/api/rbac/users");
       setUsers(data || []);
     } catch { setUsers([]); }
     finally { setLoading(false); }
@@ -87,7 +87,7 @@ export default function UsersTab() {
 
   const loadRoles = useCallback(async () => {
     try {
-      const { data } = await api.get<Role[]>("/auth/roles");
+      const { data } = await api.get<Role[]>("/api/rbac/roles");
       setRoles(data);
     } catch { setRoles([]); }
   }, []);
@@ -117,10 +117,10 @@ export default function UsersTab() {
     }
     setSaving(true); setFormErr("");
     try {
-      const { data } = await api.post("/api/rbac/admin/users", {
+      const { data } = await api.post("/api/rbac/users", {
         full_name: fullName.trim(),
         email: email.trim(),
-        role_id: Number(selectedRoleId),
+        role_id: selectedRoleId,
         password: tempPassword,
       });
       setCreatedUser(data);
@@ -134,7 +134,7 @@ export default function UsersTab() {
     if (!activeUser || !fullName.trim()) { setFormErr("Name is required"); return; }
     setSaving(true); setFormErr("");
     try {
-      await api.patch(`/admin/users/${activeUser.id}`, { full_name: fullName.trim() });
+      await api.put(`/api/rbac/users/${activeUser.id}`, { full_name: fullName.trim() });
       setShowEdit(false); setActiveUser(null);
       await loadUsers();
     } catch (e: any) {
@@ -146,22 +146,40 @@ export default function UsersTab() {
     const newPwd = generatePassword();
     if (!confirm(`Reset password for ${u.full_name}? New temporary password will be shown.`)) return;
     try {
-      await api.post(`/api/rbac/admin/users/${u.id}/reset-password`, { password: newPwd });
+      await api.post(`/api/rbac/users/${u.id}/reset-password`, { new_password: newPwd });
       alert(`Temporary password: ${newPwd}\n\nShare this securely with the user.`);
     } catch { alert("Failed to reset password"); }
   };
 
   const toggleActivate = async (u: UserRow) => {
     try {
-      await api.patch(`/admin/users/${u.id}/status`, { status: u.is_active ? "suspended" : "active" });
+      if (u.is_active) {
+        await api.post(`/api/rbac/users/${u.id}/deactivate`);
+      } else {
+        await api.post(`/api/rbac/users/${u.id}/activate`);
+      }
       await loadUsers();
     } catch { /* ignore */ }
   };
 
   const forceLogout = async (u: UserRow) => {
     if (!confirm(`Force logout ${u.full_name}?`)) return;
-    try { await api.post(`/api/rbac/admin/users/${u.id}/force-logout`); }
+    try { await api.post(`/api/rbac/users/${u.id}/force-logout`); }
     catch { /* ignore */ }
+  };
+
+  const openUserPerms = async (u: UserRow) => {
+    try {
+      const { data } = await api.get<Role>(`/api/rbac/roles/${u.role_id}`);
+      setPermRole(data);
+    } catch {
+      setFormErr("Failed to load role permissions");
+    }
+  };
+
+  const onPermsSaved = async () => {
+    await loadRoles();
+    await loadUsers();
   };
 
   const copyCreds = async () => {
@@ -205,14 +223,15 @@ export default function UsersTab() {
                 <tr key={u.id} className="transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-primary font-medium">{u.full_name}</td>
                   <td className="px-4 py-3 text-secondary">{u.email}</td>
-                  <td className="px-4 py-3 text-secondary">{u.role || "—"}</td>
+                  <td className="px-4 py-3 text-secondary">{u.role_name || "—"}</td>
                   <td className="px-4 py-3"><code className="text-[10px] text-muted">{u.company_slug || "—"}</code></td>
                   <td className="px-4 py-3"><StatusBadge user={u} /></td>
                   <td className="px-4 py-3 text-muted">{u.last_login ? new Date(u.last_login).toLocaleString() : "Never"}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openUserPerms(u)} className="p-1.5 rounded hover:bg-indigo-500/10 text-muted hover:text-indigo-400" title="Permissions"><Key size={13} /></button>
                       <button onClick={() => openEdit(u)} className="p-1.5 rounded hover:bg-amber-500/10 text-muted hover:text-amber-400" title="Edit"><Pencil size={13} /></button>
-                      <button onClick={() => resetPassword(u)} className="p-1.5 rounded hover:bg-blue-500/10 text-muted hover:text-blue-400" title="Reset Password"><Key size={13} /></button>
+                      <button onClick={() => resetPassword(u)} className="p-1.5 rounded hover:bg-blue-500/10 text-muted hover:text-blue-400" title="Reset Password"><RefreshCw size={13} /></button>
                       <button onClick={() => toggleActivate(u)} className="p-1.5 rounded text-muted hover:text-emerald-400" title={u.is_active ? "Deactivate" : "Activate"}>
                         {u.is_active ? <EyeOff size={13} /> : <Eye size={13} />}
                       </button>
@@ -293,7 +312,7 @@ export default function UsersTab() {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5 text-muted">Role <span className="text-red-400">*</span></label>
-              <select value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value === "" ? "" : Number(e.target.value))} className="input-dark w-full px-4 py-2.5 text-sm">
+              <select value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)} className="input-dark w-full px-4 py-2.5 text-sm">
                 <option value="">— Choose a role —</option>
                 {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
@@ -323,6 +342,15 @@ export default function UsersTab() {
           </div>
         )}
       </AppDialog>
+
+      {/* Permission Matrix Dialog */}
+      {permRole && (
+        <PermissionMatrixDialog
+          role={permRole}
+          onClose={() => setPermRole(null)}
+          onSaved={onPermsSaved}
+        />
+      )}
 
       {/* Edit User Dialog */}
       <AppDialog isOpen={showEdit} title={`Edit — ${activeUser?.full_name || ""}`} onClose={() => setShowEdit(false)} size="md">

@@ -6,7 +6,7 @@ from app.core.database import Base
 import uuid
 
 
-class Role(Base):
+class RbacRole(Base):
     __tablename__ = "rbac_roles"
 
     id = Column(String, primary_key=True,
@@ -31,6 +31,7 @@ class Role(Base):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat(),
             "user_count": len(self.users) if self.users else 0,
+            "permissions": [p.to_dict() for p in (self.permissions or [])],
         }
 
 
@@ -50,7 +51,7 @@ class RolePermission(Base):
     can_edit = Column(Boolean, default=False)
     can_delete = Column(Boolean, default=False)
 
-    role = relationship("Role", back_populates="permissions")
+    role = relationship("RbacRole", back_populates="permissions")
 
     def to_dict(self):
         return {
@@ -86,7 +87,7 @@ class RoleUser(Base):
     last_login_ip = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    role = relationship("Role", back_populates="users")
+    role = relationship("RbacRole", back_populates="users")
     login_history = relationship("LoginHistory",
                                   back_populates="user",
                                   cascade="all, delete-orphan")

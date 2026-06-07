@@ -43,6 +43,7 @@ LenientEmail = Annotated[str, AfterValidator(_validate_email)]
 
 class CompanyCreateRequest(BaseModel):
     name: str
+    slug: Optional[str] = None  # human-friendly slug; auto-generated if omitted
     admin_email: LenientEmail
     admin_password: str
     phone: Optional[str] = None
@@ -61,6 +62,7 @@ class CompanyResponse(BaseModel):
     phone: Optional[str]
     status: str
     schema_name: str
+    slug: Optional[str] = None
     expiry_date: str
     created_at: str
 
@@ -71,6 +73,9 @@ class StatsResponse(BaseModel):
     suspended_companies: int
     expired_companies: int
 
+
+class UpdateSlugRequest(BaseModel):
+    slug: str
 
 class ExtendExpiryRequest(BaseModel):
     expiry_date: Optional[str] = None
@@ -164,7 +169,7 @@ def list_companies(
         rows = db.execute(
             text("""
                 SELECT id, name, admin_email, phone, status,
-                       schema_name, expiry_date, created_at
+                       schema_name, slug, expiry_date, created_at
                 FROM master.companies
                 ORDER BY created_at DESC
             """)
@@ -177,8 +182,9 @@ def list_companies(
                 "phone": r[3],
                 "status": r[4],
                 "schema_name": r[5],
-                "expiry_date": r[6].isoformat() if r[6] else None,
-                "created_at": r[7].isoformat() if r[7] else None,
+                "slug": r[6],
+                "expiry_date": r[7].isoformat() if r[7] else None,
+                "created_at": r[8].isoformat() if r[8] else None,
             }
             for r in rows
         ]
@@ -196,6 +202,13 @@ def create_company(
     try:
         ensure_master_schema(db)
 
+        # Add slug column if not present
+        try:
+            db.execute(text("ALTER TABLE master.companies ADD COLUMN IF NOT EXISTS slug TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Check if admin_email already exists
         existing = db.execute(
             text("SELECT id FROM master.companies WHERE admin_email = :email"),
@@ -204,7 +217,20 @@ def create_company(
         if existing:
             raise HTTPException(status_code=409, detail="A company with this admin email already exists")
 
-        # Generate schema name
+        # If custom slug provided, check uniqueness
+        custom_slug = None
+        if payload.slug:
+            custom_slug = payload.slug.strip().lower().replace(" ", "-")
+            slug_exists = db.execute(
+                text("SELECT id FROM master.companies WHERE slug = :slug"),
+                {"slug": custom_slug},
+            ).fetchone()
+            if slug_exists:
+                raise HTTPException(status_code=409, detail=f"Slug '{custom_slug}' is already taken")
+        else:
+            custom_slug = None
+
+        # Generate schema name (always auto-generated — must be PG-safe)
         schema_name = "company_" + uuid.uuid4().hex[:8]
 
         # Calculate expiry
@@ -217,13 +243,16 @@ def create_company(
         # Hash admin password
         pw_hash = hash_password(payload.admin_password)
 
+        # Use custom slug if provided, else fallback to schema_name
+        company_slug = custom_slug or schema_name
+
         # Insert company into master.companies
         result = db.execute(
             text("""
                 INSERT INTO master.companies (name, admin_email, admin_password_hash,
-                                              phone, status, expiry_date, schema_name)
-                VALUES (:name, :email, :pw, :phone, 'active', :expiry, :schema)
-                RETURNING id, name, admin_email, phone, status, schema_name, expiry_date, created_at
+                                              phone, status, expiry_date, schema_name, slug)
+                VALUES (:name, :email, :pw, :phone, 'active', :expiry, :schema, :slug)
+                RETURNING id, name, admin_email, phone, status, schema_name, slug, expiry_date, created_at
             """),
             {
                 "name": payload.name,
@@ -232,6 +261,7 @@ def create_company(
                 "phone": payload.phone or "",
                 "expiry": expiry_date,
                 "schema": schema_name,
+                "slug": company_slug,
             },
         )
         company_row = result.fetchone()
@@ -290,7 +320,7 @@ def create_company(
             {
                 "mid": str(company_row[0]),
                 "name": payload.name,
-                "slug": schema_name,
+                "slug": company_slug,
                 "email": payload.admin_email,
             },
         )
@@ -306,7 +336,7 @@ def create_company(
                 "email": payload.admin_email,
                 "name": payload.name + " Admin",
                 "pw": pw_hash,
-                "slug": schema_name,
+                "slug": company_slug,
                 "role_id": role_id,
             },
         )
@@ -320,8 +350,9 @@ def create_company(
             "phone": company_row[3],
             "status": company_row[4],
             "schema_name": company_row[5],
-            "expiry_date": company_row[6].isoformat() if company_row[6] else None,
-            "created_at": company_row[7].isoformat() if company_row[7] else None,
+            "slug": company_row[6],
+            "expiry_date": company_row[7].isoformat() if company_row[7] else None,
+            "created_at": company_row[8].isoformat() if company_row[8] else None,
         }
     except HTTPException:
         raise
@@ -467,6 +498,65 @@ def extend_expiry(
             "status": result[2],
             "expiry_date": result[3].isoformat() if result[3] else None,
         }
+    finally:
+        db.close()
+
+
+@router.patch("/companies/{company_id}/slug")
+def update_company_slug(
+    company_id: str,
+    payload: UpdateSlugRequest,
+    _: User = Depends(require_super_admin),
+):
+    """Update a company's slug (used by role users to connect)."""
+    db = get_master_session()
+    try:
+        ensure_master_schema(db)
+
+        # Normalize slug
+        new_slug = payload.slug.strip().lower().replace(" ", "-")
+
+        company = db.execute(
+            text("SELECT id, name, schema_name, slug FROM master.companies WHERE id = :id"),
+            {"id": company_id},
+        ).fetchone()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        # Check uniqueness
+        existing = db.execute(
+            text("SELECT id FROM master.companies WHERE slug = :slug AND id != :id"),
+            {"slug": new_slug, "id": company_id},
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Slug '{new_slug}' is already taken")
+
+        schema_name = company[2]
+
+        # Update master.companies
+        db.execute(
+            text("UPDATE master.companies SET slug = :slug WHERE id = :id"),
+            {"slug": new_slug, "id": company_id},
+        )
+
+        # Update tenant's companies table too
+        try:
+            db.execute(
+                text(f"UPDATE {schema_name}.companies SET slug = :slug WHERE master_id = :mid"),
+                {"slug": new_slug, "mid": company_id},
+            )
+        except Exception:
+            # Tenant schema might not exist or use SQLite — best effort
+            pass
+
+        db.commit()
+
+        return {"slug": new_slug, "message": f"Slug updated to '{new_slug}'"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update slug: {str(e)}")
     finally:
         db.close()
 

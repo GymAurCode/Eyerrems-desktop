@@ -5,35 +5,36 @@ import ModuleTabs from "../../../components/ui/ModuleTabs";
 import { Clock, Activity, Bell, CheckCheck, LogIn, AlertTriangle, Info, Download, Eye, EyeOff } from "lucide-react";
 
 interface LoginEntry {
-  id: number;
-  user_name: string;
+  id: string;
+  user_id: string;
   user_email: string;
   ip_address: string;
-  device: string;
+  user_agent: string | null;
   status: string;
-  created_at: string;
+  login_at: string;
 }
 
 interface ActivityEntry {
-  id: number;
-  user_name: string;
+  id: string;
+  user_id: string;
   user_email: string;
+  user_name: string;
   action: string;
   module: string;
   record_type: string;
   record_label: string;
-  record_id: string | number | null;
+  record_id: string | null;
   old_values: any;
   new_values: any;
-  created_at: string;
+  timestamp: string;
 }
 
 interface NotificationEntry {
-  id: number;
+  id: string;
   title: string;
   message: string;
   type: string;
-  read: boolean;
+  is_read: boolean;
   created_at: string;
 }
 
@@ -64,8 +65,8 @@ function LoginHistoryTab() {
     try {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
-      const { data } = await api.get<LoginEntry[]>("/api/rbac/login-history", { params });
-      setEntries(data || []);
+      const { data } = await api.get<{ items: LoginEntry[] }>("/api/rbac/login-history", { params });
+      setEntries(data?.items || []);
     } catch { setEntries([]); }
     finally { setLoading(false); }
   }, [statusFilter]);
@@ -73,7 +74,7 @@ function LoginHistoryTab() {
   useEffect(() => { void load(); }, [load]);
 
   const exportCsv = () => {
-    const rows = entries.map((e) => `${e.user_email},${e.status},${e.ip_address},${e.device},${e.created_at}`);
+    const rows = entries.map((e) => `${e.user_email},${e.status},${e.ip_address},${e.user_agent || ""},${e.login_at}`);
     const csv = "User,Status,IP,Device,Time\n" + rows.join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -116,12 +117,12 @@ function LoginHistoryTab() {
               {entries.map((e) => (
                 <tr key={e.id} className={e.status === "failed" ? "bg-red-500/5" : "transition-colors hover:bg-surface-hover"}>
                   <td className="px-4 py-3">
-                    <p className="text-primary font-medium">{e.user_name || e.user_email}</p>
+                    <p className="text-primary font-medium">{e.user_email}</p>
                     <p className="text-muted">{e.user_email}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(e.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-muted whitespace-nowrap">{new Date(e.login_at).toLocaleString()}</td>
                   <td className="px-4 py-3"><code className="text-[10px] text-secondary">{e.ip_address}</code></td>
-                  <td className="px-4 py-3 text-secondary">{e.device || "—"}</td>
+                  <td className="px-4 py-3 text-secondary">{e.user_agent || "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                       e.status === "success" ? "text-emerald-400 bg-emerald-500/10" :
@@ -146,7 +147,7 @@ function ActivityLogTab() {
   const [loading, setLoading] = useState(true);
   const [moduleFilter, setModuleFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -154,8 +155,8 @@ function ActivityLogTab() {
       const params: any = {};
       if (moduleFilter) params.module = moduleFilter;
       if (actionFilter) params.action = actionFilter;
-      const { data } = await api.get<ActivityEntry[]>("/api/rbac/activity-logs", { params });
-      setEntries(data || []);
+      const { data } = await api.get<{ items: ActivityEntry[] }>("/api/rbac/activity-logs", { params });
+      setEntries(data?.items || []);
     } catch { setEntries([]); }
     finally { setLoading(false); }
   }, [moduleFilter, actionFilter]);
@@ -163,7 +164,7 @@ function ActivityLogTab() {
   useEffect(() => { void load(); }, [load]);
 
   const exportCsv = () => {
-    const rows = entries.map((e) => `${e.user_email},${e.action},${e.module},${e.record_type},${e.created_at}`);
+    const rows = entries.map((e) => `${e.user_email},${e.action},${e.module},${e.record_type},${e.timestamp}`);
     const csv = "User,Action,Module,Record,Time\n" + rows.join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -210,7 +211,7 @@ function ActivityLogTab() {
                   </div>
                   <p className="text-[11px] text-muted mt-0.5 truncate">{e.record_label || `${e.record_type} #${e.record_id || ""}`}</p>
                 </div>
-                <span className="text-[10px] text-muted whitespace-nowrap">{new Date(e.created_at).toLocaleString()}</span>
+                <span className="text-[10px] text-muted whitespace-nowrap">{new Date(e.timestamp).toLocaleString()}</span>
                 {expandedRow === e.id ? <EyeOff size={12} className="text-muted" /> : <Eye size={12} className="text-muted" />}
               </button>
               {expandedRow === e.id && (
@@ -251,14 +252,14 @@ function NotificationsTab() {
   useEffect(() => { void load(); }, [load]);
 
   const markAllRead = async () => {
-    try { await api.post("/api/rbac/notifications/mark-all-read"); await load(); } catch {}
+    try { await api.post("/api/rbac/notifications/read-all"); await load(); } catch {}
   };
 
-  const markRead = async (id: number) => {
-    try { await api.post(`/api/rbac/notifications/${id}/read`); await load(); } catch {}
+  const markRead = async (id: string) => {
+    try { await api.put(`/api/rbac/notifications/${id}/read`); await load(); } catch {}
   };
 
-  const unread = notifs.filter((n) => !n.read).length;
+  const unread = notifs.filter((n) => !n.is_read).length;
 
   return (
     <div className="space-y-3">
@@ -288,11 +289,11 @@ function NotificationsTab() {
             const iconColor = n.type === "failed_login" ? "text-red-400" : n.type === "login" ? "text-blue-400" : "text-muted";
             return (
               <div key={n.id}
-                onClick={() => { if (!n.read) markRead(n.id); }}
+                onClick={() => { if (!n.is_read) markRead(n.id); }}
                 className="flex items-start gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors hover:bg-surface-hover"
                 style={{
                   border: "1px solid var(--border)",
-                  opacity: n.read ? 0.6 : 1,
+                  opacity: n.is_read ? 0.6 : 1,
                 }}
               >
                 <Icon size={14} className={`mt-0.5 shrink-0 ${iconColor}`} />
@@ -302,7 +303,7 @@ function NotificationsTab() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[10px] text-muted whitespace-nowrap">{new Date(n.created_at).toLocaleString()}</span>
-                  {!n.read && <div className="w-2 h-2 rounded-full bg-blue-400" />}
+                  {!n.is_read && <div className="w-2 h-2 rounded-full bg-blue-400" />}
                 </div>
               </div>
             );

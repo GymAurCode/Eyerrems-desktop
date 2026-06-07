@@ -25,10 +25,10 @@ ADMIN_PASSWORD = "Admin@123"
 
 def seed_rbac(db: Session):
     """Seed RBAC system with default data"""
-    print("🌱 Seeding RBAC system...")
+    print("[RBAC] Seeding RBAC system...")
     
     # 1. Seed Default Company in master
-    print("\n🏢 Ensuring default company exists...")
+    print("\n[RBAC] Ensuring default company exists...")
     from app.models.company import Company
     from app.core.tenant_manager import tenant_manager
     
@@ -44,9 +44,9 @@ def seed_rbac(db: Session):
         db.add(company)
         db.flush()
         db.commit()  # Commit so tenant init sees it in a new session
-        print(f"✅ Created default company: {company.name}")
+        print(f"[OK] Created default company: {company.name}")
     else:
-        print(f"ℹ️  Default company already exists")
+        print(f"[INFO]  Default company already exists")
 
     # ── 1b. Ensure row exists in master.companies ──────────────────────────
     # login/auth.py queries master.companies for company admin auth
@@ -75,20 +75,20 @@ def seed_rbac(db: Session):
                 },
             )
             db.commit()
-            print(f"✅ Added company to master.companies: {ADMIN_EMAIL}")
+            print(f"[OK] Added company to master.companies: {ADMIN_EMAIL}")
         else:
-            print(f"ℹ️  Company already in master.companies: {ADMIN_EMAIL}")
+            print(f"[INFO]  Company already in master.companies: {ADMIN_EMAIL}")
     except Exception as e:
-        print(f"⚠️  master.companies seed skipped: {e}")
+        print(f"[WARN]  master.companies seed skipped: {e}")
 
     # 2. Seed permissions
-    print("\n📋 Creating permissions...")
+    print("\n[PERMS] Creating permissions...")
     created_perms = RBACService.seed_default_permissions(db)
-    print(f"✅ Created {len(created_perms)} permissions")
+    print(f"[OK] Created {len(created_perms)} permissions")
     
     # Get all permissions for display
     all_perms = db.query(Permission).order_by(Permission.module, Permission.name).all()
-    print(f"📊 Total permissions in system: {len(all_perms)}")
+    print(f"[STATS] Total permissions in system: {len(all_perms)}")
     
     # Group by module
     modules = {}
@@ -101,9 +101,9 @@ def seed_rbac(db: Session):
         print(f"   {module}: {len(perms)} permissions")
     
     # 3. Seed roles
-    print("\n👥 Creating roles...")
+    print("\n[ROLES] Creating roles...")
     created_roles = RBACService.seed_default_roles(db)
-    print(f"✅ Created {len(created_roles)} roles")
+    print(f"[OK] Created {len(created_roles)} roles")
     
     # Display roles
     all_roles = db.query(Role).all()
@@ -111,16 +111,16 @@ def seed_rbac(db: Session):
         print(f"   - {role.name}: {len(role.permissions)} permissions")
     
     # 4. Initialize company tenant DB
-    print("\n⚙️  Initializing default company tenant database...")
+    print("\n[INIT]  Initializing default company tenant database...")
     tenant_manager.initialize_tenant_db(company.id, company.slug)
     
     # 5. Create default admin user in master if not exists
-    print("\n👤 Creating default admin user in master...")
+    print("\n[USER] Creating default admin user in master...")
     existing_admin_master = db.query(User).filter(User.email == ADMIN_EMAIL).first()
     
     admin_master_role = db.query(Role).filter(Role.name == "Admin").first()
     if not admin_master_role:
-        print("❌ Admin role not found in master database!")
+        print("[FAIL] Admin role not found in master database!")
         return
         
     if not existing_admin_master:
@@ -139,23 +139,23 @@ def seed_rbac(db: Session):
         admin_user_master.roles = [admin_master_role]
         db.add(admin_user_master)
         db.flush()
-        print(f"✅ Created admin user in master: {ADMIN_EMAIL}")
+        print(f"[OK] Created admin user in master: {ADMIN_EMAIL}")
     else:
         existing_admin_master.company_id = company.id
         existing_admin_master.hashed_password = hash_password(ADMIN_PASSWORD)
         if admin_master_role not in existing_admin_master.roles:
             existing_admin_master.roles.append(admin_master_role)
         db.flush()
-        print(f"ℹ️  Admin user updated/verified in master: {ADMIN_EMAIL}")
+        print(f"[INFO]  Admin user updated/verified in master: {ADMIN_EMAIL}")
         
     # 6. Create default admin user in tenant database if not exists
-    print("\n👤 Creating default admin user in tenant...")
+    print("\n[USER] Creating default admin user in tenant...")
     tenant_db = tenant_manager.get_tenant_session(company.slug)
     try:
         existing_admin_tenant = tenant_db.query(User).filter(User.email == ADMIN_EMAIL).first()
         admin_tenant_role = tenant_db.query(Role).filter(Role.name == "Admin").first()
         if not admin_tenant_role:
-            print("❌ Admin role not found in tenant database!")
+            print("[FAIL] Admin role not found in tenant database!")
             return
             
         if not existing_admin_tenant:
@@ -173,23 +173,23 @@ def seed_rbac(db: Session):
             admin_user_tenant.roles = [admin_tenant_role]
             tenant_db.add(admin_user_tenant)
             tenant_db.commit()
-            print(f"✅ Created admin user in tenant: {ADMIN_EMAIL}")
+            print(f"[OK] Created admin user in tenant: {ADMIN_EMAIL}")
         else:
             existing_admin_tenant.company_id = company.id
             existing_admin_tenant.hashed_password = hash_password(ADMIN_PASSWORD)
             if admin_tenant_role not in existing_admin_tenant.roles:
                 existing_admin_tenant.roles.append(admin_tenant_role)
             tenant_db.commit()
-            print(f"ℹ️  Admin user updated/verified in tenant: {ADMIN_EMAIL}")
+            print(f"[INFO]  Admin user updated/verified in tenant: {ADMIN_EMAIL}")
     except Exception as e:
         tenant_db.rollback()
-        print(f"❌ Failed to seed tenant admin: {e}")
+        print(f"[FAIL] Failed to seed tenant admin: {e}")
         raise e
     finally:
         tenant_db.close()
     
     db.commit()
-    print("\n✨ RBAC seeding completed successfully!")
+    print("\n[DONE] RBAC seeding completed successfully!")
 
 
 def main():
@@ -199,23 +199,23 @@ def main():
     print("=" * 60)
     
     # Create tables if they don't exist
-    print("\n🔧 Ensuring database tables exist...")
+    print("\n[SETUP] Ensuring database tables exist...")
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables ready")
+    print("[OK] Database tables ready")
     
     # Seed data
     db = SessionLocal()
     try:
         seed_rbac(db)
     except Exception as e:
-        print(f"\n❌ Error during seeding: {e}")
+        print(f"\n[FAIL] Error during seeding: {e}")
         db.rollback()
         raise
     finally:
         db.close()
     
     print("\n" + "=" * 60)
-    print("🎉 All done! You can now login with:")
+    print("[DONE] All done! You can now login with:")
     print(f"   Email: {ADMIN_EMAIL}")
     print(f"   Password: {ADMIN_PASSWORD}")
     print("=" * 60)

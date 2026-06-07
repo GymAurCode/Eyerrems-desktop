@@ -207,11 +207,7 @@ export default function App() {
         } />
 
         {/* ── RBAC role user routes ────────────────────────────────────────── */}
-        <Route path="/setup-slug" element={
-          <RoleUserGuard>
-            <SlugSetupPage />
-          </RoleUserGuard>
-        } />
+        <Route path="/setup-slug" element={<SlugSetupPage />} />
         <Route path="/change-password" element={
           <ProtectedRoute>
             <ChangePasswordPage />
