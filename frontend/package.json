@@ -72,6 +72,7 @@
       "icon": "assets/icon.ico"
     },
     "nsis": {
+      "artifactName": "${productName}-Setup-${version}.exe",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico",
@@ -80,7 +81,8 @@
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "EyerRems"
+      "shortcutName": "EyerRems",
+      "disableWebInstaller": true
     },
     "portable": {
       "artifactName": "${productName}-portable-${version}.exe"
@@ -91,6 +93,7 @@
       "repo": "Eyerrems-desktop",
       "releaseType": "release"
     },
+    "generateUpdatesFilesForAllChannels": true,
     "directories": {
       "output": "dist_electron"
     }

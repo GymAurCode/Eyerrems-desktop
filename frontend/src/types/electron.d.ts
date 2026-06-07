@@ -56,6 +56,17 @@ export interface ElectronAPI {
   };
 
   log: (level: string, message: string, details?: any) => void;
+
+  // Auto-updater
+  checkForUpdates: () => void;
+  getAppVersion: () => Promise<string>;
+  startUpdateDownload: () => void;
+  restartApp: () => void;
+  onUpdateAvailable: (callback: (data: { version: string; currentVersion: string }) => void) => void;
+  onUpdateDownloadStarted: (callback: () => void) => void;
+  onUpdateProgress: (callback: (data: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => void;
+  onUpdateDownloaded: (callback: (data: { version: string }) => void) => void;
+  onUpdateError: (callback: (data: { message: string; isNetworkError: boolean }) => void) => void;
 }
 
 declare global {

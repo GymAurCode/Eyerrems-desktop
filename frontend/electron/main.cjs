@@ -208,19 +208,9 @@ function setupAutoUpdater(mainWindow) {
   }, 3000);
 
   autoUpdater.on("update-available", (info) => {
-    dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Update Available",
-      message: `Version ${info.version} is available.`,
-      detail: `You are currently on version ${app.getVersion()}.\n\nWould you like to download and install the update now?`,
-      buttons: ["Download Update", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(result => {
-      if (result.response === 0) {
-        mainWindow.webContents.send("update-download-started");
-        autoUpdater.downloadUpdate();
-      }
+    mainWindow.webContents.send("update-available", {
+      version: info.version,
+      currentVersion: app.getVersion(),
     });
   });
 
@@ -238,32 +228,18 @@ function setupAutoUpdater(mainWindow) {
   });
 
   autoUpdater.on("update-downloaded", (info) => {
-    dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Update Ready",
-      message: "Update downloaded successfully.",
-      detail: `Version ${info.version} has been downloaded.\n\nThe application will restart to apply the update.`,
-      buttons: ["Restart Now", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(result => {
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall(false, true);
-      }
+    mainWindow.webContents.send("update-downloaded", {
+      version: info.version,
     });
   });
 
   autoUpdater.on("error", (err) => {
     console.error("[Updater] Error:", err.message);
-    if (!err.message.includes("net::") && !err.message.includes("404")) {
-      dialog.showMessageBox(mainWindow, {
-        type: "warning",
-        title: "Update Check Failed",
-        message: "Could not check for updates.",
-        detail: "Please check your internet connection and try again later.",
-        buttons: ["OK"],
-      });
-    }
+    const isNetworkError = err.message.includes("net::") || err.message.includes("404");
+    mainWindow.webContents.send("update-error", {
+      message: err.message,
+      isNetworkError,
+    });
   });
 
   ipcMain.on("check-for-updates", () => {
@@ -274,6 +250,17 @@ function setupAutoUpdater(mainWindow) {
 
   ipcMain.handle("get-app-version", () => {
     return app.getVersion();
+  });
+
+  ipcMain.on("start-update-download", () => {
+    mainWindow.webContents.send("update-download-started");
+    autoUpdater.downloadUpdate().catch(err => {
+      console.error("[Updater] Download failed:", err.message);
+    });
+  });
+
+  ipcMain.on("restart-app", () => {
+    autoUpdater.quitAndInstall(false, true);
   });
 }
 
