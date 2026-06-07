@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Ban } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi } from "../../../lib/propertyApi";
 
 interface CancelSaleDialogProps {
@@ -29,7 +29,7 @@ export default function CancelSaleDialog({ isOpen, onClose, onSaved, saleId }: C
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={() => { setReason(""); onClose(); }}
       title="Cancel Sale"
@@ -42,7 +42,7 @@ export default function CancelSaleDialog({ isOpen, onClose, onSaved, saleId }: C
         <div>
           <label className="block text-xs text-muted mb-1">Reason for Cancellation *</label>
           <textarea
-            className="input-dark w-full px-3 py-2.5 text-sm resize-none"
+            className="dialog-textarea"
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -64,6 +64,6 @@ export default function CancelSaleDialog({ isOpen, onClose, onSaved, saleId }: C
           )}
         </button>
       </div>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

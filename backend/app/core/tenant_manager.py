@@ -45,14 +45,11 @@ class TenantManager:
         self.engines: Dict[str, any] = {}
         self.sessionmakers: Dict[str, sessionmaker] = {}
         
-        # Resolve master database URL (default to sqlite if not defined/empty)
-        db_url = settings.database_url
+        # Resolve master database URL (default to sqlite for local dev if not defined/empty)
+        db_url = settings.database_url_fixed
         if not db_url:
             self.master_db_path = str(DATABASES_DIR / "master.db")
             db_url = f"sqlite:///{self.master_db_path}"
-        elif db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
-            
         self.master_db_url = db_url
         
         # Build master database engine
@@ -192,6 +189,15 @@ class TenantManager:
         # Seed data
         db = SessionClass()
         try:
+            # 0. Seed default lookup values
+            try:
+                from app.core.seed_lookups import seed_lookup_values
+                seeded = seed_lookup_values(db)
+                if seeded:
+                    log.info(f"[TenantManager] Seeded {seeded} default lookup values for company '{slug}'")
+            except Exception as exc:
+                log.warning(f"[TenantManager] Lookup seed skipped for '{slug}': {exc}")
+
             # 1. Seed Chart of Accounts
             from app.core.default_coa import seed_default_coa
             seeded_coa = seed_default_coa(db)

@@ -1,6 +1,8 @@
 import { FormEvent, useState, useRef } from "react";
-import { Paperclip, X, Loader2, Upload } from "lucide-react";
-import Modal from "../Modal";
+import { Paperclip, X, Upload, UserPlus } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
+import { FormSection, FormRow, FormField } from "../ui/DialogForm";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 import { crmApi, Lead } from "../../lib/crmApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 
@@ -33,8 +35,8 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
     setFiles([]); setErr(""); setSaving(false);
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
     if (!name.trim()) { setErr("Name is required"); return; }
     setErr(""); setSaving(true);
     try {
@@ -51,7 +53,6 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
         status,
       });
 
-      // Upload attached files after lead is created
       if (files.length > 0) {
         await Promise.allSettled(
           files.map((f) =>
@@ -78,144 +79,137 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="New Lead" size="lg">
-      <form onSubmit={handleSubmit} className="space-y-5">
+    <AppDialog isOpen={open} onClose={onClose} title="New Lead"
+      icon={<UserPlus size={18} />}
+      subtitle="Enter lead information and property requirements"
+      size="lg"
+      footer={
+        <>
+          <DialogCancelButton onClick={onClose} />
+          <DialogSubmitButton onClick={handleSubmit} label="Save Lead" loading={saving} />
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
         {err && (
-          <p className="text-xs text-red-400 px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.08)" }}>
+          <div className="mb-4 px-3 py-2 rounded-lg text-xs text-red-400"
+            style={{ background: "rgba(239,68,68,0.08)" }}>
             {err}
-          </p>
+          </div>
         )}
 
-        {/* Row 1: Name + Phone */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Name" required>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" value={name}
-              onChange={(e) => setName(e.target.value)} placeholder="Full name" />
-          </Field>
-          <Field label="Phone" required>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" value={phone}
-              onChange={(e) => setPhone(e.target.value)} placeholder="03XX-XXXXXXX" />
-          </Field>
-        </div>
+        <FormSection title="Contact Information">
+          <FormRow cols={2}>
+            <FormField label="Name" required>
+              <input className="dialog-input w-full" value={name}
+                onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+            </FormField>
+            <FormField label="Phone">
+              <input className="dialog-input w-full" value={phone}
+                onChange={(e) => setPhone(e.target.value)} placeholder="03XX-XXXXXXX" />
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
+            <FormField label="Email">
+              <input className="dialog-input w-full" type="email" value={email}
+                onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+            </FormField>
+            <FormField label="Lead Source">
+              <select className="dialog-select w-full" value={source}
+                onChange={(e) => setSource(e.target.value)}>
+                <option value="">Select source…</option>
+                <option value="Website">Website</option>
+                <option value="Referral">Referral</option>
+                <option value="Social Media">Social Media</option>
+                <option value="Phone Inquiry">Phone Inquiry</option>
+                <option value="Walk-in">Walk-in</option>
+                <option value="Campaign">Campaign</option>
+                <option value="Other">Other</option>
+              </select>
+            </FormField>
+          </FormRow>
+        </FormSection>
 
-        {/* Row 2: Email + Source */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Email">
-            <input className="input-dark w-full px-3 py-2.5 text-sm" type="email" value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
-          </Field>
-          <Field label="Lead Source">
-            <select className="select-dark w-full px-3 py-2.5 text-sm" value={source}
-              onChange={(e) => setSource(e.target.value)}>
-              <option value="">Select source…</option>
-              <option value="Website">Website</option>
-              <option value="Referral">Referral</option>
-              <option value="Social Media">Social Media</option>
-              <option value="Phone Inquiry">Phone Inquiry</option>
-              <option value="Walk-in">Walk-in</option>
-              <option value="Campaign">Campaign</option>
-              <option value="Other">Other</option>
-            </select>
-          </Field>
-        </div>
+        <FormSection title="Budget & Property">
+          <FormRow cols={2}>
+            <FormField label="Budget (Min)">
+              <input className="dialog-input w-full" type="number" min="0" value={budgetMin}
+                onChange={(e) => setBudgetMin(e.target.value)} placeholder="PKR 0" />
+            </FormField>
+            <FormField label="Budget (Max)">
+              <input className="dialog-input w-full" type="number" min="0" value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)} placeholder="PKR 0" />
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
+            <FormField label="Preferred Location / Town">
+              <input className="dialog-input w-full" value={preferredTown}
+                onChange={(e) => setPreferredTown(e.target.value)} placeholder="e.g. DHA, Bahria Town" />
+            </FormField>
+            <FormField label="Investor / End-User">
+              <select className="dialog-select w-full" value={investorType}
+                onChange={(e) => setInvestorType(e.target.value)}>
+                <option value="">Select type…</option>
+                <option value="investor">Investor</option>
+                <option value="end_user">End-User</option>
+              </select>
+            </FormField>
+          </FormRow>
+        </FormSection>
 
-        {/* Row 3: Budget Min + Budget Max */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Budget (Min)" required>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" min="0" value={budgetMin}
-              onChange={(e) => setBudgetMin(e.target.value)} placeholder="PKR 0" />
-          </Field>
-          <Field label="Budget (Max)" required>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" min="0" value={budgetMax}
-              onChange={(e) => setBudgetMax(e.target.value)} placeholder="PKR 0" />
-          </Field>
-        </div>
+        <FormSection title="Status & Notes">
+          <FormRow cols={2}>
+            <FormField label="Status">
+              <select className="dialog-select w-full" value={status}
+                onChange={(e) => setStatus(e.target.value)}>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="interested">Interested</option>
+                <option value="site_visit_scheduled">Site Visit Scheduled</option>
+                <option value="negotiation">Negotiation</option>
+              </select>
+            </FormField>
+            <FormField label="Notes">
+              <textarea className="dialog-textarea w-full" rows={2}
+                value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes…" />
+            </FormField>
+          </FormRow>
+        </FormSection>
 
-        {/* Row 4: Preferred Location + Investor/End-User Tag */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Preferred Location / Town">
-            <input className="input-dark w-full px-3 py-2.5 text-sm" value={preferredTown}
-              onChange={(e) => setPreferredTown(e.target.value)} placeholder="e.g. DHA, Bahria Town" />
-          </Field>
-          <Field label="Investor / End-User">
-            <select className="select-dark w-full px-3 py-2.5 text-sm" value={investorType}
-              onChange={(e) => setInvestorType(e.target.value)}>
-              <option value="">Select type…</option>
-              <option value="investor">Investor</option>
-              <option value="end_user">End-User</option>
-            </select>
-          </Field>
-        </div>
-
-        {/* Row 5: Status + Notes */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Status">
-            <select className="select-dark w-full px-3 py-2.5 text-sm" value={status}
-              onChange={(e) => setStatus(e.target.value)}>
-              <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="interested">Interested</option>
-              <option value="site_visit_scheduled">Site Visit Scheduled</option>
-              <option value="negotiation">Negotiation</option>
-            </select>
-          </Field>
-          <Field label="Notes">
-            <textarea className="input-dark w-full px-3 py-2.5 text-sm resize-none" rows={2}
-              value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes…" />
-          </Field>
-        </div>
-
-        {/* File drop zone */}
-        <Field label="Attachments (business cards, briefs, etc.)">
-          <div
-            className="relative border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer hover:border-blue-500/50"
-            style={{ borderColor: "var(--border)" }}
-            onClick={() => fileRef.current?.click()}
-          >
-            <Upload size={20} className="mx-auto mb-1" style={{ color: "var(--text-muted)" }} />
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Drop files here or click to browse
-            </p>
-            <input ref={fileRef} type="file" multiple className="hidden" accept="image/*,.pdf" onChange={addFiles} />
-          </div>
-
-          {files.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs"
-                  style={{ background: "var(--bg-surface2)" }}>
-                  <span className="flex items-center gap-1.5 truncate">
-                    <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
-                    {f.name}
-                  </span>
-                  <button type="button" onClick={() => removeFile(i)} style={{ color: "var(--text-muted)" }}
-                    className="hover:text-red-400 shrink-0">
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
+        <FormSection title="Attachments">
+          <FormField label="Attachments (business cards, briefs, etc.)" fullWidth>
+            <div
+              className="relative border-2 border-dashed rounded-xl p-4 text-center transition-colors cursor-pointer hover:border-blue-500/50"
+              style={{ borderColor: "var(--border)" }}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload size={20} className="mx-auto mb-1" style={{ color: "var(--text-muted)" }} />
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Drop files here or click to browse
+              </p>
+              <input ref={fileRef} type="file" multiple className="hidden" accept="image/*,.pdf" onChange={addFiles} />
             </div>
-          )}
-        </Field>
 
-        {/* Submit */}
-        <button type="submit" disabled={saving}
-          className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-          {saving && <Loader2 size={14} className="animate-spin" />}
-          {saving ? "Creating Lead…" : "Save Lead"}
-        </button>
+            {files.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {files.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--bg-surface2)" }}>
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
+                      {f.name}
+                    </span>
+                    <button type="button" onClick={() => removeFile(i)} style={{ color: "var(--text-muted)" }}
+                      className="hover:text-red-400 shrink-0">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </FormField>
+        </FormSection>
       </form>
-    </Modal>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
+    </AppDialog>
   );
 }

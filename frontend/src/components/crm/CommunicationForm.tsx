@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useId, useState } from "react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { FormField } from "./FormField";
 import { crmApi, Client, Communication } from "../../lib/crmApi";
 
@@ -103,7 +103,7 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Log Communication" size="lg" footer={footer}>
+    <AppDialog isOpen={open} onClose={onClose} title="Log Communication" size="lg" footer={footer}>
       <form id={formId} onSubmit={submit}>
         {errors.form && (
           <div className="mb-3 px-3 py-2 rounded-lg text-xs text-red-400"
@@ -180,6 +180,6 @@ export default function CommunicationForm({ open, onClose, onSaved, preselectedC
           </FormField>
         </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { QuickRowActions, ActionsTh, ActionsCell, printRecord } from "../actions";
 import { SmartTable } from "../data-table";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { formatCurrency } from "../../lib/currency";
 import { api } from "../../lib/api";
 import {
@@ -135,7 +135,7 @@ function RevenueModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
   };
 
   return (
-    <Modal open onClose={onClose} title="Record Revenue">
+    <AppDialog isOpen={true} onClose={onClose} title="Record Revenue">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="This creates a new immutable voucher and cannot be undone." />
         {error && <ErrBanner msg={error} />}
@@ -169,7 +169,7 @@ function RevenueModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
           label="I confirm this will create a new revenue voucher and cannot be undone" />
         <Footer onClose={onClose} loading={loading} label="Record Revenue" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -220,7 +220,7 @@ function ExpenseModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
   };
 
   return (
-    <Modal open onClose={onClose} title="Record Expense">
+    <AppDialog isOpen={true} onClose={onClose} title="Record Expense">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="This creates a new immutable voucher and cannot be undone." />
         {error && <ErrBanner msg={error} />}
@@ -254,7 +254,7 @@ function ExpenseModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
           label="I confirm this will create a new expense voucher and cannot be undone" />
         <Footer onClose={onClose} loading={loading} label="Record Expense" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -309,7 +309,7 @@ function RefundModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   };
 
   return (
-    <Modal open onClose={onClose} title="Create Refund">
+    <AppDialog isOpen={true} onClose={onClose} title="Create Refund">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="This creates a new refund voucher linked to the original. Cannot be undone." />
         {error && <ErrBanner msg={error} />}
@@ -354,7 +354,7 @@ function RefundModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           label="I confirm this creates a new refund voucher linked to the original" />
         <Footer onClose={onClose} loading={loading} label="Execute Refund" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -393,7 +393,7 @@ function TransferModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   };
 
   return (
-    <Modal open onClose={onClose} title="Fund Transfer">
+    <AppDialog isOpen={true} onClose={onClose} title="Fund Transfer">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="Creates a balanced journal entry (DR destination / CR source). Cannot be undone." />
         {error && <ErrBanner msg={error} />}
@@ -422,7 +422,7 @@ function TransferModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
           label="I confirm this creates a new transfer voucher and cannot be undone" />
         <Footer onClose={onClose} loading={loading} label="Execute Transfer" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -469,7 +469,7 @@ function AdjustmentModal({ onClose, onDone }: { onClose: () => void; onDone: () 
   };
 
   return (
-    <Modal open onClose={onClose} title="Create Adjustment">
+    <AppDialog isOpen={true} onClose={onClose} title="Create Adjustment">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="Creates a new adjustment journal entry. Original records are never modified." />
         {error && <ErrBanner msg={error} />}
@@ -504,7 +504,7 @@ function AdjustmentModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           label="I confirm this creates a new adjustment voucher and cannot be undone" />
         <Footer onClose={onClose} loading={loading} label="Execute Adjustment" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -543,7 +543,7 @@ function MergeModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   };
 
   return (
-    <Modal open onClose={onClose} title="Merge Accounts">
+    <AppDialog isOpen={true} onClose={onClose} title="Merge Accounts">
       <form onSubmit={handleSubmit} className="space-y-4">
         <WarnBanner msg="Source account will be deactivated. Balance transfers to target. Cannot be undone." />
         {error && <ErrBanner msg={error} />}
@@ -585,7 +585,7 @@ function MergeModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
           label="I confirm this will deactivate the source account and cannot be undone" />
         <Footer onClose={onClose} loading={loading} label="Execute Merge" />
       </form>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -607,7 +607,7 @@ function DetailModal({ op, onClose }: { op: FinanceOperation; onClose: () => voi
   ];
 
   return (
-    <Modal open onClose={onClose} title="Operation Details">
+    <AppDialog isOpen={true} onClose={onClose} title="Operation Details">
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <TypeBadge type={op.type} />
@@ -646,7 +646,7 @@ function DetailModal({ op, onClose }: { op: FinanceOperation; onClose: () => voi
           Close
         </button>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 

@@ -42,7 +42,18 @@ export default function Topbar({ title }: { title?: string }) {
           <IconBtn onClick={toggleSidebar} label="Toggle sidebar">
             <PanelLeft size={16} />
           </IconBtn>
-          {title && <h1 className="text-sm font-semibold text-primary">{title}</h1>}
+          {title && (
+            <h1
+              className="text-sm font-semibold"
+              style={{
+                color: "var(--text-primary)",
+                borderLeft: "4px solid var(--module-primary, #6366F1)",
+                paddingLeft: "12px",
+              }}
+            >
+              {title}
+            </h1>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">

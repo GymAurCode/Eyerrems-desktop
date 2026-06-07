@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useId, useState } from "react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Client, Dealer } from "../../lib/crmApi";
 import AttachmentsButton from "../attachments/AttachmentsButton";
@@ -117,7 +117,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Client" : "New Client"}
+    <AppDialog isOpen={open} onClose={onClose} title={editing ? "Edit Client" : "New Client"}
       size="xl" footer={footer}>
       <form id={formId} onSubmit={submit}>
         {errors.form && (
@@ -212,6 +212,6 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
           </FormField>
         </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

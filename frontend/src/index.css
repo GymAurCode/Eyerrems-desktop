@@ -46,6 +46,34 @@
   --hover-bg-sm:    #2C3140;
   --bg-surface-hover: var(--bg-hover);
 
+  /* ── Dialog variables ── */
+  --dialog-bg:              #1E2128;
+  --dialog-header-bg:       #1E2128;
+  --dialog-body-bg:         #1E2128;
+  --dialog-footer-bg:       #252932;
+  --dialog-border:          #2E3340;
+  --dialog-header-border:   #2E3340;
+  --dialog-footer-border:   #2E3340;
+  --dialog-close-border:    #2E3340;
+  --dialog-close-color:     #6B7280;
+  --dialog-close-hover-bg:  #252932;
+  --dialog-close-hover-color: #E8ECF0;
+  --dialog-title-color:     #E8ECF0;
+  --dialog-subtitle-color:  #6B7280;
+  --dialog-section-label:   #6B7280;
+  --dialog-section-border:  #2E3340;
+  --dialog-field-label:     #9BA3AF;
+  --dialog-input-bg:        #252932;
+  --dialog-input-border:    #2E3340;
+  --dialog-input-text:      #E8ECF0;
+  --dialog-input-placeholder: #6B7280;
+  --dialog-cancel-bg:       transparent;
+  --dialog-cancel-border:   #2E3340;
+  --dialog-cancel-color:    #9BA3AF;
+  --dialog-cancel-hover-bg: #2C3140;
+  --dialog-backdrop:        rgba(0, 0, 0, 0.35);
+  --dialog-shadow:          0 4px 32px rgba(0,0,0,0.40);
+
   /* ── Module accent colors ── */
   --property-accent: #34D399;
   --property-accent-soft: rgba(52,211,153,0.12);
@@ -95,6 +123,11 @@
 
 :root.light {
   --bg-base:        #f1f5f9;
+  --bg-primary:     #f1f5f9;
+  --bg-secondary:   #ffffff;
+  --bg-tertiary:    #f8fafc;
+  --bg-hover:       #e2e8f0;
+  --bg-active:      #cbd5e1;
   --bg-surface:     #ffffff;
   --bg-surface2:    #f8fafc;
   --bg-sidebar:     #1a2332;
@@ -121,6 +154,34 @@
   --property-accent: #34D399;
   --property-accent-soft: rgba(52,211,153,0.12);
   --property-accent-faint: rgba(52,211,153,0.06);
+
+  /* ── Dialog variables (light) ── */
+  --dialog-bg:              #FFFFFF;
+  --dialog-header-bg:       #FFFFFF;
+  --dialog-body-bg:         #FFFFFF;
+  --dialog-footer-bg:       #FAFBFC;
+  --dialog-border:          #E2E8F0;
+  --dialog-header-border:   #F1F5F9;
+  --dialog-footer-border:   #F1F5F9;
+  --dialog-close-border:    #E2E8F0;
+  --dialog-close-color:     #94A3B8;
+  --dialog-close-hover-bg:  #F8FAFC;
+  --dialog-close-hover-color: #0F172A;
+  --dialog-title-color:     #0F172A;
+  --dialog-subtitle-color:  #94A3B8;
+  --dialog-section-label:   #94A3B8;
+  --dialog-section-border:  #F1F5F9;
+  --dialog-field-label:     #475569;
+  --dialog-input-bg:        #FFFFFF;
+  --dialog-input-border:    #CBD5E1;
+  --dialog-input-text:      #0F172A;
+  --dialog-input-placeholder: #CBD5E1;
+  --dialog-cancel-bg:       #FFFFFF;
+  --dialog-cancel-border:   #CBD5E1;
+  --dialog-cancel-color:    #64748B;
+  --dialog-cancel-hover-bg: #F1F5F9;
+  --dialog-backdrop:        rgba(100, 116, 139, 0.25);
+  --dialog-shadow:          0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
 
   /* ── Super Admin purple palette (light) ── */
   --sa-bg:            #f5f3ff;
@@ -152,6 +213,11 @@
   --sa-btn-gradient:  linear-gradient(135deg,#7c3aed,#4f46e5);
   --sa-icon-color:    #7c3aed;
   --sa-footer-color:  #7c3aed;
+
+  /* ── Dialog variables ── */
+  --dialog-bg:          #FFFFFF;
+  --dialog-header-bg:   #FAFAFA;
+  --dialog-border:      #E5E7EB;
 }
 
 /* Sidebar styling for all themes: use the same dark navy style in both light and dark modes */
@@ -159,11 +225,11 @@
   background: var(--bg-sidebar) !important;
 }
 
-/* Apply text color for links and labels inside sidebar */
+/* Sidebar link colors — inline styles override for active items */
 .bg-sidebar .group,
 .bg-sidebar .group span,
 .bg-sidebar .group p {
-  color: var(--sidebar-text) !important;
+  color: var(--sidebar-text);
 }
 
 /* Icon stroke/color inside nav */
@@ -171,9 +237,21 @@
   opacity: 1 !important;
 }
 
-/* Hover and active backgrounds (override inline styles with !important) */
-.bg-sidebar a.group:hover { background: var(--sidebar-hover-bg) !important; }
-.bg-sidebar a.group.sidebar-active { background: var(--sidebar-active-bg) !important; }
+/* Module color transitions */
+.sidebar-link {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.module-tab {
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.btn-primary {
+  transition: background-color 0.15s ease, opacity 0.2s, transform 0.15s;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
 @layer base {
   * { box-sizing: border-box; }
 
@@ -231,7 +309,7 @@
   :root.light .glow-red,
   :root.light .glow-red-hover:hover    { box-shadow: var(--card-shadow); border-color: rgba(239,68,68,0.3) !important; }
 
-  /* Sidebar active */
+  /* Sidebar active (legacy fallback) */
   .sidebar-item-active {
     background: linear-gradient(90deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.04) 100%);
     border-left: 2px solid #3b82f6;
@@ -256,7 +334,7 @@
   }
   .input-dark:focus {
     outline: none;
-    border-color: rgba(59,130,246,0.55);
+    border-color: var(--module-primary, rgba(59,130,246,0.55));
     box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
   }
   .input-dark::placeholder { color: var(--text-muted); }
@@ -270,20 +348,20 @@
   }
   .select-dark:focus {
     outline: none;
-    border-color: rgba(59,130,246,0.55);
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    border-color: var(--module-primary, rgba(59,130,246,0.55));
+    box-shadow: 0 0 0 3px var(--module-primary, rgba(59,130,246,0.1));
   }
   .select-dark option { background: var(--bg-surface); color: var(--text-primary); }
 
   /* Primary button */
   .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+    background: var(--module-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
     color: #ffffff;
     border-radius: 10px;
     font-weight: 500;
-    transition: opacity 0.2s, transform 0.15s;
+    transition: background-color 0.15s, opacity 0.2s, transform 0.15s;
   }
-  .btn-primary:hover   { opacity: 0.88; transform: translateY(-1px); }
+  .btn-primary:hover   { background: var(--module-dark, #2563eb); opacity: 0.92; transform: translateY(-1px); }
   .btn-primary:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
 
   /* Semantic text */
@@ -315,7 +393,7 @@
   }
   .input-field:focus {
     outline: none;
-    border-color: rgba(59,130,246,0.55);
+    border-color: var(--module-primary, rgba(59,130,246,0.55));
     box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
   }
   .input-field::placeholder { color: var(--text-muted); }
@@ -461,8 +539,8 @@
   }
 
   .data-table tbody tr.selected {
-    background: rgba(59,130,246,0.12) !important;
-    border-color: rgba(59,130,246,0.2);
+    background: color-mix(in srgb, var(--module-primary, #3b82f6) 12%, transparent) !important;
+    border-color: var(--module-primary, rgba(59,130,246,0.2));
   }
 
   /* Empty state */
@@ -528,7 +606,7 @@
   }
 
   .data-table-pagination .page-button.active {
-    background: #3b82f6;
+    background: var(--module-primary, #3b82f6);
     color: white;
   }
 
@@ -639,6 +717,12 @@
   :root.light .qa-glass-cyan   { background: rgba(6,182,212,0.12); color: #0891b2; border-color: rgba(6,182,212,0.38); }
 }
 
+/* Checkbox and radio accent via module color */
+.app-shell input[type="checkbox"],
+.app-shell input[type="radio"] {
+  accent-color: var(--module-primary, #3b82f6);
+}
+
 /* ── App-shell scoped input reset ──────────────────────────────────────────
    Targets ALL input/select/textarea inside the authenticated app layout.
    Login page is excluded because it lives outside .app-shell and uses
@@ -661,7 +745,7 @@
 .app-shell select:focus,
 .app-shell textarea:focus {
   outline: none;
-  border-color: rgba(59,130,246,0.55);
+  border-color: var(--module-primary, rgba(59,130,246,0.55));
   box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
 
@@ -693,6 +777,80 @@
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 
+/* ── Dialog entrance animations ── */
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Dialog form input styles ── */
+.dialog-input,
+.dialog-select,
+.dialog-textarea {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  font-size: 13px;
+  border: 0.5px solid var(--dialog-input-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--dialog-input-bg, #FFFFFF);
+  color: var(--dialog-input-text, #0F172A);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.dialog-textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 11px;
+  resize: vertical;
+}
+
+.dialog-input:focus,
+.dialog-select:focus,
+.dialog-textarea:focus {
+  border-color: var(--accent-color, var(--module-primary, #6366F1));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color, var(--module-primary, #6366F1)) 10%, transparent);
+  background: var(--dialog-input-bg, #FFFFFF);
+}
+
+.dialog-input::placeholder,
+.dialog-textarea::placeholder {
+  color: var(--dialog-input-placeholder, #CBD5E1);
+  font-size: 12px;
+}
+
+.dialog-input:disabled,
+.dialog-select:disabled {
+  background: var(--color-background-secondary, var(--bg-hover, #F3F4F6));
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Dialog body scrollbar */
+.dialog-body::-webkit-scrollbar { width: 5px; }
+.dialog-body::-webkit-scrollbar-track { background: transparent; }
+.dialog-body::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 3px;
+}
+
 .animate-slide-up { animation: slideUp 0.25s ease-out both; }
 .animate-fade-in  { animation: fadeIn  0.2s  ease-out both; }
 
@@ -712,13 +870,13 @@
 
 /* ── btn-primary / btn-secondary (used in ReminderForm) ── */
 .btn-primary {
-  background: #3b82f6;
+  background: var(--module-primary, #3b82f6);
   color: #fff;
   border-radius: 10px;
   font-weight: 500;
   transition: background 0.2s;
 }
-.btn-primary:hover:not(:disabled) { background: #2563eb; }
+.btn-primary:hover:not(:disabled) { background: var(--module-dark, #2563eb); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-secondary {

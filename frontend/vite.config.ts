@@ -39,6 +39,19 @@ export default defineConfig(({ mode }) => {
     // Without this, Vite outputs /assets/... absolute paths which resolve to
     // the filesystem root under file:// and fail to load.
     base: "./",
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'query-vendor': ['@tanstack/react-query'],
+            'chart-vendor': ['recharts'],
+            'ui-vendor': ['lucide-react'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 500,
+    },
     server: {
       port: Number(env.VITE_PORT) || 5173,
       proxy: {

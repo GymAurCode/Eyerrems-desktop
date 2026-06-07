@@ -525,9 +525,17 @@ class InstallmentPlanReportService(BaseReportService):
     def generate(self, filters: ReportFilter) -> ReportResult:
         start = self._start_timer()
 
+        booking_id = filters.booking_id
+
+        # Fallback: accept deal_id and look up the associated booking
+        if not booking_id and filters.deal_id:
+            deal = self.db.query(Deal).filter(Deal.id == filters.deal_id).first()
+            if deal and deal.bookings:
+                booking_id = deal.bookings[0].id
+
         booking = (
             self.db.query(Booking)
-            .filter(Booking.id == filters.booking_id)
+            .filter(Booking.id == booking_id)
             .options(
                 joinedload(Booking.client),
                 joinedload(Booking.property),
@@ -746,9 +754,17 @@ class BookingFormReportService(BaseReportService):
     def generate(self, filters: ReportFilter) -> ReportResult:
         start = self._start_timer()
 
+        booking_id = filters.booking_id
+
+        # Fallback: accept deal_id and look up the associated booking
+        if not booking_id and filters.deal_id:
+            deal = self.db.query(Deal).filter(Deal.id == filters.deal_id).first()
+            if deal and deal.bookings:
+                booking_id = deal.bookings[0].id
+
         booking = (
             self.db.query(Booking)
-            .filter(Booking.id == filters.booking_id)
+            .filter(Booking.id == booking_id)
             .options(
                 joinedload(Booking.client),
                 joinedload(Booking.property),

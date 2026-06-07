@@ -1,21 +1,3 @@
-/**
- * Modal — Portal-based dialog component.
- *
- * ROOT CAUSE FIX for input focus loss:
- * The previous implementation used `if (!open) return null`, which caused the
- * entire modal DOM subtree (including focused <input> elements) to be UNMOUNTED
- * on every state change that toggled `open`. React would then remount it fresh,
- * destroying the focused element and resetting cursor position.
- *
- * FIX: The modal is ALWAYS mounted in the DOM. Visibility is controlled via CSS
- * (pointer-events, opacity, visibility) rather than conditional rendering.
- * This keeps all <input> elements alive in the DOM so focus is never lost
- * between keystrokes.
- *
- * The `useEffect` dependency on `onClose` is also removed — it only needs to
- * run when `open` changes, not when the parent re-renders with a new callback
- * reference (which happened on every keystroke due to inline arrow functions).
- */
 import { ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -26,13 +8,19 @@ type Props = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  /** "md" = 512px, "lg" = 800px, "xl" = 1000px, "2xl" = 1200px */
-  size?: "md" | "lg" | "xl" | "2xl";
+  icon?: ReactNode;
+  subtitle?: string;
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
 };
 
-const MAX_W = { md: "512px", lg: "800px", xl: "1000px", "2xl": "1200px" };
+const DIALOG_SIZES: Record<string, { width: string; height: string }> = {
+  sm:   { width: "420px",  height: "320px"  },
+  md:   { width: "560px",  height: "480px"  },
+  lg:   { width: "720px",  height: "620px"  },
+  xl:   { width: "900px",  height: "700px"  },
+  "2xl":{ width: "1060px", height: "780px"  },
+};
 
-// Single portal root that inherits the app-shell theme variables.
 function getPortalRoot(): HTMLElement {
   let el = document.getElementById("modal-portal-root");
   if (!el) {
@@ -44,108 +32,208 @@ function getPortalRoot(): HTMLElement {
   return el;
 }
 
-export default function Modal({ open, title, onClose, children, footer, size = "md" }: Props) {
-  // Use a ref for onClose so the keydown effect never needs to re-register
-  // when the parent passes a new inline arrow function on each render.
+export default function Modal({ open, title, onClose, children, footer, icon, subtitle, size = "md" }: Props) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const dims = DIALOG_SIZES[size] || DIALOG_SIZES.md;
 
   useEffect(() => {
     if (!open) return;
-
-    // Lock body scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
-    // Escape key handler — reads from ref so it's always current
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", onKey);
-
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-    // Only re-run when `open` changes — NOT when onClose reference changes.
-    // This prevents the effect from tearing down/re-adding the listener on
-    // every keystroke (which happened when onClose was an inline arrow fn).
   }, [open]);
 
-  // Always render into the portal — never return null.
-  // Visibility is controlled by CSS so the DOM (and focused inputs) stay alive.
+  const accentColor = getComputedStyle(document.documentElement)
+    .getPropertyValue("--module-primary")
+    .trim() || "#6366F1";
+
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{
-        // CSS-only show/hide — no unmounting, no focus loss
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        padding: "20px",
         opacity: open ? 1 : 0,
         pointerEvents: open ? "auto" : "none",
         visibility: open ? "visible" : "hidden",
-        animation: open ? "modalFadeIn 0.18s ease-out both" : "none",
+        animation: open ? "overlayIn 0.15s ease" : "none",
       }}
     >
-      {/* Overlay */}
       <div
-        className="absolute inset-0"
-        style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+        style={{
+          background: "rgba(0,0,0,0.65)",
+          backdropFilter: "blur(4px)",
+          position: "absolute",
+          inset: 0,
+        }}
         onClick={onClose}
       />
 
-      {/* Dialog panel */}
       <div
-        className="relative w-full max-h-[90vh] flex flex-col overflow-hidden"
-        style={{
-          maxWidth: `min(${MAX_W[size]}, 90vw)`,
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "16px",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04)",
-          animation: open ? "modalSlideUp 0.2s ease-out both" : "none",
-          // Prevent clicks inside the dialog from closing it via the overlay
-        }}
         onClick={(e) => e.stopPropagation()}
+        style={{
+          width: dims.width,
+          height: dims.height,
+          maxWidth: "95vw",
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--dialog-bg, var(--bg-surface, #1C1C1E))",
+          border: "1px solid var(--dialog-border, var(--border, #2D2D2F))",
+          borderRadius: "16px",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.12)",
+          overflow: "hidden",
+          animation: open ? "dialogIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none",
+          position: "relative",
+        }}
       >
+        {/* Top accent line */}
+        <div style={{
+          height: "3px",
+          width: "100%",
+          background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
+          flexShrink: 0,
+        }} />
+
         {/* Header */}
         <div
-          className="flex items-center justify-between px-5 py-4 shrink-0"
-          style={{ borderBottom: "1px solid var(--border)" }}
+          style={{
+            padding: "18px 24px 16px",
+            borderBottom: "1px solid var(--dialog-border, var(--border, #2D2D2F))",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            flexShrink: 0,
+            background: "var(--dialog-header-bg, var(--bg-surface2, #161618))",
+          }}
         >
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            {title}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+            {icon && (
+              <div
+                style={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "10px",
+                  background: `${accentColor}18`,
+                  border: `1px solid ${accentColor}30`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: accentColor,
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </div>
+            )}
+            <div>
+              <h2
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  color: "var(--text-primary, #E8ECF0)",
+                  margin: 0,
+                  lineHeight: 1.3,
+                }}
+              >
+                {title}
+              </h2>
+              {subtitle && (
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--text-secondary, #9BA3AF)",
+                    margin: "2px 0 0",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
-            style={{ color: "var(--text-secondary)" }}
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "8px",
+              border: "1px solid var(--dialog-border, var(--border, #2D2D2F))",
+              background: "transparent",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "var(--text-secondary, #9BA3AF)",
+              flexShrink: 0,
+              marginLeft: "12px",
+              transition: "all 0.12s ease",
+            }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "var(--border)";
-              (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+              (e.currentTarget as HTMLButtonElement).style.background = "#FEE2E2";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#FECACA";
+              (e.currentTarget as HTMLButtonElement).style.color = "#DC2626";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-              (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--dialog-border, var(--border, #2D2D2F))";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary, #9BA3AF)";
             }}
           >
             <X size={14} />
           </button>
         </div>
 
-        {/* Body — scrollable, header/footer are fixed */}
-        <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
-          {children}
+        {/* Body */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              overflowX: "hidden",
+              padding: "20px 24px",
+              scrollbarWidth: "thin",
+              scrollbarColor: "rgba(255,255,255,0.1) transparent",
+            }}
+          >
+            {children}
+          </div>
         </div>
 
-        {/* Optional footer */}
+        {/* Footer */}
         {footer && (
           <div
-            className="px-5 py-3 flex items-center justify-end gap-2 shrink-0"
-            style={{ borderTop: "1px solid var(--border)" }}
+            style={{
+              padding: "14px 24px",
+              borderTop: "1px solid var(--dialog-border, var(--border, #2D2D2F))",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "10px",
+              flexShrink: 0,
+              background: "var(--dialog-header-bg, var(--bg-surface2, #161618))",
+            }}
           >
             {footer}
           </div>

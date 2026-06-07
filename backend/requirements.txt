@@ -13,3 +13,4 @@ apscheduler
 cryptography
 openpyxl
 reportlab>=4.0.4
+cloudinary

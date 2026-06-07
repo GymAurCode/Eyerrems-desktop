@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   X, AlertCircle, CheckCircle2, Building2, User,
   ChevronDown, Search, Calendar, DollarSign, FileText,
 } from "lucide-react";
+import AppDialog from "../../../components/ui/AppDialog";
 import AttachmentsButton from "../../../components/attachments/AttachmentsButton";
 import { bookingApi, BookingCreatePayload } from "../../../lib/bookingApi";
 import { crmApi, Client, Dealer } from "../../../lib/crmApi";
@@ -106,7 +106,7 @@ function ClientSearch({
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
               <input
                 autoFocus
-                className="input-dark w-full pl-7 pr-3 py-2 text-sm"
+                className="dialog-input"
                 placeholder="Type to filter…"
                 value={q}
                 onChange={e => setQ(e.target.value)}
@@ -363,52 +363,43 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
       })
     : null;
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ animation: "modalFadeIn 0.18s ease-out both" }}
-    >
-      <div
-        className="absolute inset-0"
-        style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
-        onClick={onClose}
-      />
-      <div
-        className="relative w-full flex flex-col overflow-hidden"
-        style={{
-          maxWidth: "min(680px, 95vw)",
-          maxHeight: "92vh",
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "18px",
-          boxShadow: "0 40px 80px rgba(0,0,0,0.5)",
-          animation: "modalSlideUp 0.22s ease-out both",
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-6 py-4 shrink-0"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <div>
-            <h2 className="text-sm font-bold text-primary">New Booking</h2>
-            <p className="text-xs text-muted mt-0.5">Reserve a property or unit for a client</p>
+  return (
+    <AppDialog isOpen onClose={onClose} title="New Booking" subtitle="Reserve a property or unit for a client" size="2xl" icon={<Building2 size={16} />}
+      footer={
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+          <div className="text-xs text-muted">
+            {clientId && propertyId && (
+              <span>
+                Booking for <strong className="text-primary">{clients.find(c => c.id === clientId)?.name}</strong>
+                {unitId && <> · Unit <strong className="text-primary">{selectedUnit?.unit_number}</strong></>}
+              </span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-            style={{ color: "var(--text-secondary)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--border)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-          >
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-3">
+            <AttachmentsButton module="booking" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg transition-colors"
+              style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving}
+              className="btn-primary px-5 py-2 text-sm disabled:opacity-40 flex items-center gap-2"
+            >
+              {saving
+                ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
+                : "Create Booking"}
+            </button>
+          </div>
         </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+      }
+    >
+      <div className="space-y-5">
           {errors.form && (
             <div
               className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs"
@@ -433,7 +424,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             <Field label="Property" required error={errors.property}>
               <div className="relative">
                 <select
-                  className="select-dark w-full px-3 py-2.5 text-sm appearance-none pr-8"
+                  className="dialog-select"
                   value={propertyId ?? ""}
                   onChange={e => {
                     setPropertyId(e.target.value ? Number(e.target.value) : null);
@@ -527,7 +518,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
               <Field label="Booking / Token Amount" required error={errors.bookingAmt}>
                 <input
                   type="number"
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   placeholder="e.g. 50000"
                   value={bookingAmt}
                   onChange={e => setBookingAmt(e.target.value)}
@@ -536,7 +527,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
               <Field label="Property Price (snapshot)" required error={errors.propPrice}>
                 <input
                   type="number"
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   placeholder="e.g. 5000000"
                   value={propPrice}
                   onChange={e => setPropPrice(e.target.value)}
@@ -554,7 +545,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
                   type="number"
                   min={1}
                   max={365}
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   value={holdingDays}
                   onChange={e => setHolding(e.target.value)}
                 />
@@ -582,7 +573,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             <Field label="Assign Dealer (optional)">
               <div className="relative">
                 <select
-                  className="select-dark w-full px-3 py-2.5 text-sm appearance-none pr-8"
+                  className="dialog-select"
                   value={dealerId ?? ""}
                   onChange={e => setDealerId(e.target.value ? Number(e.target.value) : null)}
                 >
@@ -598,7 +589,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             <div className="grid grid-cols-3 gap-3">
               <Field label="Nominee Name">
                 <input
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   placeholder="Optional"
                   value={nomineeName}
                   onChange={e => setNomName(e.target.value)}
@@ -606,7 +597,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
               </Field>
               <Field label="Nominee Phone">
                 <input
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   placeholder="Optional"
                   value={nomineePhone}
                   onChange={e => setNomPhone(e.target.value)}
@@ -614,7 +605,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
               </Field>
               <Field label="Nominee CNIC">
                 <input
-                  className="input-dark w-full px-3 py-2.5 text-sm"
+                  className="dialog-input"
                   placeholder="XXXXX-XXXXXXX-X"
                   value={nomineeCnic}
                   onChange={e => setNomCnic(e.target.value)}
@@ -627,7 +618,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
           <div className="space-y-3">
             <SectionTitle><FileText size={10} className="inline mr-1" />Notes</SectionTitle>
             <textarea
-              className="input-dark w-full px-3 py-2.5 text-sm resize-none"
+              className="dialog-textarea"
               rows={3}
               placeholder="Any additional notes about this booking…"
               value={notes}
@@ -635,44 +626,6 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             />
           </div>
         </div>
-
-        {/* Footer */}
-        <div
-          className="flex items-center justify-between px-6 py-4 shrink-0"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <div className="text-xs text-muted">
-            {clientId && propertyId && (
-              <span>
-                Booking for <strong className="text-primary">{clients.find(c => c.id === clientId)?.name}</strong>
-                {unitId && <> · Unit <strong className="text-primary">{selectedUnit?.unit_number}</strong></>}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <AttachmentsButton module="booking" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-lg transition-colors"
-              style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving}
-              className="btn-primary px-5 py-2 text-sm disabled:opacity-40 flex items-center gap-2"
-            >
-              {saving
-                ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
-                : "Create Booking"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+    </AppDialog>
   );
 }

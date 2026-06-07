@@ -9,13 +9,14 @@ import {
   Building2, MapPin, Briefcase, UserCheck,
   TrendingUp, ArrowDownRight, Printer, Eye,
 } from "lucide-react";
-import Modal from "../components/Modal";
+import AppDialog from "../components/ui/AppDialog";
 import { formatCurrency } from "../lib/currency";
 import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
 import { DataTable, SmartTable } from "../components/data-table";
 import { api } from "../lib/api";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import FileUpload from "../components/ui/FileUpload";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
 import {
@@ -145,7 +146,7 @@ export default function HRPage() {
         tabs={TAB_ITEMS}
         activeTab={tab}
         onChange={(v) => setTab(v as Tab)}
-        moduleColor={MODULE_COLORS.hr}
+        moduleColor={MODULE_COLORS.hr.primary}
       />
 
       <div>
@@ -378,7 +379,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
       />
 
       {/* Add Employee */}
-      <Modal open={showAdd} title="Add Employee" onClose={() => setShowAdd(false)}>
+      <AppDialog isOpen={showAdd} title="Add Employee" onClose={() => setShowAdd(false)}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name *"><input value={empForm.first_name ?? ""} onChange={ef("first_name")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Last Name *"><input value={empForm.last_name ?? ""} onChange={ef("last_name")} className={inputCls} style={inputStyle} /></Field>
@@ -420,10 +421,10 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
           <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveEmployee} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save Employee"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* Employee Detail */}
-      <Modal open={!!selected} title={selected?.full_name ?? ""} onClose={() => setSelected(null)}>
+      <AppDialog isOpen={!!selected} title={selected?.full_name ?? ""} onClose={() => setSelected(null)}>
         {selected && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -453,12 +454,15 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
           <div className="pt-2 border-t border-theme/50">
             <AttachmentPanel module="employee" recordId={selected.id} title="Documents" />
           </div>
+          <div className="pt-2 border-t border-theme/50">
+            <FileUpload module="hr" recordType="employee" recordId={String(selected.id)} documentTypes={["CNIC", "Contract", "Degree", "Experience Letter", "Other"]} />
+          </div>
           </div>
         )}
-      </Modal>
+      </AppDialog>
 
       {/* Salary */}
-      <Modal open={showSalary} title={`Salary — ${selected?.full_name ?? ""}`} onClose={() => setShowSalary(false)}>
+      <AppDialog isOpen={showSalary} title={`Salary — ${selected?.full_name ?? ""}`} onClose={() => setShowSalary(false)}>
         <div className="grid grid-cols-2 gap-3">
           {(["basic_salary","house_rent_allowance","conveyance_allowance","medical_allowance","special_allowance","other_allowances","provident_fund","professional_tax","income_tax","other_deductions","overtime_hourly_rate"] as const).map(key => (
             <Field key={key} label={key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}>
@@ -472,7 +476,7 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
           <button onClick={() => setShowSalary(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveSalary} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save Salary"}</button>
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }
@@ -557,7 +561,7 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
         searchable={false}
       />
 
-      <Modal open={showMark} title="Mark Attendance" onClose={() => setShowMark(false)}>
+      <AppDialog isOpen={showMark} title="Mark Attendance" onClose={() => setShowMark(false)}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Employee *">
             <select value={attForm.employee_id ?? ""} onChange={af("employee_id")} className={inputCls} style={inputStyle}>
@@ -580,7 +584,7 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
           <button onClick={() => setShowMark(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={markAttendance} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Mark"}</button>
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }
@@ -783,7 +787,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
         }
       />
 
-      <Modal open={showRequest} title="Request Leave" onClose={() => setShowRequest(false)}>
+      <AppDialog isOpen={showRequest} title="Request Leave" onClose={() => setShowRequest(false)}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Employee *">
             <select value={leaveForm.employee_id ?? ""} onChange={lf("employee_id")} className={inputCls} style={inputStyle}>
@@ -810,9 +814,9 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
           <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={requestLeave} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Submitting…" : "Submit Request"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
-      <Modal open={!!rejectId} title="Reject Leave" onClose={() => setRejectId(null)}>
+      <AppDialog isOpen={!!rejectId} title="Reject Leave" onClose={() => setRejectId(null)}>
         <Field label="Rejection Reason *">
           <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} className={`${inputCls} resize-none`} style={inputStyle} />
         </Field>
@@ -820,9 +824,9 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
           <button onClick={() => setRejectId(null)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={reject} disabled={loading || !rejectReason} className="px-4 py-2 text-xs rounded-lg" style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{loading ? "Rejecting…" : "Reject"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
-      <Modal open={showBalance} title="Leave Balance" onClose={() => setShowBalance(false)}>
+      <AppDialog isOpen={showBalance} title="Leave Balance" onClose={() => setShowBalance(false)}>
         <div className="space-y-2">
           {balances.length === 0 && <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>No balance data</p>}
           {balances.map(b => (
@@ -838,7 +842,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
             </div>
           ))}
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }
@@ -1064,7 +1068,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
         }
       />
 
-      <Modal open={calcEmpId !== null} title="Calculate Payroll" onClose={() => setCalcEmpId(null)}>
+      <AppDialog isOpen={calcEmpId !== null} title="Calculate Payroll" onClose={() => setCalcEmpId(null)}>
         <Field label="Employee *">
           <select value={calcEmpId === -1 ? "" : (calcEmpId ?? "")} onChange={e => setCalcEmpId(Number(e.target.value))} className={inputCls} style={inputStyle}>
             <option value="">Select employee…</option>
@@ -1076,9 +1080,9 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
           <button onClick={() => setCalcEmpId(null)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={calcSingle} disabled={loading || !calcEmpId || calcEmpId === -1} className="btn-primary px-4 py-2 text-xs">{loading ? "Calculating…" : "Calculate"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
-      <Modal open={!!markPaidId} title="Mark as Paid" onClose={() => setMarkPaidId(null)}>
+      <AppDialog isOpen={!!markPaidId} title="Mark as Paid" onClose={() => setMarkPaidId(null)}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Payment Date *"><input type="date" value={paidForm.payment_date} onChange={pf("payment_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Payment Method *">
@@ -1093,9 +1097,9 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
           <button onClick={() => setMarkPaidId(null)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={markPaid} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Processing…" : "Mark Paid"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
-      <Modal open={!!payslip} title="Payslip" onClose={() => setPayslip(null)}>
+      <AppDialog isOpen={!!payslip} title="Payslip" onClose={() => setPayslip(null)}>
         {payslip && (
           <div className="space-y-4 text-xs">
             <div className="p-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
@@ -1139,7 +1143,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
             </div>
           </div>
         )}
-      </Modal>
+      </AppDialog>
     </div>
   );
 }
@@ -1431,7 +1435,7 @@ function SetupTab({
       )}
 
       {/* ── Department Modal ── */}
-      <Modal open={deptModal} title={editDeptId ? "Edit Department" : "Add Department"} onClose={() => setDeptModal(false)}>
+      <AppDialog isOpen={deptModal} title={editDeptId ? "Edit Department" : "Add Department"} onClose={() => setDeptModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name *"><input value={deptForm.name} onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Finance" /></Field>
@@ -1443,10 +1447,10 @@ function SetupTab({
           <button onClick={() => setDeptModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveDept} disabled={loading || !deptForm.name || !deptForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Position Modal ── */}
-      <Modal open={posModal} title={editPosId ? "Edit Position" : "Add Position"} onClose={() => setPosModal(false)}>
+      <AppDialog isOpen={posModal} title={editPosId ? "Edit Position" : "Add Position"} onClose={() => setPosModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Title *"><input value={posForm.title} onChange={e => setPosForm(f => ({ ...f, title: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Senior Developer" /></Field>
@@ -1461,10 +1465,10 @@ function SetupTab({
           <button onClick={() => setPosModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={savePos} disabled={loading || !posForm.title || !posForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Branch Modal ── */}
-      <Modal open={branchModal} title={editBranchId ? "Edit Branch" : "Add Branch"} onClose={() => setBranchModal(false)}>
+      <AppDialog isOpen={branchModal} title={editBranchId ? "Edit Branch" : "Add Branch"} onClose={() => setBranchModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name *"><input value={branchForm.name} onChange={e => setBranchForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Head Office" /></Field>
@@ -1480,10 +1484,10 @@ function SetupTab({
           <button onClick={() => setBranchModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveBranch} disabled={loading || !branchForm.name || !branchForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Leave Type Modal ── */}
-      <Modal open={ltModal} title="Add Leave Type" onClose={() => setLtModal(false)}>
+      <AppDialog isOpen={ltModal} title="Add Leave Type" onClose={() => setLtModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name *"><input value={ltForm.name} onChange={e => setLtForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Annual Leave" /></Field>
@@ -1510,10 +1514,10 @@ function SetupTab({
           <button onClick={() => setLtModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveLT} disabled={loading || !ltForm.name || !ltForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Holiday Modal ── */}
-      <Modal open={holModal} title="Add Holiday" onClose={() => setHolModal(false)}>
+      <AppDialog isOpen={holModal} title="Add Holiday" onClose={() => setHolModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name *"><input value={holForm.name} onChange={e => setHolForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. New Year" /></Field>
@@ -1529,7 +1533,7 @@ function SetupTab({
           <button onClick={() => setHolModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveHol} disabled={loading || !holForm.name || !holForm.holiday_date} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }

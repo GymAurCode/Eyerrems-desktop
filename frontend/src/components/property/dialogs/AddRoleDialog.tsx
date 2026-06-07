@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi } from "../../../lib/propertyApi";
 
 interface AddRoleDialogProps {
@@ -27,11 +27,11 @@ export default function AddRoleDialog({ isOpen, onClose, contactId, currentRole,
   };
 
   return (
-    <ModuleDialog isOpen={isOpen} onClose={onClose} title="Add Role" size="sm">
+    <AppDialog isOpen={isOpen} onClose={onClose} title="Add Role" size="sm">
       <div className="space-y-4">
         <div>
           <label className="block text-xs text-muted mb-1">Role to Add</label>
-          <select className="select-dark w-full px-3 py-2.5 text-sm" value={value}
+          <select className="dialog-select" value={value}
             onChange={(e) => setValue(e.target.value)}>
             <option value="buyer">Buyer</option>
             <option value="seller">Seller</option>
@@ -42,6 +42,6 @@ export default function AddRoleDialog({ isOpen, onClose, contactId, currentRole,
           Add Role
         </button>
       </div>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

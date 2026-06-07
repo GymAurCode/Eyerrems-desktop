@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useId, useState } from "react";
-import { Upload, Paperclip, X, Loader2 } from "lucide-react";
-import Modal from "../Modal";
-import { FormField, FormSection } from "./FormField";
+import { Upload, Paperclip, X, User } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
+import { FormSection, FormRow, FormField } from "../ui/DialogForm";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 import AsyncDebouncedSelect, { AsyncSelectOption } from "../ui/AsyncDebouncedSelect";
+import FileUpload from "../ui/FileUpload";
 import { crmApi, Client } from "../../lib/crmApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 import { useLookup } from "../../hooks/useLookup";
@@ -102,8 +104,8 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
     return !Object.keys(e).length;
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
     if (!validate()) return;
     setSaving(true);
     try {
@@ -121,7 +123,6 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
         ? await crmApi.updateClient(initial!.id, payload)
         : await crmApi.createClient(payload);
 
-      // Upload secure attachments after client is created/updated
       const recordId = client.id;
       const uploads = Object.entries(files).map(([key, file]) =>
         attachmentApi.upload("client", recordId, file, key, "PENDING"),
@@ -156,21 +157,16 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
 
   const footer = (
     <>
-      <button type="button" onClick={onClose}
-        className="px-5 py-2 text-sm rounded-lg transition-colors"
-        style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-        Cancel
-      </button>
-      <button type="submit" form={formId} disabled={saving}
-        className="btn-primary px-6 py-2 text-sm disabled:opacity-50">
-        {saving ? "Saving…" : editing ? "Update Client" : "Create Client"}
-      </button>
+      <DialogCancelButton onClick={onClose} />
+      <DialogSubmitButton onClick={submit} label={editing ? "Update Client" : "Create Client"} loading={saving} />
     </>
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Client" : "New Client"}
-      size="2xl" footer={footer}>
+    <AppDialog isOpen={open} onClose={onClose} title={editing ? "Edit Client" : "New Client"}
+      icon={<User size={18} />}
+      subtitle="Manage client profile and documentation"
+      size="xl" footer={footer}>
       <form id={formId} onSubmit={submit}>
         {errors.form && (
           <div className="mb-4 px-3 py-2 rounded-lg text-xs text-red-400"
@@ -179,11 +175,9 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-
-          {/* ── IDs row — only shown when editing or preview ── */}
-          {(previewIds || initial) && (
-            <>
+        {(previewIds || initial) && (
+          <FormSection title="Record IDs" spaced={false}>
+            <FormRow cols={3}>
               <FormField label="Tracking ID">
                 <div className="px-3 py-2 text-sm font-mono select-all rounded-lg"
                   style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", color: "#60a5fa" }}>
@@ -197,41 +191,44 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
                 </div>
               </FormField>
               <FormField label="Status">
-                <select className="select-dark w-full px-3 py-2 text-sm" value={status}
+                <select className="dialog-select w-full" value={status}
                   onChange={(e) => setStatus(e.target.value)}>
                   {CLIENT_STATUS_OPTS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </FormField>
-            </>
+            </FormRow>
+          </FormSection>
+        )}
+
+        <FormSection title="Basic Info">
+          <FormRow cols={2}>
+            <FormField label="Full Name" required error={errors.name}>
+              <input className="dialog-input w-full" value={name}
+                onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+            </FormField>
+            <FormField label="Company">
+              <input className="dialog-input w-full" value={company}
+                onChange={(e) => setCompany(e.target.value)} placeholder="Company (optional)" />
+            </FormField>
+          </FormRow>
+
+          {!(previewIds || initial) && (
+            <FormRow cols={2}>
+              <FormField label="Status">
+                <select className="dialog-select w-full" value={status}
+                  onChange={(e) => setStatus(e.target.value)}>
+                  {CLIENT_STATUS_OPTS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </FormField>
+              <div />
+            </FormRow>
           )}
 
-          {/* ── Basic Info ── */}
-          <FormSection title="Basic Info" />
-
-          <FormField label="Full Name" required error={errors.name} span="2">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={name}
-              onChange={(e) => setName(e.target.value)} placeholder="Full name" />
-          </FormField>
-
-          {!(previewIds || initial) ? (
-            <FormField label="Status">
-              <select className="select-dark w-full px-3 py-2 text-sm" value={status}
-                onChange={(e) => setStatus(e.target.value)}>
-                {CLIENT_STATUS_OPTS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </FormField>
-          ) : <div />}
-
-          <FormField label="Company">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={company}
-              onChange={(e) => setCompany(e.target.value)} placeholder="Company (optional)" />
-          </FormField>
-
-          <FormField label="Assign Dealer" span="2">
+          <FormField label="Assign Dealer" fullWidth>
             <AsyncDebouncedSelect
               endpoint="/crm/async-select/dealers"
               placeholder="Search dealer…"
@@ -240,7 +237,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
             />
           </FormField>
 
-          <FormField label="Interested Property">
+          <FormField label="Interested Property" fullWidth>
             <AsyncDebouncedSelect
               endpoint="/crm/async-select/properties"
               placeholder="Search property…"
@@ -248,104 +245,102 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
               onChange={(opt: AsyncSelectOption | null) => setPropertyId(opt ? Number(opt.id) : null)}
             />
           </FormField>
+        </FormSection>
 
-          {/* ── Contact Info ── */}
-          <FormSection title="Contact Info" />
+        <FormSection title="Contact Info">
+          <FormRow cols={3}>
+            <FormField label="Phone" required error={errors.phone}>
+              <input className="dialog-input w-full" value={phone}
+                onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 0000000" />
+            </FormField>
+            <FormField label="Email" error={errors.email}>
+              <input className="dialog-input w-full" type="email" value={email}
+                onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+            </FormField>
+            <FormField label="CNIC" error={errors.cnic}>
+              <input className="dialog-input w-full" value={cnic}
+                onChange={(e) => setCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+            </FormField>
+          </FormRow>
+        </FormSection>
 
-          <FormField label="Phone" required error={errors.phone}>
-            <input className="input-dark w-full px-3 py-2 text-sm" value={phone}
-              onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 0000000" />
-          </FormField>
-
-          <FormField label="Email" error={errors.email}>
-            <input className="input-dark w-full px-3 py-2 text-sm" type="email" value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
-          </FormField>
-
-          <FormField label="CNIC" error={errors.cnic}>
-            <input className="input-dark w-full px-3 py-2 text-sm" value={cnic}
-              onChange={(e) => setCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
-          </FormField>
-
-          {/* ── Addresses ── */}
-          <FormSection title="Addresses" />
-
-          <FormField label="Residential Address" span="full">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={address}
+        <FormSection title="Addresses">
+          <FormField label="Residential Address" fullWidth>
+            <input className="dialog-input w-full" value={address}
               onChange={(e) => setAddress(e.target.value)} placeholder="Current residential address" />
           </FormField>
-
-          <FormField label="Mailing Address" span="full">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={mailingAddress}
+          <FormField label="Mailing Address" fullWidth>
+            <input className="dialog-input w-full" value={mailingAddress}
               onChange={(e) => setMailingAddress(e.target.value)} placeholder="Mailing address (if different)" />
           </FormField>
-
-          <FormField label="Permanent Address" span="full">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={permanentAddress}
+          <FormField label="Permanent Address" fullWidth>
+            <input className="dialog-input w-full" value={permanentAddress}
               onChange={(e) => setPermanentAddress(e.target.value)} placeholder="Permanent address" />
           </FormField>
+        </FormSection>
 
-          {/* ── Next of Kin ── */}
-          <FormSection title="Next of Kin" />
-
-          <FormField label="Name">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={nextOfKinName}
-              onChange={(e) => setNextOfKinName(e.target.value)} placeholder="Next of kin name" />
-          </FormField>
-
-          <FormField label="CNIC" error={errors.next_of_kin_cnic}>
-            <input className="input-dark w-full px-3 py-2 text-sm" value={nextOfKinCnic}
-              onChange={(e) => setNextOfKinCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
-          </FormField>
-
+        <FormSection title="Next of Kin">
+          <FormRow cols={2}>
+            <FormField label="Name">
+              <input className="dialog-input w-full" value={nextOfKinName}
+                onChange={(e) => setNextOfKinName(e.target.value)} placeholder="Next of kin name" />
+            </FormField>
+            <FormField label="CNIC" error={errors.next_of_kin_cnic}>
+              <input className="dialog-input w-full" value={nextOfKinCnic}
+                onChange={(e) => setNextOfKinCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+            </FormField>
+          </FormRow>
           <FormField label="Phone">
-            <input className="input-dark w-full px-3 py-2 text-sm" value={nextOfKinPhone}
+            <input className="dialog-input w-full" value={nextOfKinPhone}
               onChange={(e) => setNextOfKinPhone(e.target.value)} placeholder="+92 300 0000000" />
           </FormField>
+        </FormSection>
 
-          {/* ── Notes ── */}
-          <FormSection title="Notes" />
-
-          <FormField label="Internal Notes" span="full">
-            <textarea className="input-dark w-full px-3 py-2 text-sm resize-none" rows={2}
+        <FormSection title="Notes">
+          <FormField label="Internal Notes" fullWidth>
+            <textarea className="dialog-textarea w-full" rows={2}
               value={notes} onChange={(e) => setNotes(e.target.value)}
               placeholder="Internal notes…" />
           </FormField>
+        </FormSection>
 
-          {/* ── Secure Attachments ── */}
-          <FormSection title="Secure Attachments" />
+        <FormSection title="Secure Attachments">
+          <FormRow cols={3}>
+            {SECURE_SLOTS.map((slot) => (
+              <FormField key={slot.key} label={slot.label}>
+                {files[slot.key] ? (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
+                    style={{ background: "var(--bg-surface2)" }}>
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
+                      {files[slot.key].name}
+                    </span>
+                    <button type="button" onClick={() => removeFile(slot.key)}
+                      style={{ color: "var(--text-muted)" }}
+                      className="hover:text-red-400 shrink-0">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer border-2 border-dashed transition-colors hover:border-blue-500/50"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <Upload size={14} style={{ color: "var(--text-muted)" }} />
+                    <span style={{ color: "var(--text-muted)" }}>Upload</span>
+                    <input type="file" accept={slot.accept} className="hidden"
+                      onChange={handleFileSelect(slot.key)} />
+                  </label>
+                )}
+              </FormField>
+            ))}
+          </FormRow>
 
-          {SECURE_SLOTS.map((slot) => (
-            <FormField key={slot.key} label={slot.label}>
-              {files[slot.key] ? (
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
-                  style={{ background: "var(--bg-surface2)" }}>
-                  <span className="flex items-center gap-1.5 truncate">
-                    <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
-                    {files[slot.key].name}
-                  </span>
-                  <button type="button" onClick={() => removeFile(slot.key)}
-                    style={{ color: "var(--text-muted)" }}
-                    className="hover:text-red-400 shrink-0">
-                    <X size={12} />
-                  </button>
-                </div>
-              ) : (
-                <label
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer border-2 border-dashed transition-colors hover:border-blue-500/50"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <Upload size={14} style={{ color: "var(--text-muted)" }} />
-                  <span style={{ color: "var(--text-muted)" }}>Upload</span>
-                  <input type="file" accept={slot.accept} className="hidden"
-                    onChange={handleFileSelect(slot.key)} />
-                </label>
-              )}
-            </FormField>
-          ))}
-
-        </div>
+          <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+            <FileUpload module="crm" recordType="client" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["CNIC Front", "CNIC Back", "Passport", "Proof of Income", "Bank Statement", "Other"]} />
+          </div>
+        </FormSection>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

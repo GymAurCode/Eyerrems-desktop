@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useId, useState } from "react";
 import { Upload, Paperclip, X, FileText } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { FormField, FormSection } from "./FormField";
 import AsyncDebouncedSelect, { AsyncSelectOption } from "../ui/AsyncDebouncedSelect";
+import FileUpload from "../ui/FileUpload";
 import { crmApi, Deal } from "../../lib/crmApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 import { useLookup } from "../../hooks/useLookup";
@@ -154,7 +155,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Deal" : "New Deal"}
+    <AppDialog isOpen={open} onClose={onClose} title={editing ? "Edit Deal" : "New Deal"}
       size="2xl" footer={footer}>
       <form id={formId} onSubmit={submit}>
         {errors.form && (
@@ -362,7 +363,10 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
             )}
           </div>
         </div>
+        <div className="pt-3 border-t border-theme">
+          <FileUpload module="crm" recordType="deal" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["Sale Agreement", "SPA", "Token Receipt", "Cheque", "Other"]} />
+        </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

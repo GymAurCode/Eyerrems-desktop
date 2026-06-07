@@ -5,7 +5,7 @@ import {
   ImagePlus, X, Trash2, Hash, AlertTriangle,
   Eye, Edit2, FileText, Upload, DollarSign, Archive
 } from "lucide-react";
-import Modal from "../../Modal";
+import AppDialog from "../../ui/AppDialog";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
 import { propApi, Property, PropertyCategory, PropertyAttachment } from "../../../lib/propertyApi";
@@ -184,7 +184,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const loadCategories = () => propApi.getCategories().then((res) => {
     const data = res && 'data' in res ? (res as any).data : res;
     setCategories(Array.isArray(data) ? data : []);
-  });
+  }).catch(() => setCategories([]));
 
   const fetchProperties = async (params: any) => {
     paramsRef.current = params;
@@ -598,7 +598,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       />
 
       {/* ── Create Property Dialog ── */}
-      <Modal open={open} onClose={() => setOpen(false)} title="New Property" size="2xl">
+      <AppDialog isOpen={open} onClose={() => setOpen(false)} title="New Property" size="2xl">
         <form onSubmit={submit}>
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl text-xs border flex items-center gap-2"
@@ -1028,7 +1028,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
             </button>
           </div>
         </form>
-      </Modal>
+      </AppDialog>
     </>
   );
 }

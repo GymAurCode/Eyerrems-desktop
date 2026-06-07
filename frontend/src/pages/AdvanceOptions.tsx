@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { Plus, X, Check, Trash2, Search, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Plus, X, Check, Trash2, Search, Loader2, RefreshCw } from "lucide-react";
 import { lookupApi, LookupValue } from "../lib/lookupApi";
 import { invalidateLookupCache } from "../hooks/useLookup";
-import ConfirmDialog from "../components/actions/ConfirmDialog";
+import AppDialog from "../components/ui/AppDialog";
 import { DataTable } from "../components/data-table";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -39,6 +39,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   gender: "Gender",
   payment_status: "Payment Status",
   account_type: "Account Type",
+
+  installment_type: "Installment Type",
+  listing_status: "Listing Status",
+  operational_status: "Operational Status",
+  size_unit: "Size Unit",
+  owner_type: "Owner Type",
+  regulatory_authority: "Regulatory Authority",
+  unit_ownership: "Unit Ownership",
+  contact_type: "Contact Type",
+  payment_frequency: "Payment Frequency",
 };
 
 const slugify = (text: string): string =>
@@ -47,6 +57,8 @@ const slugify = (text: string): string =>
     .replace(/[^a-z0-9\s]/g, "")
     .trim()
     .replace(/\s+/g, "_");
+
+const getRowId = (row: any) => row._key;
 
 interface RowEditState {
   label: string;
@@ -66,32 +78,64 @@ export default function AdvanceOptionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [editStates, setEditStates] = useState<Record<string, RowEditState>>({});
+  const editStatesRef = useRef(editStates);
+  editStatesRef.current = editStates;
+  const [seeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await lookupApi.getAll();
       setCategories(data);
-      if (!selectedCategory && Object.keys(data).length > 0) {
-        setSelectedCategory(Object.keys(data)[0]);
-      }
-    } catch {
-      // ignore
+    } catch (e) {
+      setLoadError("Failed to load options. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory]);
+  }, []);
 
   useEffect(() => {
     fetchAll();
-  }, []);
+  }, [fetchAll]);
 
-  const currentValues = selectedCategory ? categories[selectedCategory] ?? [] : [];
-  const filteredCategories = Object.keys(categories).filter((cat) =>
-    (CATEGORY_LABELS[cat] ?? cat).toLowerCase().includes(searchTerm.toLowerCase()),
+  useEffect(() => {
+    if (!selectedCategory && Object.keys(categories).length > 0) {
+      setSelectedCategory(Object.keys(categories)[0]);
+    }
+  }, [selectedCategory, categories]);
+
+  const handleSeedDefaults = async () => {
+    setSeeding(true);
+    setSeedMessage(null);
+    try {
+      const result = await lookupApi.seedDefaults();
+      setSeedMessage(result.message);
+      invalidateLookupCache();
+      await fetchAll();
+    } catch {
+      setSeedMessage("Failed to seed default values.");
+    } finally {
+      setSeeding(false);
+      setTimeout(() => setSeedMessage(null), 5000);
+    }
+  };
+
+  const currentValues = useMemo(
+    () => (selectedCategory ? categories[selectedCategory] ?? [] : []),
+    [categories, selectedCategory],
+  );
+  const filteredCategories = useMemo(
+    () =>
+      Object.keys(categories).filter((cat) =>
+        (CATEGORY_LABELS[cat] ?? cat).toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [categories, searchTerm],
   );
 
-  const handleSaveRow = async (data: Partial<LookupValue> & { id?: number }) => {
+  const handleSaveRow = useCallback(async (data: Partial<LookupValue> & { id?: number }) => {
     if (!selectedCategory) return;
     if (data.id) {
       await lookupApi.update(data.id, {
@@ -112,7 +156,7 @@ export default function AdvanceOptionsPage() {
     }
     invalidateLookupCache(selectedCategory);
     await fetchAll();
-  };
+  }, [selectedCategory, fetchAll]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -127,13 +171,13 @@ export default function AdvanceOptionsPage() {
     }
   };
 
-  const addNewRow = () => {
+  const addNewRow = useCallback(() => {
     setNewRows((prev) => [...prev, Date.now()]);
-  };
+  }, []);
 
-  const removeNewRow = (key: number) => {
+  const removeNewRow = useCallback((key: number) => {
     setNewRows((prev) => prev.filter((k) => k !== key));
-  };
+  }, []);
 
   useEffect(() => {
     const next: Record<string, RowEditState> = {};
@@ -164,12 +208,12 @@ export default function AdvanceOptionsPage() {
     setEditStates(next);
   }, [currentValues, newRows]);
 
-  const updateEdit = (rk: string, patch: Partial<RowEditState>) => {
+  const updateEdit = useCallback((rk: string, patch: Partial<RowEditState>) => {
     setEditStates((prev) => ({ ...prev, [rk]: { ...prev[rk], ...patch } }));
-  };
+  }, []);
 
-  const handleSaveEdit = async (rk: string, item: Partial<LookupValue> & { id?: number }) => {
-    const st = editStates[rk];
+  const handleSaveEdit = useCallback(async (rk: string, item: Partial<LookupValue> & { id?: number }) => {
+    const st = editStatesRef.current[rk];
     if (!st || !st.label.trim() || !st.value.trim()) return;
     updateEdit(rk, { saving: true });
     try {
@@ -186,12 +230,99 @@ export default function AdvanceOptionsPage() {
     } catch {
       updateEdit(rk, { saving: false });
     }
-  };
+  }, [handleSaveRow]);
 
-  const combinedData = [
-    ...newRows.map((key) => ({ _key: `n-${key}`, _isNew: true, sort_order: currentValues.length + 1, is_active: true } as any)),
-    ...currentValues.map((item) => ({ _key: `v-${item.id}`, _isNew: false, ...item })),
-  ];
+  const combinedData = useMemo(
+    () => [
+      ...newRows.map((key) => ({ _key: `n-${key}`, _isNew: true, sort_order: currentValues.length + 1, is_active: true } as const)),
+      ...currentValues.map((item) => ({ _key: `v-${item.id}`, _isNew: false as const, ...item })),
+    ],
+    [newRows, currentValues],
+  );
+
+  const columns = useMemo(
+    () => [
+      { key: "sort_order", label: "Sort Order", width: 80, render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        if (!st) return val;
+        return (
+          <input type="number" value={st.sort_order}
+            onChange={(e) => updateEdit(row._key, { sort_order: Number(e.target.value) })}
+            className="w-14 px-1.5 py-1 text-xs rounded outline-none text-center"
+            style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+          />
+        );
+      }},
+      { key: "label", label: "Label", render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        if (!st) return val;
+        return (
+          <input type="text" value={st.label}
+            onChange={(e) => { updateEdit(row._key, { label: e.target.value }); if (row._isNew && !editStatesRef.current[row._key]?.value) updateEdit(row._key, { value: slugify(e.target.value) }); }}
+            className="w-full px-1.5 py-1 text-xs rounded outline-none"
+            style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+          />
+        );
+      }},
+      { key: "value", label: "Value", render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        if (!st) return val;
+        return (
+          <input type="text" value={st.value}
+            onChange={(e) => updateEdit(row._key, { value: e.target.value })}
+            className="w-full px-1.5 py-1 text-xs rounded outline-none font-mono"
+            style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          />
+        );
+      }},
+      { key: "is_default", label: "Default", align: "center" as const, render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        if (!st) return val ? "✓" : "";
+        return <input type="radio" name="default-radio" checked={st.is_default} onChange={() => updateEdit(row._key, { is_default: true })} />;
+      }},
+      { key: "is_active", label: "Active", align: "center" as const, render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        if (!st) return val ? "✓" : "";
+        return (
+          <button type="button" onClick={() => updateEdit(row._key, { is_active: !st.is_active })}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${st.is_active ? "bg-green-500" : "bg-tertiary"}`}>
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${st.is_active ? "translate-x-4" : "translate-x-1"}`} />
+          </button>
+        );
+      }},
+      { key: "actions", label: "Actions", align: "center" as const, render: (val: any, row: any) => {
+        const st = editStatesRef.current[row._key];
+        const saving = st?.saving;
+        const saved = st?.saved;
+        const canSave = st?.label.trim() && st?.value.trim();
+        return (
+          <div className="flex items-center gap-1">
+            {saving ? (
+              <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
+            ) : (
+              <button type="button" onClick={() => handleSaveEdit(row._key, row)} disabled={!canSave}
+                className="p-1 rounded transition-colors disabled:opacity-40"
+                style={{ color: saved ? "#22c55e" : "#3b82f6" }} title={saved ? "Saved" : "Save"}>
+                <Check size={14} />
+              </button>
+            )}
+            {row._isNew ? (
+              <button type="button" onClick={() => removeNewRow(Number(row._key.slice(2)))}
+                className="p-1 rounded transition-colors" style={{ color: "#ef4444" }} title="Cancel">
+                <X size={14} />
+              </button>
+            ) : (
+              <button type="button" onClick={() => setDeleteTarget({ id: row.id, label: row.label })}
+                className="p-1 rounded transition-colors hover:bg-red-500/20" style={{ color: "#ef4444" }} title="Delete">
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        );
+      }},
+    ],
+    [updateEdit, handleSaveEdit, removeNewRow, setDeleteTarget],
+  );
 
   return (
     <div className="flex h-[calc(100vh-64px)] gap-0">
@@ -262,6 +393,33 @@ export default function AdvanceOptionsPage() {
           <div className="flex items-center justify-center py-12">
             <Loader2 size={20} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
           </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchAll}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg transition-colors"
+              style={{ background: "var(--bg-surface-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            >
+              <RefreshCw size={14} />
+              Retry
+            </button>
+          </div>
+        ) : Object.keys(categories).length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>No lookup options found. Seed default values to get started.</p>
+            <button
+              type="button"
+              onClick={handleSeedDefaults}
+              disabled={seeding}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+              style={{ background: "#3b82f6", color: "#fff" }}
+            >
+              {seeding ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              {seeding ? "Seeding..." : "Add Default Values"}
+            </button>
+          </div>
         ) : !selectedCategory ? (
           <div className="flex items-center justify-center py-12 text-xs" style={{ color: "var(--text-secondary)" }}>
             Select a category from the left panel
@@ -272,100 +430,46 @@ export default function AdvanceOptionsPage() {
               <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                 {CATEGORY_LABELS[selectedCategory] ?? selectedCategory}
               </h2>
-              <button
-                type="button"
-                onClick={addNewRow}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
-                style={{ background: "#22c55e", color: "#fff" }}
-              >
-                <Plus size={14} />
-                Add New Value
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSeedDefaults}
+                  disabled={seeding}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  style={{ background: "var(--bg-surface-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                  title="Add default values for all empty categories"
+                >
+                  {seeding ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {seeding ? "Restoring..." : "Add Default Values"}
+                </button>
+                <button
+                  type="button"
+                  onClick={addNewRow}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                  style={{ background: "#22c55e", color: "#fff" }}
+                >
+                  <Plus size={14} />
+                  Add New Value
+                </button>
+              </div>
             </div>
+            {seedMessage && (
+              <div
+                className="mb-3 px-3 py-2 text-xs rounded-lg"
+                style={{
+                  background: seedMessage.includes("Failed") ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
+                  color: seedMessage.includes("Failed") ? "#ef4444" : "#22c55e",
+                  border: `1px solid ${seedMessage.includes("Failed") ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
+                }}
+              >
+                {seedMessage}
+              </div>
+            )}
 
             <DataTable
               data={combinedData}
-              getRowId={(row) => row._key}
-              columns={[
-                { key: "sort_order", label: "Sort Order", width: 80, render: (val, row) => {
-                  const st = editStates[row._key];
-                  if (!st) return val;
-                  return (
-                    <input type="number" value={st.sort_order}
-                      onChange={(e) => updateEdit(row._key, { sort_order: Number(e.target.value) })}
-                      className="w-14 px-1.5 py-1 text-xs rounded outline-none text-center"
-                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-                    />
-                  );
-                }},
-                { key: "label", label: "Label", render: (val, row) => {
-                  const st = editStates[row._key];
-                  if (!st) return val;
-                  return (
-                    <input type="text" value={st.label}
-                      onChange={(e) => { updateEdit(row._key, { label: e.target.value }); if (row._isNew && !editStates[row._key]?.value) updateEdit(row._key, { value: slugify(e.target.value) }); }}
-                      className="w-full px-1.5 py-1 text-xs rounded outline-none"
-                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-                    />
-                  );
-                }},
-                { key: "value", label: "Value", render: (val, row) => {
-                  const st = editStates[row._key];
-                  if (!st) return val;
-                  return (
-                    <input type="text" value={st.value}
-                      onChange={(e) => updateEdit(row._key, { value: e.target.value })}
-                      className="w-full px-1.5 py-1 text-xs rounded outline-none font-mono"
-                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-                    />
-                  );
-                }},
-                { key: "is_default", label: "Default", align: "center", render: (val, row) => {
-                  const st = editStates[row._key];
-                  if (!st) return val ? "✓" : "";
-                  return <input type="radio" name="default-radio" checked={st.is_default} onChange={() => updateEdit(row._key, { is_default: true })} />;
-                }},
-                { key: "is_active", label: "Active", align: "center", render: (val, row) => {
-                  const st = editStates[row._key];
-                  if (!st) return val ? "✓" : "";
-                  return (
-                    <button type="button" onClick={() => updateEdit(row._key, { is_active: !st.is_active })}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${st.is_active ? "bg-green-500" : "bg-tertiary"}`}>
-                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${st.is_active ? "translate-x-4" : "translate-x-1"}`} />
-                    </button>
-                  );
-                }},
-                { key: "actions", label: "Actions", align: "center", render: (val, row) => {
-                  const st = editStates[row._key];
-                  const saving = st?.saving;
-                  const saved = st?.saved;
-                  const canSave = st?.label.trim() && st?.value.trim();
-                  return (
-                    <div className="flex items-center gap-1">
-                      {saving ? (
-                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
-                      ) : (
-                        <button type="button" onClick={() => handleSaveEdit(row._key, row)} disabled={!canSave}
-                          className="p-1 rounded transition-colors disabled:opacity-40"
-                          style={{ color: saved ? "#22c55e" : "#3b82f6" }} title={saved ? "Saved" : "Save"}>
-                          <Check size={14} />
-                        </button>
-                      )}
-                      {row._isNew ? (
-                        <button type="button" onClick={() => removeNewRow(Number(row._key.slice(2)))}
-                          className="p-1 rounded transition-colors" style={{ color: "#ef4444" }} title="Cancel">
-                          <X size={14} />
-                        </button>
-                      ) : (
-                        <button type="button" onClick={() => setDeleteTarget({ id: row.id, label: row.label })}
-                          className="p-1 rounded transition-colors hover:bg-red-500/20" style={{ color: "#ef4444" }} title="Delete">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                }},
-              ]}
+              getRowId={getRowId}
+              columns={columns}
               variant="bordered"
               searchable={false}
               emptyTitle="No values found"
@@ -375,15 +479,20 @@ export default function AdvanceOptionsPage() {
         )}
       </div>
 
-      <ConfirmDialog
-        open={!!deleteTarget}
+      <AppDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
         title="Delete Value"
-        message={`Delete '${deleteTarget?.label}'? This will remove it from the dropdown.`}
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
+        accentColor="#ef4444"
+      >
+        <p style={{ color: "var(--text-secondary)", fontSize: 13, lineHeight: 1.5 }}>
+          Delete '{deleteTarget?.label}'? This will remove it from the dropdown.
+        </p>
+        <div className="flex justify-end gap-2 mt-2">
+          <button onClick={() => setDeleteTarget(null)} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
+          <button onClick={handleDelete} className="px-4 py-2 text-xs font-medium rounded-lg" style={{ background: "#ef4444", color: "#fff" }}>Delete</button>
+        </div>
+      </AppDialog>
     </div>
   );
 }

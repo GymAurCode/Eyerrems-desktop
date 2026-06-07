@@ -53,6 +53,18 @@ from app.services.reports.tenant_reports import (
     SecurityDepositReportService,
     TenantProfileReportService,
 )
+from app.services.reports.hr_reports import (
+    EmployeeListReportService,
+    SalaryReportService,
+    AttendanceReportService,
+)
+from app.services.reports.dealer_reports import (
+    DealReportService,
+    OutstandingPaymentsService,
+    TokenReceiptService,
+    UnitStatementService,
+    TenantHistoryService,
+)
 
 router = APIRouter()
 
@@ -82,6 +94,7 @@ class ReportRequest(BaseModel):
     block_id: Optional[int] = None
     tenant_id: Optional[int] = None
     booking_id: Optional[int] = None
+    deal_id: Optional[int] = None
     employee_id: Optional[int] = None
     account_id: Optional[int] = None
 
@@ -147,6 +160,18 @@ REPORT_REGISTRY = {
     "rent_ledger":            RentLedgerReportService,
     "rent_due_report":        RentDueReportService,
     "security_deposit_report": SecurityDepositReportService,
+
+    # HR Reports
+    "employees_list":          EmployeeListReportService,
+    "salary_report":           SalaryReportService,
+    "attendance_report":       AttendanceReportService,
+
+    # Missing CRM / Property / Tenant reports
+    "deal_report":             DealReportService,
+    "outstanding_payments":    OutstandingPaymentsService,
+    "token_receipt":           TokenReceiptService,
+    "unit_statement":          UnitStatementService,
+    "tenant_history":          TenantHistoryService,
 }
 
 
@@ -168,6 +193,7 @@ def _build_filter(req: ReportRequest, company_id: int) -> ReportFilter:
         block_id=req.block_id,
         tenant_id=req.tenant_id,
         booking_id=req.booking_id,
+        deal_id=req.deal_id,
         employee_id=req.employee_id,
         account_id=req.account_id,
         category=req.category,
@@ -291,21 +317,33 @@ def generate_report(
     company_name = _get_company_name(db, company_id)
     currency_symbol = _get_company_currency_symbol(db, company_id)
 
-    service = service_class(
-        db=db,
-        company_id=company_id,
-        current_user_name=current_user.full_name,
-        currency_symbol=currency_symbol,
-    )
+    try:
+        service = service_class(
+            db=db,
+            company_id=company_id,
+            current_user_name=current_user.full_name,
+            currency_symbol=currency_symbol,
+        )
 
-    filters = _build_filter(req, company_id)
-    result = service.generate(filters)
+        filters = _build_filter(req, company_id)
+        result = service.generate(filters)
 
-    # Inject company name into meta
-    result.meta.company_name = company_name
-    result.meta.generated_by = current_user.full_name
+        # Inject company name into meta
+        result.meta.company_name = company_name
+        result.meta.generated_by = current_user.full_name
 
-    return _result_to_dict(result)
+        return _result_to_dict(result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Report] {report_key} error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Report generation failed: {str(e)}"
+        )
 
 
 # ── Export Endpoint ───────────────────────────────────────────────────────────

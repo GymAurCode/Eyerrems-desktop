@@ -39,7 +39,7 @@ def get_schema_engine(schema_name: str):
         return _engines[schema_name], _sessionmakers[schema_name]
 
     engine = create_engine(
-        settings.database_url,
+        settings.database_url_fixed,
         connect_args={"options": f"-csearch_path={schema_name},public"},
         pool_pre_ping=True,
     )
@@ -123,7 +123,7 @@ def get_master_session() -> Session:
     """Get a session against the database for master schema operations.
     Uses the public search_path so master.companies is accessible."""
     engine = create_engine(
-        settings.database_url,
+        settings.database_url_fixed,
         pool_pre_ping=True,
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

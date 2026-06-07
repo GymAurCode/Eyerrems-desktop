@@ -18,7 +18,7 @@ import ModuleTabs from "../../components/ui/ModuleTabs";
 import ConfirmDialog from "../../components/actions/ConfirmDialog";
 import { MODULE_COLORS } from "../../config/moduleColors";
 
-const CRM_ACCENT = MODULE_COLORS.crm;
+const CRM_ACCENT = MODULE_COLORS.crm.primary;
 const DEAL_TABS = ["Overview", "Payment Schedule", "Timeline", "Documents"] as const;
 type DealTab = typeof DEAL_TABS[number];
 

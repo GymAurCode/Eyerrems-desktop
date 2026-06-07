@@ -9,6 +9,19 @@ class Settings(BaseSettings):
 
     database_url: str = ""
     jwt_secret_key: str = ""
+
+    @property
+    def database_url_fixed(self) -> str:
+        """Return a SQLAlchemy-ready URL, converting postgres:// → postgresql+psycopg2://.
+        Returns empty string if DATABASE_URL is not set (triggers SQLite fallback locally).
+        """
+        url = self.database_url
+        if not url:
+            return ""
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        return url
+
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
     upload_dir: str = "uploads"
@@ -37,6 +50,11 @@ class Settings(BaseSettings):
     # ── Super Admin credentials ──────────────────────────────────────────────
     superadmin_email: str = "superadmin@rems.local"
     superadmin_password: str = "SuperAdmin@123"
+
+    # ── Cloudinary (external file storage) ───────────────────────────────────
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
 
 settings = Settings()

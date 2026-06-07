@@ -1,8 +1,22 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import { ModuleColorProvider } from "./contexts/ModuleColorContext";
 import "./index.css";
+
+// ── React Query client ────────────────────────────────────────────────────────
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 10,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // Apply persisted theme before first paint to avoid flash
 const saved = (() => {
@@ -27,9 +41,9 @@ if (typeof window !== "undefined") {
     window.electronAPI?.log("error", `Unhandled Rejection: ${reason}`, {
       stack: reason?.stack || (reason instanceof Error ? reason.stack : undefined),
     });
+    // Prevent the rejection from being logged as an unhandled error in the console
+    event.preventDefault();
   });
-
-  window.electronAPI?.log("info", "Renderer process starting up");
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -42,7 +56,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       which works correctly in both file:// and http:// environments.
     */}
     <HashRouter>
-      <App />
+      <QueryClientProvider client={queryClient}>
+        <ModuleColorProvider>
+          <App />
+        </ModuleColorProvider>
+      </QueryClientProvider>
     </HashRouter>
   </React.StrictMode>
 );

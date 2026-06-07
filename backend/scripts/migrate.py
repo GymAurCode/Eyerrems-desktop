@@ -78,11 +78,12 @@ def normalise_url(url: str) -> str:
 
 
 def get_db_url() -> str:
-    raw = os.environ.get("DATABASE_URL", "")
+    from app.core.config import settings
+    raw = settings.database_url_fixed
     if not raw:
-        from app.core.config import settings
-        raw = settings.database_url
-    return normalise_url(raw)
+        print("[migrate] FATAL: DATABASE_URL is not set. Set it in .env or Railway Variables.", file=sys.stderr)
+        sys.exit(1)
+    return raw
 
 
 def get_existing_tables_and_columns(engine) -> dict:

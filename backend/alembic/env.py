@@ -5,11 +5,10 @@ Connection priority:
   1. DATABASE_URL env var (Railway injects this automatically)
   2. settings.database_url from .env file
 """
-import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool, text
+from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.core.database import Base
@@ -18,16 +17,7 @@ from app.models import *  # noqa: F401,F403  — registers all ORM models
 # ── Alembic config object ─────────────────────────────────────────────────────
 config = context.config
 
-# Railway injects DATABASE_URL as a plain postgres:// URL; SQLAlchemy requires
-# postgresql+psycopg2://. Fix the scheme if needed.
-def _normalise_url(url: str) -> str:
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg2://", 1)
-    return url
-
-db_url = _normalise_url(
-    os.environ.get("DATABASE_URL", "") or settings.database_url
-)
+db_url = settings.database_url_fixed
 config.set_main_option("sqlalchemy.url", db_url)
 
 # ── Logging ───────────────────────────────────────────────────────────────────

@@ -327,10 +327,8 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading accounts...');
       
       const data = await api.get<AccountTreeNode[]>('/finance/accounts/tree').then((r) => r.data);
-      console.log('Accounts loaded:', data.length);
       
       setTree(data);
     } catch (err: any) {
@@ -407,7 +405,6 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
 
   const handleAdd = useCallback((parent: AccountTreeNode) => {
     try {
-      console.log('Add child to:', parent.name);
       // TODO: Implement add dialog
     } catch (error) {
       console.error('Handle add error:', error);
@@ -416,7 +413,6 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
 
   const handleEdit = useCallback((node: AccountTreeNode) => {
     try {
-      console.log('Edit account:', node.name);
       // TODO: Implement edit dialog
     } catch (error) {
       console.error('Handle edit error:', error);
@@ -425,7 +421,6 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
 
   const handleDelete = useCallback((node: AccountTreeNode) => {
     try {
-      console.log('Delete account:', node.name);
       // TODO: Implement delete confirmation
     } catch (error) {
       console.error('Handle delete error:', error);
@@ -516,7 +511,7 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
                   onClick={() => setShowInactive(!showInactive)}
                   className="px-3 py-1 text-xs rounded"
                   style={{
-                    background: showInactive ? "#3b82f6" : "var(--bg-secondary, #333)",
+                    background: showInactive ? "#3b82f6" : "var(--bg-surface2)",
                     color: showInactive ? "white" : "var(--text-muted, #888)",
                     border: "none",
                     cursor: "pointer"
@@ -528,7 +523,7 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
                   onClick={loadAccounts}
                   className="px-3 py-1 text-xs rounded"
                   style={{
-                    background: "var(--bg-secondary, #333)",
+                    background: "var(--bg-surface2)",
                     color: "var(--text-muted, #888)",
                     border: "none",
                     cursor: "pointer"
@@ -564,7 +559,7 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 text-sm rounded"
                   style={{
-                    background: "var(--bg-secondary, #333)",
+                    background: "var(--bg-surface2)",
                     border: "1px solid var(--border, #555)",
                     color: "var(--text-primary, #eaeaea)"
                   }}
@@ -581,7 +576,7 @@ export default function ChartOfAccountsSimple({ readOnly = false }: ChartOfAccou
                 onChange={(e) => setFilterType(e.target.value)}
                 className="px-3 py-2 text-sm rounded"
                 style={{
-                  background: "var(--bg-secondary, #333)",
+                  background: "var(--bg-surface2)",
                   border: "1px solid var(--border, #555)",
                   color: "var(--text-primary, #eaeaea)"
                 }}

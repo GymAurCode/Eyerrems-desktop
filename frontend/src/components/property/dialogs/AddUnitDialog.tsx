@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from "react";
 import { Hash } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import FormSection from "../../ui/FormSection";
 import { propApi, Floor, Unit } from "../../../lib/propertyApi";
 
@@ -37,13 +37,6 @@ const INITIAL_FORM: UnitFormData = {
   area: "", areaUnit: "sqft", rentAmount: "", salePrice: "",
   furnishingStatus: "", securityDeposit: "", currentTenant: "",
   leaseEndDate: "", notes: "",
-};
-
-const inputClass = "w-full px-3 py-2.5 rounded-lg text-sm border transition-colors duration-150 outline-none";
-const inputStyle: React.CSSProperties = {
-  background: "var(--surface-input, #1A1D24)",
-  borderColor: "var(--border, #2E3340)",
-  color: "var(--text-primary, #E8ECF0)",
 };
 
 export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUnit }: AddUnitDialogProps) {
@@ -129,7 +122,7 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
       title={editing ? `Edit Unit ${editing.unit_number}` : "Add Unit"}
@@ -179,14 +172,14 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Unit Number <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input className={inputClass} style={inputStyle} value={form.unitNumber}
+              <input className="dialog-input" value={form.unitNumber}
                 onChange={(e) => set("unitNumber", e.target.value)} placeholder="e.g. 101" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Floor <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <select className={inputClass} style={inputStyle} value={form.floorId}
+              <select className="dialog-select" value={form.floorId}
                 onChange={(e) => set("floorId", e.target.value)}>
                 <option value="">Select floor</option>
                 {floors.map((f) => (
@@ -198,7 +191,7 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Unit Type
               </label>
-              <select className={inputClass} style={inputStyle} value={form.unitType}
+              <select className="dialog-select" value={form.unitType}
                 onChange={(e) => set("unitType", e.target.value)}>
                 {UNIT_TYPE_OPTIONS.map((t) => (
                   <option key={t} value={t}>{t || "Select"}</option>
@@ -209,7 +202,7 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Status
               </label>
-              <select className={inputClass} style={inputStyle} value={form.status}
+              <select className="dialog-select" value={form.status}
                 onChange={(e) => set("status", e.target.value)}>
                 <option value="available">Available</option>
                 <option value="rented">Rented</option>
@@ -230,9 +223,9 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
                 Area
               </label>
               <div className="flex gap-2">
-                <input type="number" className={inputClass} style={inputStyle} value={form.area}
+                <input type="number" className="dialog-input" value={form.area}
                   onChange={(e) => set("area", e.target.value)} placeholder="e.g. 1200" />
-                <select className={`${inputClass} w-24 shrink-0`} style={inputStyle} value={form.areaUnit}
+                <select className="dialog-select w-24 shrink-0" value={form.areaUnit}
                   onChange={(e) => set("areaUnit", e.target.value)}>
                   {AREA_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
@@ -242,21 +235,21 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Monthly Rent (Rs)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={form.rentAmount}
+              <input type="number" className="dialog-input" value={form.rentAmount}
                 onChange={(e) => set("rentAmount", e.target.value)} placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Sale Price (Rs)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={form.salePrice}
+              <input type="number" className="dialog-input" value={form.salePrice}
                 onChange={(e) => set("salePrice", e.target.value)} placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Security Deposit (Rs)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={form.securityDeposit}
+              <input type="number" className="dialog-input" value={form.securityDeposit}
                 onChange={(e) => set("securityDeposit", e.target.value)} placeholder="0" />
             </div>
           </div>
@@ -269,7 +262,7 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Furnishing Status
               </label>
-              <select className={inputClass} style={inputStyle} value={form.furnishingStatus}
+              <select className="dialog-select" value={form.furnishingStatus}
                 onChange={(e) => set("furnishingStatus", e.target.value)}>
                 {FURNISHING_OPTIONS.map((t) => (
                   <option key={t} value={t}>{t || "None"}</option>
@@ -280,14 +273,14 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Current Tenant
               </label>
-              <input className={inputClass} style={inputStyle} value={form.currentTenant}
+              <input className="dialog-input" value={form.currentTenant}
                 onChange={(e) => set("currentTenant", e.target.value)} placeholder="Tenant name" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Lease End Date
               </label>
-              <input type="date" className={inputClass} style={inputStyle} value={form.leaseEndDate}
+              <input type="date" className="dialog-input" value={form.leaseEndDate}
                 onChange={(e) => set("leaseEndDate", e.target.value)} />
             </div>
           </div>
@@ -295,10 +288,10 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
 
         {/* ── Section 4: Notes ── */}
         <FormSection title="Notes">
-          <textarea className={inputClass} style={inputStyle} rows={3} value={form.notes}
+          <textarea className="dialog-textarea" rows={3} value={form.notes}
             onChange={(e) => set("notes", e.target.value)} placeholder="Internal notes..." />
         </FormSection>
       </form>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

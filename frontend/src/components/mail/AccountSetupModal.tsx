@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { X, CheckCircle, XCircle, Loader, Trash2, Plus } from "lucide-react";
+import { CheckCircle, XCircle, Loader, Trash2, Plus, Mail } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
 import { api } from "../../lib/api";
 import type { EmailAccount } from "../../store/mail";
 
@@ -98,7 +99,7 @@ function Field({ label, value, onChange, type = "text", placeholder }: FieldProp
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full h-8 px-3 rounded-lg border border-theme bg-base text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="dialog-input"
       />
     </div>
   );
@@ -179,22 +180,48 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-xl shadow-2xl border border-theme bg-base flex flex-col max-h-[90vh]">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-theme shrink-0">
-          <h2 className="text-base font-semibold text-primary">Email Account Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-hover text-muted hover:text-primary transition-colors"
-          >
-            <X size={16} />
-          </button>
+    <AppDialog isOpen={true} title="Email Account Settings" subtitle="Manage your email accounts" size="lg" icon={<Mail size={16} />} onClose={onClose}
+      footer={
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+          {view === "add" ? (
+            <>
+              <button
+                onClick={() => { setView("list"); setTestResult(null); setError(null); }}
+                className="text-sm text-muted hover:text-primary transition-colors"
+              >
+                ← Back
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={testing || saving}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-theme text-secondary hover:bg-hover transition-colors disabled:opacity-50"
+                >
+                  {testing && <Loader size={13} className="animate-spin" />}
+                  {testing ? "Testing…" : "Test & Save"}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || testing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
+                >
+                  {saving && <Loader size={13} className="animate-spin" />}
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={onClose}
+              className="ml-auto text-sm text-muted hover:text-primary transition-colors"
+            >
+              Close
+            </button>
+          )}
         </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+      }
+    >
           {view === "list" ? (
             <div className="p-5">
               {safeAccounts.length === 0 ? (
@@ -406,48 +433,6 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
               )}
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-theme shrink-0">
-          {view === "add" ? (
-            <>
-              <button
-                onClick={() => { setView("list"); setTestResult(null); setError(null); }}
-                className="text-sm text-muted hover:text-primary transition-colors"
-              >
-                ← Back
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTest}
-                  disabled={testing || saving}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-theme text-secondary hover:bg-hover transition-colors disabled:opacity-50"
-                >
-                  {testing && <Loader size={13} className="animate-spin" />}
-                  {testing ? "Testing…" : "Test & Save"}
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || testing}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-                  style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
-                >
-                  {saving && <Loader size={13} className="animate-spin" />}
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <button
-              onClick={onClose}
-              className="ml-auto text-sm text-muted hover:text-primary transition-colors"
-            >
-              Close
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, MapPin, Tag, ChevronRight, LayoutGrid } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { propApi, Location as PropertyLocation, Amenity, PropertyCategory } from "../../lib/propertyApi";
 import ModuleTabs from "../ui/ModuleTabs";
 import { MODULE_COLORS } from "../../config/moduleColors";
@@ -93,13 +93,13 @@ export default function AdvancedOptions({ open, onClose }: Props) {
   ];
 
   return (
-    <Modal open={open} onClose={onClose} title="Advanced Options">
+    <AppDialog isOpen={open} onClose={onClose} title="Advanced Options">
       {/* Tab bar */}
       <ModuleTabs
         tabs={TABS.map((t) => ({ label: t.label, value: t.key, icon: t.icon }))}
         activeTab={tab}
         onChange={(v) => setTab(v as Tab)}
-        moduleColor={MODULE_COLORS.property}
+        moduleColor={MODULE_COLORS.properties.primary}
       />
 
       {/* Categories */}
@@ -217,6 +217,6 @@ export default function AdvancedOptions({ open, onClose }: Props) {
           </div>
         </div>
       )}
-    </Modal>
+    </AppDialog>
   );
 }

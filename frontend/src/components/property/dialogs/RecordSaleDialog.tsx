@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from "react";
 import { AlertTriangle, X, Plus, Upload } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import FormSection from "../../ui/FormSection";
 import { propApi, Property, Unit, Buyer, Seller } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
@@ -50,13 +50,6 @@ interface DraftInstalment {
   amount: string;
   status: string;
 }
-
-const inputClass = "w-full px-3 py-2.5 rounded-lg text-sm border transition-colors duration-150 outline-none";
-const inputStyle: React.CSSProperties = {
-  background: "var(--surface-input, #1A1D24)",
-  borderColor: "var(--border, #2E3340)",
-  color: "var(--text-primary, #E8ECF0)",
-};
 
 export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties, buyers, sellers }: RecordSaleDialogProps) {
   const [submitting, setSubmitting] = useState(false);
@@ -263,7 +256,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="Record Sale"
@@ -281,7 +274,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Property</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={propId}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={propId}
                 onChange={(e) => setPropId(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">— Optional —</option>
                 {properties.map((p) => <option key={p.id} value={p.id}>{p.tid} — {p.name}</option>)}
@@ -289,7 +282,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Unit</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={unitId}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={unitId}
                 onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">— Optional —</option>
                 {units.map((u) => <option key={u.id} value={u.id}>{u.tid} — {u.unit_number}</option>)}
@@ -297,7 +290,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Buyer *</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={buyerId}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={buyerId}
                 onChange={(e) => setBuyerId(e.target.value ? Number(e.target.value) : "")} required>
                 <option value="">— Select buyer —</option>
                 {buyers.map((b) => <option key={b.id} value={b.id}>{b.tid} — {b.name}</option>)}
@@ -305,7 +298,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Seller *</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={sellerId}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={sellerId}
                 onChange={(e) => setSellerId(e.target.value ? Number(e.target.value) : "")} required>
                 <option value="">— Select seller —</option>
                 {sellers.map((s) => <option key={s.id} value={s.id}>{s.tid} — {s.name}</option>)}
@@ -319,22 +312,22 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
             <div>
               <label className="block text-xs text-muted mb-1">Agreed Sale Price (Rs) *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={price}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={price}
                 onChange={(e) => setPrice(e.target.value)} required min="1" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Token / Booking Amount (Rs)</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={tokenAmount}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={tokenAmount}
                 onChange={(e) => setTokenAmount(e.target.value)} placeholder="Initial amount" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Token Date</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={tokenDate}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={tokenDate}
                 onChange={(e) => setTokenDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Payment Type</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={paymentType}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={paymentType}
                 onChange={(e) => setPaymentType(e.target.value)}>
                 <option value="full_cash">Full Cash</option>
                 <option value="mortgage">Mortgage</option>
@@ -346,44 +339,44 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
               <>
                 <div>
                   <label className="block text-xs text-muted mb-1">Bank Name</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={bankName}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={bankName}
                     onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Loan Amount (Rs)</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={loanAmount}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={loanAmount}
                     onChange={(e) => setLoanAmount(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Approval Date</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={approvalDate}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={approvalDate}
                     onChange={(e) => setApprovalDate(e.target.value)} />
                 </div>
               </>
             )}
             <div>
               <label className="block text-xs text-muted mb-1">Commission %</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" step="0.1" value={commPct}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" step="0.1" value={commPct}
                 onChange={(e) => setCommPct(e.target.value)} placeholder="e.g. 2.5" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Commission Amount (Rs)</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={commAmount}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={commAmount}
                 onChange={(e) => setCommAmount(e.target.value)} placeholder="Auto-calculated" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Commission Paid To</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={commPaidTo}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={commPaidTo}
                 onChange={(e) => setCommPaidTo(e.target.value)} placeholder="Agent name" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Stamp Duty (Rs)</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={stampDuty}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={stampDuty}
                 onChange={(e) => setStampDuty(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Registration Fee (Rs)</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={regFee}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={regFee}
                 onChange={(e) => setRegFee(e.target.value)} />
             </div>
           </div>
@@ -409,17 +402,17 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div>
                   <label className="block text-xs text-muted mb-1">Total Amount (Rs)</label>
-                  <input className="input-dark w-full px-3 py-2 text-sm" type="number" value={instalTotal}
+                  <input className="dialog-input w-full px-3 py-2 text-sm" type="number" value={instalTotal}
                     onChange={(e) => setInstalTotal(e.target.value)} placeholder={price || "Sale price"} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Number of Instalments</label>
-                  <input className="input-dark w-full px-3 py-2 text-sm" type="number" min="1" value={instalCount}
+                  <input className="dialog-input w-full px-3 py-2 text-sm" type="number" min="1" value={instalCount}
                     onChange={(e) => setInstalCount(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Frequency</label>
-                  <select className="select-dark w-full px-3 py-2 text-sm" value={instalFreq}
+                  <select className="dialog-select w-full px-3 py-2 text-sm" value={instalFreq}
                     onChange={(e) => setInstalFreq(e.target.value)}>
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly</option>
@@ -452,13 +445,13 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
                 {draftInsts.map(inst => (
                   <div key={inst._key} className="grid gap-1.5 items-center"
                     style={{ gridTemplateColumns: "1fr 1fr 1fr 80px auto" }}>
-                    <input className="input-dark px-2 py-1.5 text-xs" value={inst.milestone_name}
+                    <input className="dialog-input px-2 py-1.5 text-xs" value={inst.milestone_name}
                       onChange={e => updInst(inst._key, "milestone_name", e.target.value)} placeholder="Milestone" />
-                    <input className="input-dark px-2 py-1.5 text-xs" type="date" value={inst.due_date}
+                    <input className="dialog-input px-2 py-1.5 text-xs" type="date" value={inst.due_date}
                       onChange={e => updInst(inst._key, "due_date", e.target.value)} />
-                    <input className="input-dark px-2 py-1.5 text-xs" type="number" value={inst.amount}
+                    <input className="dialog-input px-2 py-1.5 text-xs" type="number" value={inst.amount}
                       onChange={e => updInst(inst._key, "amount", e.target.value)} placeholder="Amount" />
-                    <select className="select-dark px-2 py-1.5 text-xs" value={inst.status}
+                    <select className="dialog-select px-2 py-1.5 text-xs" value={inst.status}
                       onChange={e => updInst(inst._key, "status", e.target.value)}>
                       <option value="pending">Pending</option>
                       <option value="paid">Paid</option>
@@ -487,22 +480,22 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
             <div>
               <label className="block text-xs text-muted mb-1">Agreement Date *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={agreementDate}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={agreementDate}
                 onChange={(e) => setAgreementDate(e.target.value)} required />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Transfer / Registration Date</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={transferDate}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={transferDate}
                 onChange={(e) => setTransferDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Transfer Deed Number</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={deedNumber}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={deedNumber}
                 onChange={(e) => setDeedNumber(e.target.value)} placeholder="Deed #" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Sale Stage</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={saleStage}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={saleStage}
                 onChange={(e) => setSaleStage(e.target.value)}>
                 {STAGES.map(s => (
                   <option key={s} value={s}>{STAGE_LABELS[s]}</option>
@@ -512,7 +505,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             {saleStage === "cancelled" && (
               <div className="md:col-span-2">
                 <label className="block text-xs text-muted mb-1">Cancellation Reason *</label>
-                <input className="input-dark w-full px-3 py-2.5 text-sm" value={cancelReason}
+                <input className="dialog-input w-full px-3 py-2.5 text-sm" value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)} placeholder="Reason for cancellation" required />
               </div>
             )}
@@ -581,7 +574,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
 
         <div>
           <label className="block text-xs text-muted mb-1">Notes</label>
-          <textarea className="input-dark w-full px-4 py-2.5 text-sm resize-none" rows={2} value={notes}
+          <textarea className="dialog-textarea" rows={2} value={notes}
             onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes" />
         </div>
 
@@ -592,6 +585,6 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             : "Record Sale"}
         </button>
       </form>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

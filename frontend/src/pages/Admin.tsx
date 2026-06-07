@@ -4,7 +4,7 @@ import {
   Users, ScrollText, Shield, CheckCircle, XCircle,
   Plus, Pencil, Trash2, Key, Save, UserCheck, AlertCircle, Settings, DollarSign
 } from "lucide-react";
-import PortalModal from "../components/Modal";
+import AppDialog from "../components/ui/AppDialog";
 import { printRecord } from "../components/actions";
 import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/currency";
 import { DataTable } from "../components/data-table";
@@ -198,8 +198,8 @@ function UsersTab({ roles }: { roles: Role[] }) {
       />
 
       {assignUser && (
-        <PortalModal
-          open={!!assignUser}
+        <AppDialog
+          isOpen={!!assignUser}
           title={`Assign Role — ${assignUser.full_name}`}
           onClose={() => setAssignUser(null)}
           size="md"
@@ -232,7 +232,7 @@ function UsersTab({ roles }: { roles: Role[] }) {
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
     </div>
   );
@@ -405,7 +405,7 @@ function RolesTab({ roles, permissions, onReload }: {
 
       {/* ── Create Role Modal ──────────────────────────────────────────────── */}
       {dialog === "create" && (
-        <PortalModal open title="Create Role" onClose={closeAll} size="md">
+        <AppDialog isOpen title="Create Role" onClose={closeAll} size="md">
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>
@@ -451,12 +451,12 @@ function RolesTab({ roles, permissions, onReload }: {
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
 
       {/* ── Edit Role Modal ────────────────────────────────────────────────── */}
       {dialog === "edit" && activeRole && (
-        <PortalModal open title={`Edit — ${activeRole.name}`} onClose={closeAll} size="md">
+        <AppDialog isOpen title={`Edit — ${activeRole.name}`} onClose={closeAll} size="md">
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>
@@ -500,12 +500,12 @@ function RolesTab({ roles, permissions, onReload }: {
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
 
       {/* ── Delete Confirm Modal ───────────────────────────────────────────── */}
       {dialog === "delete" && activeRole && (
-        <PortalModal open title="Delete Role" onClose={closeAll} size="md">
+        <AppDialog isOpen title="Delete Role" onClose={closeAll} size="md">
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 rounded-xl"
               style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
@@ -527,12 +527,12 @@ function RolesTab({ roles, permissions, onReload }: {
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
 
       {/* ── Assign Permissions Modal ───────────────────────────────────────── */}
       {dialog === "perms" && activeRole && (
-        <PortalModal open title={`Permissions — ${activeRole.name}`} onClose={closeAll} size="lg">
+        <AppDialog isOpen title={`Permissions — ${activeRole.name}`} onClose={closeAll} size="lg">
           {/* Summary bar */}
           <div className="permission-summary-bar">
             <span className="text-xs text-muted">
@@ -626,7 +626,7 @@ function RolesTab({ roles, permissions, onReload }: {
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
     </div>
   );
@@ -702,7 +702,7 @@ function PermissionsTab({ permissions, onReload }: { permissions: Permission[]; 
       </div>
 
       {showCreate && (
-        <PortalModal open title="Add Permission" onClose={() => setShowCreate(false)} size="md">
+        <AppDialog isOpen title="Add Permission" onClose={() => setShowCreate(false)} size="md">
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>
@@ -762,7 +762,7 @@ function PermissionsTab({ permissions, onReload }: { permissions: Permission[]; 
               </button>
             </div>
           </div>
-        </PortalModal>
+        </AppDialog>
       )}
     </div>
   );
@@ -1028,7 +1028,7 @@ export default function AdminPage() {
         tabs={TABS.map((t) => ({ label: t.label, value: t.key, icon: t.icon }))}
         activeTab={tab}
         onChange={(v) => setTab(v as TabKey)}
-        moduleColor={MODULE_COLORS.admin}
+        moduleColor={MODULE_COLORS.admin.primary}
       />
 
       {tab === "users" && <UsersTab roles={roles} />}

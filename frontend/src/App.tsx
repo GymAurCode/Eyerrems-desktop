@@ -1,11 +1,13 @@
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 // ── Auth / guards ─────────────────────────────────────────────────────────────
 import { useAuthStore } from "./store/auth";
 import { useUIStore } from "./store/ui";
 import { useCurrencyStore } from "./store/currency";
 import { useRealtimeSocket } from "./hooks/useWebSocket";
+import { useAppBootstrap, useBackgroundRefresh } from "./hooks/useAppBootstrap";
 import ProtectedRoute from "./components/ProtectedRoute";
 import FeatureGuard from "./components/FeatureGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
@@ -13,54 +15,64 @@ import { ErrorTrackerPanel } from "./components/ErrorTracker";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import UpdateNotification from "./components/UpdateNotification";
 
+// ── Module theming ────────────────────────────────────────────────────────────
+import { useModuleColor } from "./contexts/ModuleColorContext";
+
 // ── Layouts ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
-import SuperAdminApp from "./superadmin/SuperAdminApp";
 
-// ── Public pages ──────────────────────────────────────────────────────────────
-import LoginPage from "./pages/Login";
-import SignupPage from "./pages/Signup";
-import SuperAdminLoginPage from "./pages/SuperAdminLogin";
+// ── Lazy-loaded route pages ───────────────────────────────────────────────────
+const LoginPage = lazy(() => import("./pages/Login"));
+const SignupPage = lazy(() => import("./pages/Signup"));
+const SuperAdminLoginPage = lazy(() => import("./pages/SuperAdminLogin"));
+const SuperAdminApp = lazy(() => import("./superadmin/SuperAdminApp"));
+const DashboardPage = lazy(() => import("./pages/Dashboard"));
+const PropertyPage = lazy(() => import("./pages/Property"));
+const PropertyViewPage = lazy(() => import("./pages/PropertyView"));
+const CRMPage = lazy(() => import("./pages/CRM"));
+const LeadDetail = lazy(() => import("./pages/crm/LeadDetail"));
+const ClientDetail = lazy(() => import("./pages/crm/ClientDetail"));
+const DealDetail = lazy(() => import("./pages/crm/DealDetail"));
+const DealerDetail = lazy(() => import("./pages/crm/DealerDetail"));
+const InstallmentPlanBuilder = lazy(() => import("./pages/crm/InstallmentPlanBuilder"));
+const FinancePage = lazy(() => import("./pages/Finance"));
+const AdminPage = lazy(() => import("./pages/Admin"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const TenantPage = lazy(() => import("./pages/Tenant"));
+const TenantDetailPage = lazy(() => import("./pages/TenantDetail"));
+const MaintenancePage = lazy(() => import("./pages/Maintenance"));
+const ConstructionDashboard = lazy(() => import("./modules/construction/ConstructionDashboard"));
+const ProjectList = lazy(() => import("./modules/construction/ProjectList"));
+const ProjectDetails = lazy(() => import("./modules/construction/ProjectDetails"));
+const RemindersPage = lazy(() => import("./pages/Reminders"));
+const HRPage = lazy(() => import("./pages/HR"));
+const MailPage = lazy(() => import("./pages/Mail"));
+const CommunicationPage = lazy(() => import("./pages/Communication"));
+const TownListPage = lazy(() => import("./pages/towns/TownList"));
+const TownDetailPage = lazy(() => import("./pages/towns/TownDetail"));
+const BookingsPage = lazy(() => import("./pages/Bookings"));
+const BookingDetailPage = lazy(() => import("./pages/crm/bookings/BookingDetail"));
+const ReportsCenter = lazy(() => import("./pages/reports/ReportsCenter"));
+const ReportRunner = lazy(() => import("./pages/reports/ReportRunner"));
+const InstallmentPlanReport = lazy(() => import("./pages/reports/InstallmentPlanReport"));
+const BookingFormReport = lazy(() => import("./pages/reports/BookingFormReport"));
+const AIIntelligencePage = lazy(() => import("./pages/AIIntelligence"));
+const ImportCenter = lazy(() => import("./pages/ImportCenter"));
+const HistoryPage = lazy(() => import("./pages/History"));
+const AdvanceOptionsPage = lazy(() => import("./pages/AdvanceOptions"));
 
-// ── Company pages ─────────────────────────────────────────────────────────────
-import DashboardPage from "./pages/Dashboard";
-import PropertyPage from "./pages/Property";
-import PropertyViewPage from "./pages/PropertyView";
-import CRMPage from "./pages/CRM";
-import LeadDetail from "./pages/crm/LeadDetail";
-import ClientDetail from "./pages/crm/ClientDetail";
-import DealDetail from "./pages/crm/DealDetail";
-import DealerDetail from "./pages/crm/DealerDetail";
-import InstallmentPlanBuilder from "./pages/crm/InstallmentPlanBuilder";
-import FinancePage from "./pages/Finance";
-import AdminPage from "./pages/Admin";
-import AdminPanel from "./pages/AdminPanel";
-import TenantPage from "./pages/Tenant";
-import TenantDetailPage from "./pages/TenantDetail";
-import MaintenancePage from "./pages/Maintenance";
-import ConstructionDashboard from "./modules/construction/ConstructionDashboard";
-import ProjectList from "./modules/construction/ProjectList";
-import ProjectDetails from "./modules/construction/ProjectDetails";
-import RemindersPage from "./pages/Reminders";
-import HRPage from "./pages/HR";
-import MailPage from "./pages/Mail";
-// ── Communication Hub ─────────────────────────────────────────────────────────
-import CommunicationPage from "./pages/Communication";
-import TownListPage from "./pages/towns/TownList";
-import TownDetailPage from "./pages/towns/TownDetail";
-import BookingsPage from "./pages/Bookings";
-import BookingDetailPage from "./pages/crm/bookings/BookingDetail";
-// ── Reports Center ────────────────────────────────────────────────────────────
-import ReportsCenter from "./pages/reports/ReportsCenter";
-import ReportRunner from "./pages/reports/ReportRunner";
-import InstallmentPlanReport from "./pages/reports/InstallmentPlanReport";
-import BookingFormReport from "./pages/reports/BookingFormReport";
-// ── AI Intelligence Center ────────────────────────────────────────────────────
-import AIIntelligencePage from "./pages/AIIntelligence";
-import ImportCenter from "./pages/ImportCenter";
-import HistoryPage from "./pages/History";
-import AdvanceOptionsPage from "./pages/AdvanceOptions";
+// ── Module loading spinner ────────────────────────────────────────────────────
+function ModuleLoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-muted">Loading…</p>
+      </div>
+    </div>
+  );
+}
 
 // ── Page titles ───────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
@@ -101,12 +113,23 @@ function CompanyLayout({ children }: { children: React.ReactNode }) {
   const theme    = useUIStore((s) => s.theme);
   const base     = "/" + location.pathname.split("/")[1];
   const title    = PAGE_TITLES[base] ?? PAGE_TITLES[location.pathname] ?? "";
+  const moduleColor = useModuleColor();
   const { isSuperAdmin } = useAuthStore.getState();
   if (isSuperAdmin) {
     return <Navigate to="/superadmin" replace />;
   }
   return (
-    <div className="app-shell flex h-screen overflow-hidden bg-base" data-theme={theme}>
+    <div
+      className="app-shell flex h-screen overflow-hidden bg-base"
+      data-theme={theme}
+      style={{
+        '--module-primary': moduleColor.primary,
+        '--module-light': moduleColor.light,
+        '--module-medium': moduleColor.medium,
+        '--module-dark': moduleColor.dark,
+        '--module-text': moduleColor.text,
+      } as React.CSSProperties}
+    >
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Topbar title={title} />
@@ -147,6 +170,8 @@ export default function App() {
   const loadCurrency = useCurrencyStore((s) => s.loadCurrency);
 
   useRealtimeSocket(token);
+  useAppBootstrap();
+  useBackgroundRefresh();
 
   useEffect(() => {
     if (token) {
@@ -165,6 +190,7 @@ export default function App() {
 
   return (
     <>
+      <Suspense fallback={<ModuleLoadingSpinner />}>
       <Routes>
         {/* ── Public ──────────────────────────────────────────────────────── */}
         <Route path="/login"  element={<LoginPage />} />
@@ -479,6 +505,7 @@ export default function App() {
         {/* ── Fallback ─────────────────────────────────────────────────────── */}
         <Route path="*" element={<Navigate to={token ? "/" : "/login"} replace />} />
       </Routes>
+      </Suspense>
       <ToastContainer />
       <UpdateNotification />
       <ErrorTrackerPanel />

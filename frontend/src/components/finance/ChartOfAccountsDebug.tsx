@@ -12,9 +12,7 @@ export default function ChartOfAccountsDebug() {
 
   useEffect(() => {
     try {
-      console.log('ChartOfAccountsDebug: Component mounting...');
       setMounted(true);
-      console.log('ChartOfAccountsDebug: Component mounted successfully');
     } catch (err: any) {
       console.error('ChartOfAccountsDebug: Mount error:', err);
       setError(err.message || 'Unknown error');

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Phone, MessageCircle, MessageSquare, User, Mail, CheckCircle2, XCircle, Clock } from "lucide-react";
 import DataTable from '../../components/data-table/DataTable';
 import { crmApi, FollowUp } from "../../lib/crmApi";
-import Modal from "../../components/Modal";
+import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 
 const TYPE_CONFIG: Record<string, { color: string; icon: React.ElementType }> = {
@@ -132,7 +132,7 @@ export default function FollowUps() {
         ]}
       />
 
-      <Modal open={modal} onClose={() => setModal(false)} title="New Follow-up">
+      <AppDialog isOpen={modal} onClose={() => setModal(false)} title="New Follow-up">
         <div className="space-y-4">
           {err && <p className="text-xs text-red-400">{err}</p>}
           <FormField label="Lead" required>
@@ -172,7 +172,7 @@ export default function FollowUps() {
           </FormField>
           <button onClick={create} disabled={saving} className="btn-primary w-full py-3 text-sm">{saving ? "Saving..." : "Create Follow-up"}</button>
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }

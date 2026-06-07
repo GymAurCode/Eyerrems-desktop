@@ -3,7 +3,8 @@
  * Works for client, dealer, and property ledger types.
  */
 import { useState } from "react";
-import { X, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
+import AppDialog from "../../components/ui/AppDialog";
 import type {
   ClientLedgerEntryCreate,
   DealerLedgerEntryCreate,
@@ -97,17 +98,6 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "var(--bg-surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-primary)",
-    borderRadius: "10px",
-    padding: "0.5rem 0.75rem",
-    fontSize: "0.8rem",
-    outline: "none",
-  };
-
   const labelStyle: React.CSSProperties = {
     display: "block",
     fontSize: "0.65rem",
@@ -119,28 +109,20 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
   };
 
   return (
-    <>
-      <div className="modal-backdrop" onClick={onClose} />
-      <div className="modal-container">
-        <div className="modal-content modal-wide" style={{ maxWidth: "560px" }}>
-          {/* Header */}
-          <div className="modal-header">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(59,130,246,0.12)" }}>
-                <BookOpen size={14} style={{ color: "#3b82f6" }} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-primary">Add Ledger Entry</p>
-                <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{entityName}</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="modal-close-btn"><X size={16} /></button>
-          </div>
-
-          {/* Body */}
-          <form onSubmit={handleSubmit}>
-            <div className="modal-body space-y-4">
+    <AppDialog isOpen onClose={onClose} title="Add Ledger Entry" subtitle={entityName} size="lg" icon={<BookOpen size={16} />}
+      footer={
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px", width: "100%" }}>
+          <button type="button" onClick={onClose} className="btn-ghost text-xs px-4 py-2">
+            Cancel
+          </button>
+          <button type="submit" disabled={loading} className="btn-primary text-xs px-5 py-2" form="add-entry-form">
+            {loading ? "Saving…" : "Save Entry"}
+          </button>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} id="add-entry-form">
+        <div className="space-y-4">
               {error && (
                 <div className="px-3 py-2 rounded-xl text-xs"
                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
@@ -153,11 +135,11 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                 <div>
                   <label style={labelStyle}>Entry Date *</label>
                   <input type="datetime-local" value={form.entry_date}
-                    onChange={e => set("entry_date", e.target.value)} style={inputStyle} required />
+                    onChange={e => set("entry_date", e.target.value)} className="dialog-input" required />
                 </div>
                 <div>
                   <label style={labelStyle}>Entry Type *</label>
-                  <select value={form.entry_type} onChange={e => set("entry_type", e.target.value)} style={inputStyle}>
+                  <select value={form.entry_type} onChange={e => set("entry_type", e.target.value)} className="dialog-select">
                     {entryTypes.map(t => (
                       <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</option>
                     ))}
@@ -171,7 +153,7 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                 <input type="text" value={form.description}
                   onChange={e => set("description", e.target.value)}
                   placeholder="Enter transaction description…"
-                  style={inputStyle} required />
+                  className="dialog-input" required />
               </div>
 
               {/* Reference No */}
@@ -180,7 +162,7 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                 <input type="text" value={form.reference_no}
                   onChange={e => set("reference_no", e.target.value)}
                   placeholder="e.g. INV-001, CHQ-123…"
-                  style={inputStyle} />
+                  className="dialog-input" />
               </div>
 
               {/* Debit + Credit */}
@@ -190,14 +172,14 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                   <input type="number" min="0" step="0.01" value={form.debit}
                     onChange={e => set("debit", e.target.value)}
                     placeholder="0.00"
-                    style={{ ...inputStyle, color: form.debit ? "#f87171" : "var(--text-primary)" }} />
+                    className="dialog-input" style={{ color: form.debit ? "#f87171" : "var(--text-primary)" }} />
                 </div>
                 <div>
                   <label style={{ ...labelStyle, color: "#34d399" }}>Credit Amount</label>
                   <input type="number" min="0" step="0.01" value={form.credit}
                     onChange={e => set("credit", e.target.value)}
                     placeholder="0.00"
-                    style={{ ...inputStyle, color: form.credit ? "#34d399" : "var(--text-primary)" }} />
+                    className="dialog-input" style={{ color: form.credit ? "#34d399" : "var(--text-primary)" }} />
                 </div>
               </div>
 
@@ -205,7 +187,7 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
               {type === "client" && (
                 <div>
                   <label style={labelStyle}>Payment Method</label>
-                  <select value={form.payment_method} onChange={e => set("payment_method", e.target.value)} style={inputStyle}>
+                  <select value={form.payment_method} onChange={e => set("payment_method", e.target.value)} className="dialog-select">
                     <option value="">— Select —</option>
                     <option value="cash">Cash</option>
                     <option value="bank">Bank Transfer</option>
@@ -223,14 +205,14 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                     <input type="number" min="0" max="100" step="0.01" value={form.commission_rate}
                       onChange={e => set("commission_rate", e.target.value)}
                       placeholder="e.g. 2.5"
-                      style={inputStyle} />
+                      className="dialog-input" />
                   </div>
                   <div>
                     <label style={labelStyle}>Gross Commission</label>
                     <input type="number" min="0" step="0.01" value={form.gross_commission}
                       onChange={e => set("gross_commission", e.target.value)}
                       placeholder="0.00"
-                      style={inputStyle} />
+                      className="dialog-input" />
                   </div>
                 </div>
               )}
@@ -238,7 +220,7 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
               {/* Status */}
               <div>
                 <label style={labelStyle}>Status</label>
-                <select value={form.status} onChange={e => set("status", e.target.value)} style={inputStyle}>
+                <select value={form.status} onChange={e => set("status", e.target.value)} className="dialog-select">
                   <option value="posted">Posted</option>
                   <option value="pending">Pending</option>
                 </select>
@@ -250,22 +232,10 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
                 <textarea value={form.notes} onChange={e => set("notes", e.target.value)}
                   placeholder="Optional notes or remarks…"
                   rows={3}
-                  style={{ ...inputStyle, resize: "vertical" }} />
+                  className="dialog-textarea" />
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="modal-footer px-6 pb-5">
-              <button type="button" onClick={onClose} className="btn-ghost text-xs px-4 py-2">
-                Cancel
-              </button>
-              <button type="submit" disabled={loading} className="btn-primary text-xs px-5 py-2">
-                {loading ? "Saving…" : "Save Entry"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
+      </form>
+    </AppDialog>
   );
 }

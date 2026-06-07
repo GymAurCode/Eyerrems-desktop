@@ -9,12 +9,19 @@ interface ModuleTabsProps {
   tabs: (TabItem | string)[];
   activeTab: string;
   onChange: (value: string) => void;
-  moduleColor: string;
+  moduleColor?: string;
   className?: string;
 }
 
 function normalizeTab(t: TabItem | string): TabItem {
   return typeof t === "string" ? { label: t, value: t } : t;
+}
+
+function getActiveTabBackground(): string {
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+    return 'color-mix(in srgb, var(--module-primary, #3b82f6) 20%, transparent)';
+  }
+  return 'var(--module-light, transparent)';
 }
 
 export default function ModuleTabs({
@@ -24,6 +31,9 @@ export default function ModuleTabs({
   moduleColor,
   className = "",
 }: ModuleTabsProps) {
+  const color = moduleColor || "var(--module-primary)";
+  const activeBg = getActiveTabBackground();
+
   return (
     <div className={`border-b border-theme ${className}`}>
       <nav className="flex gap-0 overflow-x-auto">
@@ -42,8 +52,9 @@ export default function ModuleTabs({
               style={
                 isActive
                   ? {
-                      color: moduleColor,
-                      borderBottom: `3px solid ${moduleColor}`,
+                      color: color,
+                      borderBottom: `3px solid ${color}`,
+                      background: activeBg,
                     }
                   : {
                       borderBottom: "3px solid transparent",
@@ -55,7 +66,7 @@ export default function ModuleTabs({
               {badge != null && badge > 0 && (
                 <span
                   className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white shrink-0"
-                  style={{ background: moduleColor }}
+                  style={{ background: color }}
                 >
                   {badge > 9 ? "9+" : badge}
                 </span>

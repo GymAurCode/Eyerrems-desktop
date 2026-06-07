@@ -6,7 +6,7 @@ export default function UpdateNotification() {
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
-      window.electronAPI.getAppVersion().then((v: string) => console.log("[App] Version:", v));
+      window.electronAPI.getAppVersion().then((v: string) => { /* noop */ });
     }
 
     if (window.electronAPI?.onUpdateDownloadStarted) {

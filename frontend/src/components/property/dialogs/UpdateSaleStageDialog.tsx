@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi } from "../../../lib/propertyApi";
 
 interface UpdateSaleStageDialogProps {
@@ -44,7 +44,7 @@ export default function UpdateSaleStageDialog({ isOpen, onClose, onSaved, saleId
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="Update Sale Stage"
@@ -53,7 +53,7 @@ export default function UpdateSaleStageDialog({ isOpen, onClose, onSaved, saleId
       <div className="space-y-4">
         <div>
           <label className="block text-xs text-muted mb-1">New Stage</label>
-          <select className="select-dark w-full px-3 py-2.5 text-sm" value={stageValue}
+          <select className="dialog-select" value={stageValue}
             onChange={(e) => setStageValue(e.target.value)}>
             {STAGES.filter(s => s !== "cancelled" && s !== "completed").map(s => (
               <option key={s} value={s}>{STAGE_LABELS[s]}</option>
@@ -76,6 +76,6 @@ export default function UpdateSaleStageDialog({ isOpen, onClose, onSaved, saleId
           )}
         </button>
       </div>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

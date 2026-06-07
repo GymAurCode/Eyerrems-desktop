@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi } from "../../../lib/propertyApi";
 
 interface CompleteSaleDialogProps {
@@ -26,7 +26,7 @@ export default function CompleteSaleDialog({ isOpen, onClose, onSaved, saleId }:
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="Mark Sale As Completed"
@@ -60,6 +60,6 @@ export default function CompleteSaleDialog({ isOpen, onClose, onSaved, saleId }:
       <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
         This will mark the sale as completed and update the property/unit listing status to "Sold".
       </p>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

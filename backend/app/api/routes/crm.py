@@ -11,6 +11,7 @@ from sqlalchemy import func, exists
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_any_permission
+from app.core.db_compat import date_format, date_diff_days
 from app.core.audit import log_action
 from app.core.config import settings
 from app.core.database import get_db
@@ -897,11 +898,12 @@ def get_crm_dashboard(
             lead_source_distribution.append({"source": "Not set", "count": count})
 
     # Monthly sales
+    month_col = date_format(db, Deal.created_at, "YYYY-MM")
     monthly_rows = db.query(
-        func.to_char(Deal.created_at, "YYYY-MM"),
+        month_col,
         func.sum(Deal.deal_value),
         func.count(Deal.id),
-    ).filter(Deal.status == "won").group_by(func.to_char(Deal.created_at, "YYYY-MM")).order_by(func.to_char(Deal.created_at, "YYYY-MM").desc()).limit(12).all()
+    ).filter(Deal.status == "won").group_by(month_col).order_by(month_col.desc()).limit(12).all()
     monthly_sales = [{"month": r[0], "value": r[1] or Decimal("0"), "count": r[2]} for r in monthly_rows]
 
     # Conversion funnel
@@ -916,12 +918,10 @@ def get_crm_dashboard(
             count = db.query(func.count(Lead.id)).filter(Lead.status == stage).scalar() or 0
         conversion_funnel.append({"stage": stage.replace("_", " ").title(), "count": count})
 
-    # Avg lead age (days from lead created to converted) — PostgreSQL compatible
+    # Avg lead age (days from lead created to converted)
     avg_lead_age = 0.0
     lead_age_result = db.query(
-        func.avg(
-            func.date_part('day', Client.created_at - Lead.created_at)
-        )
+        func.avg(date_diff_days(db, Client.created_at, Lead.created_at))
     ).select_from(Lead).join(Client, Client.lead_id == Lead.id).scalar()
     if lead_age_result is not None:
         avg_lead_age = round(float(lead_age_result), 1)
@@ -946,11 +946,12 @@ def get_crm_dashboard(
         })
 
     # Booking trends
+    book_month_col = date_format(db, Booking.created_at, "YYYY-MM")
     booking_rows = db.query(
-        func.to_char(Booking.created_at, "YYYY-MM"),
+        book_month_col,
         func.count(Booking.id),
         func.sum(Booking.property_price),
-    ).group_by(func.to_char(Booking.created_at, "YYYY-MM")).order_by(func.to_char(Booking.created_at, "YYYY-MM").desc()).limit(12).all()
+    ).group_by(book_month_col).order_by(book_month_col.desc()).limit(12).all()
     booking_trends = [{"month": r[0], "count": r[1], "value": r[2] or Decimal("0")} for r in booking_rows]
 
     # Recent activities

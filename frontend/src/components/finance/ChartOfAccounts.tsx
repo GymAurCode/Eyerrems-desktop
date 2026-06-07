@@ -304,10 +304,8 @@ export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsPro
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading accounts...');
       
       const data = await api.get<AccountTreeNode[]>('/finance/accounts/tree').then((r) => r.data);
-      console.log('Accounts loaded:', data.length);
       
       setTree(data);
     } catch (err: any) {
@@ -384,7 +382,6 @@ export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsPro
 
   const handleAdd = useCallback((parent: AccountTreeNode) => {
     try {
-      console.log('Add child to:', parent.name);
       // TODO: Implement add dialog
     } catch (error) {
       console.error('Handle add error:', error);
@@ -393,7 +390,6 @@ export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsPro
 
   const handleEdit = useCallback((node: AccountTreeNode) => {
     try {
-      console.log('Edit account:', node.name);
       // TODO: Implement edit dialog
     } catch (error) {
       console.error('Handle edit error:', error);
@@ -402,7 +398,6 @@ export default function ChartOfAccounts({ readOnly = false }: ChartOfAccountsPro
 
   const handleDelete = useCallback((node: AccountTreeNode) => {
     try {
-      console.log('Delete account:', node.name);
       // TODO: Implement delete confirmation
     } catch (error) {
       console.error('Handle delete error:', error);

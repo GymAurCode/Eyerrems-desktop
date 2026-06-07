@@ -82,7 +82,7 @@ def provision_company_schema(
     #    Lazy import to avoid circular import (database -> tenant -> master_db).
     from app.core.database import Base
     tenant_engine = create_engine(
-        settings.database_url,
+        settings.database_url_fixed,
         connect_args={"options": f"-csearch_path={schema_name},public"},
         pool_pre_ping=True,
     )

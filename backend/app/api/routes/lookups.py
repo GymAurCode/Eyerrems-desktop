@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -54,6 +55,21 @@ def list_all_categories(
         .order_by(LookupValue.category.asc(), LookupValue.sort_order.asc(), LookupValue.label.asc())
         .all()
     )
+    # Auto-seed if the table is empty — ensures first-time users see data
+    if not items:
+        try:
+            from app.core.seed_lookups import seed_lookup_values
+            inserted = seed_lookup_values(db, missing_categories_only=True)
+            if inserted:
+                log.info("Auto-seeded %d lookup values on empty read.", inserted)
+                items = (
+                    db.query(LookupValue)
+                    .order_by(LookupValue.category.asc(), LookupValue.sort_order.asc(), LookupValue.label.asc())
+                    .all()
+                )
+        except Exception as exc:
+            log.warning("Auto-seed on empty lookups failed: %s", exc)
+
     grouped: dict = {}
     for item in items:
         cat = item.category
@@ -97,6 +113,32 @@ def create_lookup_value(
     db.commit()
     db.refresh(lv)
     return _serialize(lv)
+
+
+class SeedDefaultsResponse(BaseModel):
+    inserted: int
+    message: str
+
+
+@router.post("/seed-defaults")
+def seed_default_lookup_values(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Insert default lookup values for categories that have zero existing values.
+
+    Safe to call at any time — never overwrites user customisations.
+    """
+    from app.core.seed_lookups import seed_lookup_values
+
+    inserted = seed_lookup_values(db, missing_categories_only=True)
+    msg = (
+        f"Inserted {inserted} default value(s)."
+        if inserted
+        else "All categories already have values — nothing to seed."
+    )
+    log.info("seed-defaults: %s", msg)
+    return SeedDefaultsResponse(inserted=inserted, message=msg)
 
 
 @router.patch("/reorder")

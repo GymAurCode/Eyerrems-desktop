@@ -53,6 +53,7 @@ class ReportFilter:
     block_id: Optional[int] = None
     tenant_id: Optional[int] = None
     booking_id: Optional[int] = None
+    deal_id: Optional[int] = None
     employee_id: Optional[int] = None
     account_id: Optional[int] = None
 

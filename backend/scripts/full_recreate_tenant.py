@@ -7,7 +7,7 @@ from app.core.database import Base
 from app.models import *  # noqa: F401,F403
 
 schema = "company_9c22617b"
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+engine = create_engine(settings.database_url_fixed_fixed, pool_pre_ping=True)
 
 # 1. Save essential tenant data before dropping
 with engine.connect() as conn:
@@ -54,7 +54,7 @@ with engine.begin() as conn:
 
 # 3. Recreate all tables via create_all in the schema
 engine2 = create_engine(
-    settings.database_url,
+    settings.database_url_fixed,
     connect_args={"options": "-csearch_path=company_9c22617b"},
     pool_pre_ping=True,
 )
@@ -63,7 +63,7 @@ Base.metadata.create_all(bind=engine2)
 engine2.dispose()
 
 # 4. Restore essential data
-engine3 = create_engine(settings.database_url, pool_pre_ping=True)
+engine3 = create_engine(settings.database_url_fixed, pool_pre_ping=True)
 with engine3.connect() as conn:
     conn.execute(text(f"SET search_path TO {schema}"))
     
@@ -109,7 +109,7 @@ with engine3.connect() as conn:
 engine3.dispose()
 
 # 5. Verify
-engine4 = create_engine(settings.database_url, pool_pre_ping=True)
+engine4 = create_engine(settings.database_url_fixed, pool_pre_ping=True)
 with engine4.connect() as c:
     c.execute(text(f"SET search_path TO {schema}"))
     for tbl in ['properties', 'plots', 'locations', 'tenants', 'accounts', 'companies', 'roles', 'users', 'property_amenities']:

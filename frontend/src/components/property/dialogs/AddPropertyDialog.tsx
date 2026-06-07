@@ -3,8 +3,9 @@ import {
   Plus, X, Trash2, Hash, AlertTriangle,
   ImagePlus, FileText, ChevronDown, ChevronRight, Building2
 } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import FormSection from "../../ui/FormSection";
+import FileUpload from "../../ui/FileUpload";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
 import SearchableSelect from "../../ui/SearchableSelect";
@@ -244,16 +245,8 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
     setExpandedFloors(s);
   };
 
-  const inputClass = "w-full px-3 py-2.5 rounded-lg text-sm border transition-colors duration-150 outline-none";
-  const inputStyle = (light: React.CSSProperties = {}): React.CSSProperties => ({
-    background: "var(--surface-input, #1A1D24)",
-    borderColor: "var(--border, #2E3340)",
-    color: "var(--text-primary, #E8ECF0)",
-    ...light,
-  });
-
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="New Property"
@@ -308,7 +301,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               </label>
               <div className="relative">
                 <Hash size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted, #6B7280)" }} />
-                <input className={`${inputClass} pl-8`} style={inputStyle()} value={tid}
+                <input className="dialog-input pl-8" value={tid}
                   onChange={(e) => setTid(e.target.value)} placeholder="PRO-0001" />
               </div>
               {tidError && <p className="text-xs mt-1" style={{ color: "#f87171" }}>{tidError}</p>}
@@ -318,7 +311,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Category
               </label>
-              <select className={inputClass} style={inputStyle()} value={categoryName}
+              <select className="dialog-select" value={categoryName}
                 onChange={(e) => setCategoryName(e.target.value)}>
                 <option value="">Select category</option>
                 {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -328,21 +321,21 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Address <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input className={inputClass} style={inputStyle()} value={address}
+              <input className="dialog-input" value={address}
                 onChange={(e) => setAddress(e.target.value)} placeholder="Full property address" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Owner Name <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input className={inputClass} style={inputStyle()} value={ownerName}
+              <input className="dialog-input" value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)} placeholder="Owner name" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Owner Type
               </label>
-              <select className={inputClass} style={inputStyle()} value={ownerType}
+              <select className="dialog-select" value={ownerType}
                 onChange={(e) => setOwnerType(e.target.value)}>
                 {OWNER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -351,7 +344,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 {ownerType === "Company" ? "NTN" : "CNIC"}
               </label>
-              <input className={inputClass} style={inputStyle()} value={cnicNtn}
+              <input className="dialog-input" value={cnicNtn}
                 onChange={(e) => setCnicNtn(e.target.value)}
                 placeholder={ownerType === "Company" ? "NTN number" : "CNIC number"} />
             </div>
@@ -359,14 +352,14 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Ownership %
               </label>
-              <input type="number" className={inputClass} style={inputStyle()} value={ownershipPct}
+              <input type="number" className="dialog-input" value={ownershipPct}
                 onChange={(e) => setOwnershipPct(e.target.value)} min={1} max={100} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Listing Status
               </label>
-              <select className={inputClass} style={inputStyle()} value={listingStatus}
+              <select className="dialog-select" value={listingStatus}
                 onChange={(e) => setListingStatus(e.target.value)}>
                 {LISTING_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
               </select>
@@ -375,7 +368,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Operational Status
               </label>
-              <select className={inputClass} style={inputStyle()} value={operationalStatus}
+              <select className="dialog-select" value={operationalStatus}
                 onChange={(e) => setOperationalStatus(e.target.value)}>
                 {OPERATIONAL_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
               </select>
@@ -395,7 +388,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
               Description
             </label>
-            <textarea className={inputClass} style={inputStyle()} rows={3} value={desc}
+            <textarea className="dialog-textarea" rows={3} value={desc}
               onChange={(e) => setDesc(e.target.value)} placeholder="Property description..." />
           </div>
         </FormSection>
@@ -408,9 +401,9 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
                 Total Area
               </label>
               <div className="flex gap-2">
-                <input type="number" className={inputClass} style={inputStyle()} value={size}
+                <input type="number" className="dialog-input" value={size}
                   onChange={(e) => setSize(e.target.value)} placeholder="0" />
-                <select className={`${inputClass} w-24 shrink-0`} style={inputStyle()} value={sizeUnit}
+                <select className="dialog-select w-24 shrink-0" value={sizeUnit}
                   onChange={(e) => setSizeUnit(e.target.value)}>
                   {SIZE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
@@ -420,28 +413,28 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Year Built
               </label>
-              <input type="number" className={inputClass} style={inputStyle()} value={yearBuilt}
+              <input type="number" className="dialog-input" value={yearBuilt}
                 onChange={(e) => setYearBuilt(e.target.value)} placeholder="e.g. 2024" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Title Deed Number
               </label>
-              <input className={inputClass} style={inputStyle()} value={titleDeedNum}
+              <input className="dialog-input" value={titleDeedNum}
                 onChange={(e) => setTitleDeedNum(e.target.value)} placeholder="Deed ref" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Registration Date
               </label>
-              <input type="date" className={inputClass} style={inputStyle()} value={regDate}
+              <input type="date" className="dialog-input" value={regDate}
                 onChange={(e) => setRegDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Regulatory Authority
               </label>
-              <select className={inputClass} style={inputStyle()} value={regAuthority}
+              <select className="dialog-select" value={regAuthority}
                 onChange={(e) => setRegAuthority(e.target.value)}>
                 <option value="">Select</option>
                 {["RERA", "DHA", "LDA", "CDA", "Private", "Other"].map((r) => <option key={r} value={r}>{r}</option>)}
@@ -465,12 +458,12 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Lender Name</label>
-                <input className={inputClass} style={inputStyle()} value={lenderName}
+                <input className="dialog-input" value={lenderName}
                   onChange={(e) => setLenderName(e.target.value)} placeholder="Bank / institution" />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Outstanding Amount</label>
-                <input type="number" className={inputClass} style={inputStyle()} value={outstandingAmt}
+                <input type="number" className="dialog-input" value={outstandingAmt}
                   onChange={(e) => setOutstandingAmt(e.target.value)} placeholder="0.00" />
               </div>
             </div>
@@ -490,14 +483,14 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Purchase Price
               </label>
-              <input type="number" className={inputClass} style={inputStyle()} value={purchasePrice}
+              <input type="number" className="dialog-input" value={purchasePrice}
                 onChange={(e) => setPurchasePrice(e.target.value)} placeholder="0.00" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Current Market Value
               </label>
-              <input type="number" className={inputClass} style={inputStyle()} value={currentMarketValue}
+              <input type="number" className="dialog-input" value={currentMarketValue}
                 onChange={(e) => setCurrentMarketValue(e.target.value)} placeholder="0.00" />
             </div>
           </div>
@@ -516,12 +509,12 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Asking Price</label>
-                <input type="number" className={inputClass} style={inputStyle()} value={askingPrice}
+                <input type="number" className="dialog-input" value={askingPrice}
                   onChange={(e) => setAskingPrice(e.target.value)} placeholder="0.00" />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Commission %</label>
-                <input type="number" className={inputClass} style={inputStyle()} value={commissionPct}
+                <input type="number" className="dialog-input" value={commissionPct}
                   onChange={(e) => setCommissionPct(e.target.value)} placeholder="0" min={0} max={100} />
               </div>
             </div>
@@ -567,7 +560,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Cost Centre
               </label>
-              <input className={inputClass} style={inputStyle()} value={costCentre}
+              <input className="dialog-input" value={costCentre}
                 onChange={(e) => setCostCentre(e.target.value)} placeholder="Cost centre code" />
             </div>
           </div>
@@ -611,11 +604,11 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             {documents.map((doc) => (
               <div key={doc._key} className="flex items-center gap-2 p-2 mb-2 rounded-lg"
                 style={{ background: "var(--bg-tertiary, #252932)", border: "1px solid var(--border-subtle, #252932)" }}>
-                <select className={inputClass} style={inputStyle({ width: "140px" })} value={doc.document_type}
+                <select className="dialog-select" value={doc.document_type}
                   onChange={(e) => setDoc(doc._key, "document_type", e.target.value)}>
                   {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <input className={`${inputClass} flex-1`} style={inputStyle()} value={doc.document_name}
+                <input className="dialog-input flex-1" value={doc.document_name}
                   onChange={(e) => setDoc(doc._key, "document_name", e.target.value)} placeholder="Document name" />
                 <label className="cursor-pointer px-2 py-1.5 rounded text-xs font-medium transition-colors shrink-0"
                   style={{ color: "var(--property-accent, #34D399)", background: "var(--property-accent-soft, rgba(52,211,153,0.12))" }}>
@@ -626,7 +619,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
                       if (f) { setDoc(doc._key, "file", f); setDoc(doc._key, "file_name", f.name); setDoc(doc._key, "file_size", `${(f.size / 1024).toFixed(1)} KB`); }
                     }} />
                 </label>
-                <input className={`${inputClass} w-28`} style={inputStyle()} type="date" value={doc.expiry_date}
+                <input className="dialog-input w-28" type="date" value={doc.expiry_date}
                   onChange={(e) => setDoc(doc._key, "expiry_date", e.target.value)} />
                 <button type="button" onClick={() => removeDocument(doc._key)}
                   className="p-1 rounded transition-colors shrink-0"
@@ -686,16 +679,16 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
                     {expandedFloors.has(floor._key) && floor.units.map((unit) => (
                       <div key={unit._key} className="flex items-center gap-2 px-3 py-2"
                         style={{ borderTop: "1px solid var(--border-subtle, #252932)" }}>
-                        <input className={`${inputClass} flex-1`} style={inputStyle()} value={unit.unit_number}
+                        <input className="dialog-input flex-1" value={unit.unit_number}
                           onChange={(e) => setUnit(floor._key, unit._key, "unit_number", e.target.value)}
                           placeholder="Unit #" />
-                        <input className={`${inputClass} w-20`} style={inputStyle()} value={unit.size}
+                        <input className="dialog-input w-20" value={unit.size}
                           onChange={(e) => setUnit(floor._key, unit._key, "size", e.target.value)}
                           placeholder="Size" type="number" />
-                        <input className={`${inputClass} w-24`} style={inputStyle()} value={unit.rent_amount}
+                        <input className="dialog-input w-24" value={unit.rent_amount}
                           onChange={(e) => setUnit(floor._key, unit._key, "rent_amount", e.target.value)}
                           placeholder="Rent" type="number" />
-                        <select className={`${inputClass} w-28`} style={inputStyle()} value={unit.status}
+                        <select className="dialog-select w-28" value={unit.status}
                           onChange={(e) => setUnit(floor._key, unit._key, "status", e.target.value)}>
                           {["available", "occupied", "reserved", "maintenance"].map((s) =>
                             <option key={s} value={s}>{s}</option>)}
@@ -720,7 +713,10 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             )}
           </div>
         </FormSection>
+        <div className="pt-2">
+          <FileUpload module="properties" recordType="property" recordId="" compact documentTypes={["Title Deed", "NOC", "Insurance Policy", "Valuation Report", "Survey Map", "Other"]} />
+        </div>
       </form>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

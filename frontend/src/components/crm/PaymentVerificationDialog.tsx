@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
-import { Upload, Paperclip, X, CheckCircle2, AlertCircle } from "lucide-react";
-import Modal from "../Modal";
-import { FormField, FormSection } from "./FormField";
+import { Upload, Paperclip, X, CheckCircle2, AlertCircle, DollarSign } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
+import { FormSection, FormRow, FormField } from "../ui/DialogForm";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 import { bookingApi } from "../../lib/bookingApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 
@@ -68,7 +69,6 @@ export default function PaymentVerificationDialog({
     setError("");
 
     try {
-      // 1. Upload receipt if provided
       let receiptId: number | null = null;
       if (receiptFile) {
         const attachment = await attachmentApi.upload(
@@ -79,7 +79,6 @@ export default function PaymentVerificationDialog({
         receiptId = attachment.id;
       }
 
-      // 2. Record payment
       await bookingApi.payInstallment(bookingId, installment.id, {
         installment_id: installment.id,
         method: mode,
@@ -101,32 +100,24 @@ export default function PaymentVerificationDialog({
   };
 
   const footer = success ? (
-    <button
-      type="button"
+    <DialogSubmitButton
       onClick={() => { reset(); onPaid(); }}
-      className="btn-primary px-6 py-2 text-sm"
-    >
-      Done
-    </button>
+      label="Done"
+    />
   ) : (
     <>
-      <button type="button" onClick={() => { reset(); onClose(); }}
-        className="px-5 py-2 text-sm rounded-lg transition-colors"
-        style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-        Cancel
-      </button>
-      <button type="button" onClick={handleSubmit} disabled={saving}
-        className="btn-primary px-6 py-2 text-sm disabled:opacity-50 flex items-center gap-2">
-        {saving ? "Processing…" : "Confirm Payment"}
-      </button>
+      <DialogCancelButton onClick={() => { reset(); onClose(); }} label="Cancel" />
+      <DialogSubmitButton onClick={handleSubmit} label="Confirm Payment" loading={saving} />
     </>
   );
 
   return (
-    <Modal
-      open={open}
+    <AppDialog
+      isOpen={open}
       onClose={success ? () => { reset(); onPaid(); } : onClose}
       title={`Payment — ${bookingRef}`}
+      icon={<DollarSign size={18} />}
+      subtitle="Record a payment against this installment"
       size="md"
       footer={footer}
     >
@@ -144,16 +135,15 @@ export default function PaymentVerificationDialog({
           </div>
         </div>
       ) : (
-        <div className="space-y-5">
+        <>
           {error && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-4"
               style={{ color: "#f87171", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
               <AlertCircle size={13} /> {error}
             </div>
           )}
 
-          {/* Installment summary */}
-          <div className="px-3 py-2.5 rounded-lg text-xs space-y-1"
+          <div className="px-3 py-2.5 rounded-lg text-xs space-y-1 mb-4"
             style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
             <div className="flex justify-between">
               <span className="text-muted">Installment</span>
@@ -183,80 +173,77 @@ export default function PaymentVerificationDialog({
             </div>
           </div>
 
-          {/* Payment Mode */}
-          <FormSection title="Payment Details" />
-
-          <FormField label="Payment Mode" span="full">
-            <div className="grid grid-cols-4 gap-2">
-              {PAYMENT_MODES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setMode(value)}
-                  className="py-2 rounded-lg text-xs font-semibold capitalize transition-all"
-                  style={
-                    mode === value
-                      ? { background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)" }
-                      : { background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </FormField>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Amount Received" required>
-              <input type="number" className="input-dark w-full px-3 py-2 text-sm"
-                value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </FormField>
-
-            <FormField label="Date Received" required>
-              <input type="date" className="input-dark w-full px-3 py-2 text-sm"
-                value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} />
-            </FormField>
-          </div>
-
-          <FormField label="Transaction Reference" required>
-            <input className="input-dark w-full px-3 py-2 text-sm"
-              value={refNumber} onChange={(e) => setRefNumber(e.target.value)}
-              placeholder="Cheque no. / TXN ID / DD no." />
-          </FormField>
-
-          {/* Bank Receipt Upload */}
-          <FormSection title="Bank Receipt" />
-
-          <FormField label="Upload Receipt (optional)" span="full">
-            {receiptFile ? (
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
-                style={{ background: "var(--bg-surface2)" }}>
-                <span className="flex items-center gap-1.5 truncate">
-                  <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
-                  {receiptFile.name}
-                </span>
-                <button type="button" onClick={() => setReceiptFile(null)}
-                  style={{ color: "var(--text-muted)" }}
-                  className="hover:text-red-400 shrink-0">
-                  <X size={12} />
-                </button>
+          <FormSection title="Payment Details">
+            <FormField label="Payment Mode" fullWidth>
+              <div className="grid grid-cols-4 gap-2">
+                {PAYMENT_MODES.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMode(value)}
+                    className="py-2 rounded-lg text-xs font-semibold capitalize transition-all"
+                    style={
+                      mode === value
+                        ? { background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)" }
+                        : { background: "var(--bg-surface2)", color: "var(--text-secondary)", border: "1px solid var(--border)" }
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <label
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs cursor-pointer border-2 border-dashed transition-colors hover:border-blue-500/50"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Upload size={14} style={{ color: "var(--text-muted)" }} />
-                <span style={{ color: "var(--text-muted)" }}>Upload bank receipt / proof</span>
-                <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) setReceiptFile(e.target.files[0]);
-                  }} />
-              </label>
-            )}
-          </FormField>
-        </div>
+            </FormField>
+
+            <FormRow cols={2}>
+              <FormField label="Amount Received" required>
+                <input type="number" className="dialog-input w-full"
+                  value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </FormField>
+              <FormField label="Date Received" required>
+                <input type="date" className="dialog-input w-full"
+                  value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} />
+              </FormField>
+            </FormRow>
+
+            <FormField label="Transaction Reference" required>
+              <input className="dialog-input w-full"
+                value={refNumber} onChange={(e) => setRefNumber(e.target.value)}
+                placeholder="Cheque no. / TXN ID / DD no." />
+            </FormField>
+          </FormSection>
+
+          <FormSection title="Bank Receipt">
+            <FormField label="Upload Receipt (optional)" fullWidth>
+              {receiptFile ? (
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
+                  style={{ background: "var(--bg-surface2)" }}>
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Paperclip size={12} style={{ color: "var(--text-muted)" }} />
+                    {receiptFile.name}
+                  </span>
+                  <button type="button" onClick={() => setReceiptFile(null)}
+                    style={{ color: "var(--text-muted)" }}
+                    className="hover:text-red-400 shrink-0">
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs cursor-pointer border-2 border-dashed transition-colors hover:border-blue-500/50"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <Upload size={14} style={{ color: "var(--text-muted)" }} />
+                  <span style={{ color: "var(--text-muted)" }}>Upload bank receipt / proof</span>
+                  <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setReceiptFile(e.target.files[0]);
+                    }} />
+                </label>
+              )}
+            </FormField>
+          </FormSection>
+        </>
       )}
-    </Modal>
+    </AppDialog>
   );
 }

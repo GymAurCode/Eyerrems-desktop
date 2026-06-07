@@ -414,7 +414,7 @@ export default function TenantDetailPage() {
               tabs={TABS.map((t) => ({ label: t.label, value: t.key }))}
               activeTab={activeTab}
               onChange={(v) => setTab(v as typeof activeTab)}
-              moduleColor={MODULE_COLORS.tenants}
+              moduleColor={MODULE_COLORS.tenants.primary}
             />
           </div>
 

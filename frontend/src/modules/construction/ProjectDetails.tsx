@@ -1436,7 +1436,7 @@ export default function ProjectDetails() {
         tabs={TABS.map((t) => ({ label: t.label, value: t.id, icon: t.icon }))}
         activeTab={activeTab}
         onChange={(v) => setActiveTab(v as TabId)}
-        moduleColor={MODULE_COLORS.construction}
+        moduleColor={MODULE_COLORS.construction.primary}
       />
 
       {/* Tab content */}

@@ -2,8 +2,9 @@ import { useState, useEffect, FormEvent } from "react";
 import {
   Plus, X, ChevronDown, ChevronRight, UserPlus, AlertTriangle, Upload, FileText
 } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import FormSection from "../../ui/FormSection";
+import FileUpload from "../../ui/FileUpload";
 import { propApi, Property, Unit, Lease } from "../../../lib/propertyApi";
 import { tenantApi, Tenant } from "../../../lib/tenantApi";
 import { syncApi } from "../../../lib/financeApi";
@@ -18,13 +19,6 @@ const PAY_FREQ = ["monthly", "quarterly", "every_4_months", "bi_annual", "annual
 const PAY_METHODS = ["cash", "bank_transfer", "cheque", "online"];
 
 interface DraftPdc { _key: string; cheque_no: string; amount: string; due_date: string; }
-
-const inputClass = "w-full px-3 py-2.5 rounded-lg text-sm border transition-colors duration-150 outline-none";
-const inputStyle: React.CSSProperties = {
-  background: "var(--surface-input, #1A1D24)",
-  borderColor: "var(--border, #2E3340)",
-  color: "var(--text-primary, #E8ECF0)",
-};
 
 export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDialogProps) {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -189,7 +183,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
   const delPdc = (key: string) => setPdcs(prev => prev.filter(p => p._key !== key));
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
       title="New Lease"
@@ -239,7 +233,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Property
               </label>
-              <select className={inputClass} style={inputStyle} value={propId}
+              <select className="dialog-select" value={propId}
                 onChange={(e) => setPropId(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Select property</option>
                 {properties.map((p) => <option key={p.id} value={p.id}>{p.tid} — {p.name}</option>)}
@@ -249,7 +243,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Unit <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <select className={inputClass} style={inputStyle} value={unitId}
+              <select className="dialog-select" value={unitId}
                 onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Select unit</option>
                 {units.map((u) => <option key={u.id} value={u.id}>{u.tid} — Unit {u.unit_number}</option>)}
@@ -261,9 +255,9 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               </label>
               {showNewTenant ? (
                 <div className="flex items-center gap-2">
-                  <input className={inputClass} style={inputStyle} value={newTenantName}
+                  <input className="dialog-input" value={newTenantName}
                     onChange={(e) => setNewTenantName(e.target.value)} placeholder="Tenant name" />
-                  <input className={`${inputClass} w-36`} style={inputStyle} value={newTenantPhone}
+                  <input className="dialog-input w-36" value={newTenantPhone}
                     onChange={(e) => setNewTenantPhone(e.target.value)} placeholder="Phone" />
                   <button type="button" onClick={() => void quickAddTenant()}
                     className="px-3 py-2.5 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0"
@@ -275,7 +269,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <select className={inputClass} style={inputStyle} value={tenantId}
+                  <select className="dialog-select" value={tenantId}
                     onChange={(e) => {
                       const id = e.target.value ? Number(e.target.value) : "";
                       setTenantId(id);
@@ -303,14 +297,14 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Start Date <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input type="date" className={inputClass} style={inputStyle} value={startDate}
+              <input type="date" className="dialog-input" value={startDate}
                 onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 End Date <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input type="date" className={inputClass} style={inputStyle} value={endDate}
+              <input type="date" className="dialog-input" value={endDate}
                 onChange={(e) => setEndDate(e.target.value)} />
             </div>
             {startDate && endDate && new Date(endDate) > new Date(startDate) && (
@@ -324,14 +318,14 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Rent Amount (Rs/month) <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={monthlyRent}
+              <input type="number" className="dialog-input" value={monthlyRent}
                 onChange={(e) => setMonthlyRent(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Payment Frequency
               </label>
-              <select className={inputClass} style={inputStyle} value={payFreq}
+              <select className="dialog-select" value={payFreq}
                 onChange={(e) => setPayFreq(e.target.value)}>
                 {PAY_FREQ.map(f => <option key={f} value={f}>{f.replace(/_/g, " ")}</option>)}
               </select>
@@ -340,34 +334,34 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Security Deposit (Rs)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={securityDeposit}
+              <input type="number" className="dialog-input" value={securityDeposit}
                 onChange={(e) => setSecurityDeposit(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 First Due Date
               </label>
-              <input type="date" className={inputClass} style={inputStyle} value={firstDueDate}
+              <input type="date" className="dialog-input" value={firstDueDate}
                 onChange={(e) => setFirstDueDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Notice Period (days)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={noticePeriod}
+              <input type="number" className="dialog-input" value={noticePeriod}
                 onChange={(e) => setNoticePeriod(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Annual Rent (auto)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={annualRent} readOnly />
+              <input type="number" className="dialog-input" value={annualRent} readOnly />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Deposit Status
               </label>
-              <select className={inputClass} style={inputStyle} value={depositStatus}
+              <select className="dialog-select" value={depositStatus}
                 onChange={(e) => setDepositStatus(e.target.value)}>
                 <option value="pending">Pending</option>
                 <option value="received">Received</option>
@@ -404,14 +398,14 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
                       <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                         Renewal Duration (months)
                       </label>
-                      <input type="number" className={inputClass} style={inputStyle} value={renewalDuration}
+                      <input type="number" className="dialog-input" value={renewalDuration}
                         onChange={(e) => setRenewalDuration(e.target.value)} placeholder="e.g. 12" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                         Rent Increase (%)
                       </label>
-                      <input type="number" className={inputClass} style={inputStyle} value={rentIncreasePct}
+                      <input type="number" className="dialog-input" value={rentIncreasePct}
                         onChange={(e) => setRentIncreasePct(e.target.value)} placeholder="e.g. 10" />
                     </div>
                   </div>
@@ -428,7 +422,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Payment Method
               </label>
-              <select className={inputClass} style={inputStyle} value={payMethod}
+              <select className="dialog-select" value={payMethod}
                 onChange={(e) => setPayMethod(e.target.value)}>
                 {PAY_METHODS.map(m => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
               </select>
@@ -437,7 +431,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Grace Period (days)
               </label>
-              <input type="number" className={inputClass} style={inputStyle} value={gracePeriod}
+              <input type="number" className="dialog-input" value={gracePeriod}
                 onChange={(e) => setGracePeriod(e.target.value)} />
             </div>
             <div>
@@ -445,13 +439,13 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
                 Late Fee
               </label>
               <div className="flex gap-2">
-                <select className={`${inputClass} w-24 shrink-0`} style={inputStyle} value={lateFeeType}
+                <select className="dialog-select w-24 shrink-0" value={lateFeeType}
                   onChange={(e) => setLateFeeType(e.target.value)}>
                   <option value="">None</option>
                   <option value="fixed">Fixed</option>
                   <option value="percentage">%</option>
                 </select>
-                <input type="number" className={inputClass} style={inputStyle} value={lateFeeValue}
+                <input type="number" className="dialog-input" value={lateFeeValue}
                   onChange={(e) => setLateFeeValue(e.target.value)}
                   placeholder={lateFeeType === "percentage" ? "%" : "Rs"} />
               </div>
@@ -464,7 +458,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
                 <label className="block text-xs font-medium" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                   Bank Name
                 </label>
-                <input className={`${inputClass} max-w-xs`} style={inputStyle} value={bankName}
+                <input className="dialog-input max-w-xs" value={bankName}
                   onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
                 <button type="button" onClick={addPdc}
                   className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded ml-auto"
@@ -476,11 +470,11 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {pdcs.map(pdc => (
                     <div key={pdc._key} className="grid gap-1.5 items-center" style={{ gridTemplateColumns: "1fr 1fr 1fr auto" }}>
-                      <input className={inputClass} style={inputStyle} value={pdc.cheque_no}
+                      <input className="dialog-input" value={pdc.cheque_no}
                         onChange={e => updPdc(pdc._key, "cheque_no", e.target.value)} placeholder="Cheque No." />
-                      <input type="number" className={inputClass} style={inputStyle} value={pdc.amount}
+                      <input type="number" className="dialog-input" value={pdc.amount}
                         onChange={e => updPdc(pdc._key, "amount", e.target.value)} placeholder="Amount" />
-                      <input type="date" className={inputClass} style={inputStyle} value={pdc.due_date}
+                      <input type="date" className="dialog-input" value={pdc.due_date}
                         onChange={e => updPdc(pdc._key, "due_date", e.target.value)} />
                       <button type="button" onClick={() => delPdc(pdc._key)}
                         className="p-1 rounded transition-colors" style={{ color: "var(--text-muted, #6B7280)" }}
@@ -500,7 +494,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
                 Bank Account Details
               </label>
-              <input className={inputClass} style={inputStyle} value={bankAccount}
+              <input className="dialog-input" value={bankAccount}
                 onChange={(e) => setBankAccount(e.target.value)} placeholder="Account name, IBAN, bank name" />
             </div>
           )}
@@ -524,7 +518,10 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
             </div>
           </div>
         </FormSection>
+        <div className="pt-2">
+          <FileUpload module="properties" recordType="lease" recordId="" compact documentTypes={["Lease Agreement", "Security Deposit Receipt", "Condition Report", "Other"]} />
+        </div>
       </form>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

@@ -10,7 +10,7 @@ import { propApi, PropertyDetail, PropertyAttachment, Location, Amenity } from "
 import { uploadsUrl } from "../lib/config";
 import { formatCurrency } from "../lib/currency";
 import { auditApi, AuditLogEntry } from "../lib/auditApi";
-import Modal from "../components/Modal";
+import AppDialog from "../components/ui/AppDialog";
 import RecordHistory from "../components/RecordHistory";
 import SearchableSelect from "../components/ui/SearchableSelect";
 import { accountsApi } from "../lib/financeApi";
@@ -588,7 +588,7 @@ export default function PropertyViewPage() {
       </DetailBody>
 
       {/* ── COA Linkage Edit Modal ── */}
-      <Modal open={coaEditOpen} onClose={() => setCoaEditOpen(false)} title="Edit Linked GL Accounts">
+      <AppDialog isOpen={coaEditOpen} onClose={() => setCoaEditOpen(false)} title="Edit Linked GL Accounts">
         <div className="space-y-4">
           <div>
             <label className="block text-xs text-muted mb-1">Income GL Account</label>
@@ -630,10 +630,10 @@ export default function PropertyViewPage() {
             </button>
           </div>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Add Floor Modal ── */}
-      <Modal open={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
+      <AppDialog isOpen={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" type="number"
             value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
@@ -641,10 +641,10 @@ export default function PropertyViewPage() {
             Add Floor
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Add Unit Modal ── */}
-      <Modal open={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
+      <AppDialog isOpen={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" value={unitNum}
             onChange={(e) => setUnitNum(e.target.value)} placeholder="Unit number (e.g. 101) *" />
@@ -662,10 +662,10 @@ export default function PropertyViewPage() {
             Add Unit
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Delete Document Confirmation ── */}
-      <Modal open={!!deleteDocId} onClose={() => setDeleteDocId(null)} title="Delete Document">
+      <AppDialog isOpen={!!deleteDocId} onClose={() => setDeleteDocId(null)} title="Delete Document">
         <div className="space-y-4">
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             Delete this document permanently?
@@ -683,10 +683,10 @@ export default function PropertyViewPage() {
             </button>
           </div>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Delete Property Confirmation ── */}
-      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Property">
+      <AppDialog isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Property">
         <div className="space-y-4">
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             Delete <span className="font-semibold text-primary">{prop.tid}</span>? This removes all floors, units, images, and documents permanently.
@@ -705,7 +705,7 @@ export default function PropertyViewPage() {
             </button>
           </div>
         </div>
-      </Modal>
+      </AppDialog>
     </DetailPage>
   );
 }

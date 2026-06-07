@@ -8,7 +8,7 @@ import {
 import AttachmentsButton from "../../components/attachments/AttachmentsButton";
 import { RowActions } from "../../components/actions";
 import DataTable from "../../components/data-table/DataTable";
-import Modal from "../../components/Modal";
+import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 import {
   townApi, TownFull, Block, BlockWithPlots,
@@ -106,7 +106,7 @@ function BlockFormModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={initial?.id ? "Edit Block" : "New Block"}>
+    <AppDialog isOpen={open} onClose={onClose} title={initial?.id ? "Edit Block" : "New Block"}>
       <div className="space-y-4">
         {error && (
           <p className="text-xs text-red-400 px-3 py-2 rounded-lg"
@@ -178,7 +178,7 @@ function BlockFormModal({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -342,8 +342,8 @@ function TownUnitFormModal({
   };
 
   return (
-    <Modal
-      open={open}
+    <AppDialog
+      isOpen={open}
       onClose={onClose}
       title={initial?.id ? `Edit Unit/Plot - ${unitNumber}` : "Create New Unit/Plot"}
       size="lg"
@@ -711,7 +711,7 @@ function TownUnitFormModal({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -734,7 +734,7 @@ function ConfirmDeleteModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Confirm Delete">
+    <AppDialog isOpen={open} onClose={onClose} title="Confirm Delete">
       <div className="space-y-4">
         <p className="text-sm text-secondary">{label}</p>
         <div className="flex gap-3">
@@ -757,7 +757,7 @@ function ConfirmDeleteModal({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -772,7 +772,7 @@ function UnitDetailModal({
 }) {
   if (!unit) return null;
   return (
-    <Modal open={open} onClose={onClose} title={`Unit plot Details - ${unit.unit_number}`} size="lg">
+    <AppDialog isOpen={open} onClose={onClose} title={`Unit plot Details - ${unit.unit_number}`} size="lg">
       <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
         <div className="flex items-center justify-between bg-surface/50 p-4 rounded-2xl border border-theme">
           <div>
@@ -877,7 +877,7 @@ function UnitDetailModal({
           </div>
         )}
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -1396,7 +1396,7 @@ export default function TownDetail() {
         ]}
         activeTab={activeTab}
         onChange={(v) => setActiveTab(v as any)}
-        moduleColor={MODULE_COLORS.towns}
+        moduleColor={MODULE_COLORS.towns.primary}
       />
 
       {/* Content */}

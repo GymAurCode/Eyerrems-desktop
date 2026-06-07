@@ -125,10 +125,8 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading accounts with minimal API...');
       
       const data = await loadAccountsSimple();
-      console.log('Accounts loaded successfully:', data.length);
       
       setAccounts(data);
     } catch (err: any) {
@@ -145,7 +143,6 @@ export default function ChartOfAccountsMinimal({ readOnly = false }: ChartOfAcco
 
   const handleSelect = (account: MinimalAccount) => {
     try {
-      console.log('Selected account:', account.name);
       setSelected(account);
     } catch (error) {
       console.error('Selection error:', error);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight, FileText, Download } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { PropertySale, Property, Buyer, Seller } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { uploadsUrl } from "../../../lib/config";
@@ -51,7 +51,7 @@ export default function SaleDetailsDialog({ isOpen, onClose, sale, properties, b
   if (!isOpen) return null;
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="Sale Details"
@@ -207,6 +207,6 @@ export default function SaleDetailsDialog({ isOpen, onClose, sale, properties, b
           <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       )}
-    </ModuleDialog>
+    </AppDialog>
   );
 }

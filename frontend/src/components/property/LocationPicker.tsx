@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { propApi, Location } from "../../lib/propertyApi";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 
 type Props = {
   /** The selected leaf location id (subsidiary or top-level leaf) */
@@ -141,7 +141,7 @@ export default function LocationPicker({ value, onChange }: Props) {
       )}
 
       {/* Add Location modal */}
-      <Modal open={locOpen} onClose={() => setLocOpen(false)} title="Add Location">
+      <AppDialog isOpen={locOpen} onClose={() => setLocOpen(false)} title="Add Location">
         <div className="space-y-3">
           <p className="text-xs text-muted">Create a top-level location (e.g. DHA, Bahria Town).</p>
           <input
@@ -155,10 +155,10 @@ export default function LocationPicker({ value, onChange }: Props) {
             Save Location
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* Add Subsidiary modal */}
-      <Modal open={subOpen} onClose={() => setSubOpen(false)} title="Add Subsidiary">
+      <AppDialog isOpen={subOpen} onClose={() => setSubOpen(false)} title="Add Subsidiary">
         <div className="space-y-3">
           <p className="text-xs text-muted">
             Adding subsidiary under:{" "}
@@ -177,7 +177,7 @@ export default function LocationPicker({ value, onChange }: Props) {
             Save Subsidiary
           </button>
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }

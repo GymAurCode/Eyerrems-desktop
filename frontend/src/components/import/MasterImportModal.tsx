@@ -5,10 +5,11 @@
 
 import React, { useState, useCallback, useMemo } from "react";
 import {
-  X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
-  Users, Building2, UserCheck, Shield, Zap, RotateCcw, ArrowRight,
-  FileText, AlertCircle, RefreshCw
+  Download, FileSpreadsheet, CheckCircle2,
+  Users, Building2, UserCheck, Shield, Zap, ArrowRight,
+  FileText, AlertCircle, RefreshCw, Upload
 } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
 import { useDropzone, DropzoneOptions } from "react-dropzone";
 import { importApi } from "../../lib/importApi";
 
@@ -210,62 +211,39 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
   const invalidRows = Object.values(fileGroups).reduce((sum, g) => sum + (g.validation?.invalid_count || 0), 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" 
-         style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
-      <div 
-        className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl"
-        style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "var(--border)" }}>
-          <div>
-            <h2 className="text-xl font-bold text-primary">Complete System Update</h2>
-            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              Import multiple modules together with transaction safety
-            </p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-lg transition-colors"
-            style={{ background: "var(--hover-bg)" }}
-          >
-            <X size={20} style={{ color: "var(--text-muted)" }} />
-          </button>
-        </div>
-
-        {/* Progress Indicator */}
-        <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <div className="flex items-center gap-4">
-            {[
-              { key: 'upload', label: 'Upload Files', active: step === 'upload' },
-              { key: 'validate', label: 'Validate Data', active: step === 'validate' },
-              { key: 'import', label: 'Import Data', active: step === 'import' },
-              { key: 'complete', label: 'Complete', active: step === 'complete' }
-            ].map((s, i) => (
-              <div key={s.key} className="flex items-center gap-2">
-                <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                  style={{
-                    background: s.active ? "#3b82f6" : "var(--hover-bg)",
-                    color: s.active ? "white" : "var(--text-muted)"
-                  }}
-                >
-                  {i + 1}
-                </div>
-                <span 
-                  className="text-sm font-medium"
-                  style={{ color: s.active ? "#3b82f6" : "var(--text-muted)" }}
-                >
-                  {s.label}
-                </span>
-                {i < 3 && <ArrowRight size={16} style={{ color: "var(--text-muted)" }} />}
+    <AppDialog isOpen={true} onClose={onClose} title="Complete System Update" subtitle="Import multiple modules together with transaction safety" size="xl" icon={<Upload size={20} />}>
+      {/* Progress Indicator */}
+      <div className="py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-4">
+          {[
+            { key: 'upload', label: 'Upload Files', active: step === 'upload' },
+            { key: 'validate', label: 'Validate Data', active: step === 'validate' },
+            { key: 'import', label: 'Import Data', active: step === 'import' },
+            { key: 'complete', label: 'Complete', active: step === 'complete' }
+          ].map((s, i) => (
+            <div key={s.key} className="flex items-center gap-2">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{
+                  background: s.active ? "#3b82f6" : "var(--hover-bg)",
+                  color: s.active ? "white" : "var(--text-muted)"
+                }}
+              >
+                {i + 1}
               </div>
-            ))}
-          </div>
+              <span 
+                className="text-sm font-medium"
+                style={{ color: s.active ? "#3b82f6" : "var(--text-muted)" }}
+              >
+                {s.label}
+              </span>
+              {i < 3 && <ArrowRight size={16} style={{ color: "var(--text-muted)" }} />}
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Content */}
-        <div className="p-6">
+      <div className="pt-4">
           {error && (
             <div 
               className="flex items-center gap-2 p-4 rounded-lg mb-6"
@@ -548,8 +526,7 @@ export default function MasterImportModal({ onClose, onSuccess }: MasterImportMo
               </button>
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </AppDialog>
   );
 }

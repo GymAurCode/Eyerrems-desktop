@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Briefcase, Building2, Calculator, User, Zap } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import SearchableSelect from "../ui/SearchableSelect";
 import { crmApi } from "../../lib/crmApi";
 import {
@@ -193,7 +193,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
   const finalAmount = amountOverride ? Number(amountOverride) : calc?.calculated_amount;
 
   return (
-    <Modal open={isOpen} onClose={() => { reset(); onClose(); }} title="Record Commission" size="xl">
+    <AppDialog isOpen={isOpen} onClose={() => { reset(); onClose(); }} title="Record Commission" size="xl">
       <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
         {error && (
           <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
@@ -332,7 +332,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 

@@ -96,9 +96,9 @@ const GROUPS: {
     accent: "#8b5cf6",
     bg: "rgba(139,92,246,0.10)",
     reports: [
-      { key: "lead_summary", name: "Employees List",   subtitle: "All employees with department and position",  group: "hr" },
-      { key: "lead_summary", name: "Salary Report",    subtitle: "Payroll summary with allowances & deductions", group: "hr" },
-      { key: "lead_summary", name: "Attendance Report", subtitle: "Daily attendance records by employee",        group: "hr" },
+      { key: "employees_list",   name: "Employees List",   subtitle: "All employees with department and position",  group: "hr" },
+      { key: "salary_report",    name: "Salary Report",    subtitle: "Payroll summary with allowances & deductions", group: "hr" },
+      { key: "attendance_report", name: "Attendance Report", subtitle: "Daily attendance records by employee",        group: "hr" },
     ],
   },
   {
@@ -132,8 +132,11 @@ const LIVE_KEYS = new Set([
   "installment_plan", "booking_form",
   "customer_profile", "customer_ledger", "installment_schedule", "outstanding_report",
   "lead_summary", "inventory_report", "available_units", "floor_wise_report",
-  "category_wise_report", "daily_collection", "monthly_collection", "expense_report",
-  "cash_flow", "tenant_profile", "rent_ledger", "rent_due_report", "security_deposit_report",
+  "category_wise_report", "town_inventory", "block_inventory", "unit_status",
+  "daily_collection", "monthly_collection", "expense_report", "cash_flow",
+  "tenant_profile", "rent_ledger", "rent_due_report", "security_deposit_report",
+  "employees_list", "salary_report", "attendance_report",
+  "deal_report", "outstanding_payments", "token_receipt", "unit_statement", "tenant_history",
 ]);
 
 // Enterprise document reports that have dedicated pages

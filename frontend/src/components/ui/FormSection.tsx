@@ -8,17 +8,22 @@ interface FormSectionProps {
 
 export default function FormSection({ title, children, className = "" }: FormSectionProps) {
   return (
-    <div className={`mb-6 ${className}`}>
-      <div className="flex items-center gap-3 mb-4">
-        <span
-          className="text-xs font-semibold uppercase tracking-widest shrink-0"
-          style={{ color: "var(--text-muted, #6B7280)" }}
-        >
-          {title}
-        </span>
-        <div className="flex-1 h-px" style={{ background: "var(--border-subtle, #252932)" }} />
+    <div className={className ? `mb-6 ${className}` : "mb-6"}>
+      <div
+        style={{
+          fontSize: "10px",
+          fontWeight: 500,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--dialog-section-label, #94A3B8)",
+          paddingBottom: "8px",
+          borderBottom: "0.5px solid var(--dialog-section-border, #F1F5F9)",
+          marginBottom: "12px",
+        }}
+      >
+        {title}
       </div>
-      <div className="space-y-4">
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {children}
       </div>
     </div>

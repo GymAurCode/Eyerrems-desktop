@@ -3,7 +3,7 @@ import {
   Calendar, Clock, FilterX, Search, ChevronLeft, ChevronRight,
   Eye, AlertCircle
 } from "lucide-react";
-import Modal from "../components/Modal";
+import AppDialog from "../components/ui/AppDialog";
 import { auditApi, type AuditLogEntry, type AuditLogsResponse, type AuditStats } from "../lib/auditApi";
 import { DataTable } from "../components/data-table";
 
@@ -131,7 +131,7 @@ function DiffTable({ diff }: { diff: Record<string, { from: any; to: any }> }) {
 function ViewDetailsModal({ log, open, onClose }: { log: AuditLogEntry | null; open: boolean; onClose: () => void }) {
   if (!log) return null;
   return (
-    <Modal open={open} title="Activity Details" onClose={onClose} size="lg">
+    <AppDialog isOpen={open} title="Activity Details" onClose={onClose} size="lg">
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4 text-xs">
           <div>
@@ -190,7 +190,7 @@ function ViewDetailsModal({ log, open, onClose }: { log: AuditLogEntry | null; o
           )}
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 

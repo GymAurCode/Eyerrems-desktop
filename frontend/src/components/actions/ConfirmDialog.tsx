@@ -1,7 +1,7 @@
 /**
  * ConfirmDialog — lightweight confirmation modal for destructive actions.
  *
- * Uses the existing Modal component so it inherits all portal/focus/escape
+ * Uses the existing Dialog component so it inherits all portal/focus/escape
  * behaviour already built into the app's modal system.
  *
  * Usage:
@@ -17,7 +17,8 @@
  */
 import { useState } from "react";
 import { AlertTriangle, AlertCircle, CheckCircle, Info } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 
 type Variant = "danger" | "warning" | "success" | "info";
 
@@ -41,36 +42,31 @@ const VARIANT_CONFIG: Record<Variant, {
   icon: React.ElementType;
   iconColor: string;
   iconBg: string;
-  btnBg: string;
-  btnHover: string;
+  btnVariant: "primary" | "danger";
 }> = {
   danger: {
     icon: AlertTriangle,
     iconColor: "#f87171",
     iconBg: "rgba(239,68,68,0.12)",
-    btnBg: "rgba(239,68,68,0.15)",
-    btnHover: "rgba(239,68,68,0.25)",
+    btnVariant: "danger",
   },
   warning: {
     icon: AlertCircle,
     iconColor: "#f59e0b",
     iconBg: "rgba(245,158,11,0.12)",
-    btnBg: "rgba(245,158,11,0.15)",
-    btnHover: "rgba(245,158,11,0.25)",
+    btnVariant: "primary",
   },
   success: {
     icon: CheckCircle,
     iconColor: "#10b981",
     iconBg: "rgba(16,185,129,0.12)",
-    btnBg: "rgba(16,185,129,0.15)",
-    btnHover: "rgba(16,185,129,0.25)",
+    btnVariant: "primary",
   },
   info: {
     icon: Info,
     iconColor: "#60a5fa",
     iconBg: "rgba(59,130,246,0.12)",
-    btnBg: "rgba(59,130,246,0.15)",
-    btnHover: "rgba(59,130,246,0.25)",
+    btnVariant: "primary",
   },
 };
 
@@ -98,61 +94,23 @@ export default function ConfirmDialog({
   };
 
   return (
-    <Modal
-      open={open}
+    <AppDialog
+      isOpen={open}
       title={title}
       onClose={onCancel}
-      size="md"
+      size="sm"
+      icon={<Icon size={18} />}
       footer={
-        <div className="flex items-center justify-end gap-2 px-5 py-4"
-          style={{ borderTop: "1px solid var(--border)" }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="btn-ghost px-4 py-2 text-xs"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-colors"
-            style={{
-              background: cfg.btnBg,
-              color: cfg.iconColor,
-              border: `1px solid ${cfg.iconColor}30`,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = cfg.btnHover)}
-            onMouseLeave={e => (e.currentTarget.style.background = cfg.btnBg)}
-          >
-            {loading ? (
-              <span className="inline-block w-3 h-3 border-2 rounded-full animate-spin"
-                style={{ borderColor: `${cfg.iconColor}40`, borderTopColor: cfg.iconColor }} />
-            ) : (
-              <Icon size={12} />
-            )}
-            {loading ? "Processing…" : confirmLabel}
-          </button>
-        </div>
+        <>
+          <DialogCancelButton onClick={onCancel} label={cancelLabel} disabled={loading} />
+          <DialogSubmitButton onClick={handleConfirm} label={confirmLabel}
+            loading={loading} variant={cfg.btnVariant} />
+        </>
       }
     >
-      <div className="px-5 py-5 flex items-start gap-4">
-        {/* Icon */}
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: cfg.iconBg }}>
-          <Icon size={18} style={{ color: cfg.iconColor }} />
-        </div>
-
-        {/* Message */}
-        <div className="flex-1 min-w-0 pt-0.5">
-          <p className="text-sm font-semibold text-primary mb-1">{title}</p>
-          <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            {message}
-          </p>
-        </div>
-      </div>
-    </Modal>
+      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        {message}
+      </p>
+    </AppDialog>
   );
 }

@@ -140,7 +140,7 @@ export default function RemindersPage() {
         tabs={TAB_ITEMS}
         activeTab={tab}
         onChange={setTab}
-        moduleColor={MODULE_COLORS.reminders}
+        moduleColor={MODULE_COLORS.reminders.primary}
       />
 
       {loading && <div className="text-xs text-muted py-4 text-center">Loading…</div>}

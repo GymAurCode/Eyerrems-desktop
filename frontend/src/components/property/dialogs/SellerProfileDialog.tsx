@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Building2, User, Phone, Mail, FileText, Download, Plus } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi, Contact, ContactDocument, ContactInteraction } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { uploadsUrl } from "../../../lib/config";
@@ -96,7 +96,7 @@ export default function SellerProfileDialog({ isOpen, onClose, contactId }: Sell
 
   return (
     <>
-      <ModuleDialog
+      <AppDialog
         isOpen={isOpen}
         onClose={onClose}
         title="Contact Profile"
@@ -218,7 +218,7 @@ export default function SellerProfileDialog({ isOpen, onClose, contactId }: Sell
                           <KYCStatusBadge status={doc.status} />
                         </div>
                         <div className="flex items-center gap-2">
-                          <select className="select-dark px-1.5 py-0.5 text-[9px]" value={doc.status}
+                          <select className="dialog-select px-1.5 py-0.5 text-[9px]" value={doc.status}
                             onChange={async (e) => {
                               if (!contactId) return;
                               await propApi.updateContactDocumentStatus(contactId, doc.id, e.target.value);
@@ -281,7 +281,7 @@ export default function SellerProfileDialog({ isOpen, onClose, contactId }: Sell
             <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           </div>
         )}
-      </ModuleDialog>
+      </AppDialog>
 
       {contactId && (
         <LogInteractionDialog

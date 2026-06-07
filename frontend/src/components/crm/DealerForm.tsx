@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useId, useState } from "react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Dealer } from "../../lib/crmApi";
 import AttachmentsButton from "../attachments/AttachmentsButton";
@@ -110,7 +110,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Dealer" : "New Dealer"}
+    <AppDialog isOpen={open} onClose={onClose} title={editing ? "Edit Dealer" : "New Dealer"}
       size="xl" footer={footer}>
       <form id={formId} onSubmit={submit}>
         {errors.form && (
@@ -207,6 +207,6 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
           </FormField>
         </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

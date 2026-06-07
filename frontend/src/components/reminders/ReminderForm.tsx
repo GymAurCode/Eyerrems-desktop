@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
 import AttachmentsButton from "../attachments/AttachmentsButton";
 import { remindersApi, type Template } from "../../lib/remindersApi";
 import type { Reminder } from "../../store/notifications";
@@ -81,21 +81,34 @@ export default function ReminderForm({ open, onClose, onSaved, prefill, editId }
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-surface border border-theme rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-theme">
-          <h2 className="text-sm font-semibold text-primary">
-            {editId ? "Edit Reminder" : "New Reminder"}
-          </h2>
-          <button onClick={onClose} className="text-muted hover:text-primary transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+    <AppDialog isOpen={open} onClose={onClose} title={editId ? "Edit Reminder" : "New Reminder"}
+      subtitle="Set up task reminders and alerts"
+      size="md" accentColor="#F43F5E" accentRgb="244,63,94"
+      footer={
+        <>
+          <button type="button" onClick={onClose}
+            style={{
+              padding: "8px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 500,
+              border: "0.5px solid var(--dialog-cancel-border, #CBD5E1)",
+              background: "var(--dialog-cancel-bg, #FFFFFF)",
+              color: "var(--dialog-cancel-color, #64748B)",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "var(--dialog-cancel-hover-bg, #F1F5F9)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "var(--dialog-cancel-bg, #FFFFFF)"}
+          >Cancel</button>
+          <button type="submit" form="reminder-form" disabled={saving}
+            style={{
+              padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 500,
+              border: "none", background: "#F43F5E", color: "#FFFFFF",
+              opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >{saving ? "Saving..." : editId ? "Update" : "Create"}</button>
+        </>
+      }
+    >
+      <form id="reminder-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Template picker */}
           {templates.length > 0 && (
             <div>
@@ -212,15 +225,8 @@ export default function ReminderForm({ open, onClose, onSaved, prefill, editId }
 
           <div className="flex justify-end gap-2 pt-2">
             <AttachmentsButton module="reminder" recordId={editId} />
-            <button type="button" onClick={onClose} className="btn-secondary text-sm px-4 py-2">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-primary text-sm px-4 py-2">
-              {saving ? "Saving…" : editId ? "Update" : "Create"}
-            </button>
           </div>
         </form>
-      </div>
-    </div>
+      </AppDialog>
   );
 }

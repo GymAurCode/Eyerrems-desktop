@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from "react";
 import { AlertTriangle, Plus, Upload, X } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import FormSection from "../../ui/FormSection";
 import { propApi, Contact } from "../../../lib/propertyApi";
 
@@ -230,7 +230,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
   const delDraftDoc = (key: string) => setDraftDocs(prev => prev.filter(d => d._key !== key));
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={() => { resetDialog(); onClose(); }}
       title={editing ? "Edit Contact" : "Add Contact"}
@@ -262,7 +262,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <div className="md:col-span-2">
               <label className="block text-xs text-muted mb-1">Full Name *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={name}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={name}
                 onChange={(e) => setName(e.target.value)} required placeholder="Contact name" />
             </div>
             <div>
@@ -282,7 +282,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Contact Type</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={contactType}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={contactType}
                 onChange={(e) => setContactType(e.target.value)}>
                 <option value="individual">Individual</option>
                 <option value="company">Company</option>
@@ -293,22 +293,22 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
               <>
                 <div>
                   <label className="block text-xs text-muted mb-1">CNIC Number (00000-0000000-0)</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={cnic}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={cnic}
                     onChange={(e) => setCnic(e.target.value)} placeholder="e.g. 12345-6789012-3" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Date of Birth</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={dob}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={dob}
                     onChange={(e) => setDob(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Nationality</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={nationality}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={nationality}
                     onChange={(e) => setNationality(e.target.value)} placeholder="e.g. Pakistani" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Profession / Occupation</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={profession}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={profession}
                     onChange={(e) => setProfession(e.target.value)} placeholder="e.g. Business" />
                 </div>
               </>
@@ -316,22 +316,22 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
               <>
                 <div>
                   <label className="block text-xs text-muted mb-1">Company Name</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={companyName}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)} placeholder="Company name" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">NTN Number</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={ntn}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={ntn}
                     onChange={(e) => setNtn(e.target.value)} placeholder="NTN" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Company Registration No.</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={companyReg}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={companyReg}
                     onChange={(e) => setCompanyReg(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">Authorized Person Name</label>
-                  <input className="input-dark w-full px-3 py-2.5 text-sm" value={authPerson}
+                  <input className="dialog-input w-full px-3 py-2.5 text-sm" value={authPerson}
                     onChange={(e) => setAuthPerson(e.target.value)} placeholder="Authorized person" />
                 </div>
               </>
@@ -344,18 +344,18 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
             <div>
               <label className="block text-xs text-muted mb-1">Email</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" type="email" value={email}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" type="email" value={email}
                 onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Phone *</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={phone}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={phone}
                 onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 1234567" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">WhatsApp Number</label>
               <div className="flex items-center gap-2">
-                <input className="input-dark flex-1 px-3 py-2.5 text-sm" value={whatsapp}
+                <input className="dialog-input flex-1 px-3 py-2.5 text-sm" value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)} placeholder="WhatsApp" disabled={whatsappSame} />
                 <label className="flex items-center gap-1 text-[10px] text-muted cursor-pointer whitespace-nowrap">
                   <input type="checkbox" checked={whatsappSame} className="accent-blue-500"
@@ -366,17 +366,17 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Secondary Phone</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={secondaryPhone}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={secondaryPhone}
                 onChange={(e) => setSecondaryPhone(e.target.value)} placeholder="Alternate number" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-muted mb-1">Address</label>
-              <textarea className="input-dark w-full px-3 py-2.5 text-sm resize-none" rows={2} value={address}
+              <textarea className="dialog-textarea" rows={2} value={address}
                 onChange={(e) => setAddress(e.target.value)} placeholder="Full address" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">City</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={city}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={city}
                 onChange={(e) => setCity(e.target.value)} placeholder="City" />
             </div>
           </div>
@@ -386,12 +386,12 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
             <div>
               <label className="block text-xs text-muted mb-1">Tax NTN</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={taxNtn}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={taxNtn}
                 onChange={(e) => setTaxNtn(e.target.value)} placeholder="Tax number" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Source of Funds</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={sourceFunds}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={sourceFunds}
                 onChange={(e) => setSourceFunds(e.target.value)}>
                 <option value="">— Select —</option>
                 {SOURCE_FUNDS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -399,7 +399,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Annual Income Range</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={incomeRange}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={incomeRange}
                 onChange={(e) => setIncomeRange(e.target.value)}>
                 <option value="">— Select —</option>
                 {INCOME_RANGES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -407,17 +407,17 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Bank Name</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={bankName}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={bankName}
                 onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Bank Account No.</label>
-              <input className="input-dark w-full px-3 py-2.5 text-sm" value={bankAcct}
+              <input className="dialog-input w-full px-3 py-2.5 text-sm" value={bankAcct}
                 onChange={(e) => setBankAcct(e.target.value)} placeholder="Account number" />
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">KYC Status</label>
-              <select className="select-dark w-full px-3 py-2.5 text-sm" value={kycStatus}
+              <select className="dialog-select w-full px-3 py-2.5 text-sm" value={kycStatus}
                 onChange={(e) => setKycStatus(e.target.value)}>
                 <option value="pending">Pending</option>
                 <option value="in_review">In Review</option>
@@ -435,7 +435,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             {draftDocs.map(doc => (
               <div key={doc._key} className="grid gap-2 items-center"
                 style={{ gridTemplateColumns: "1fr 1fr auto" }}>
-                <select className="select-dark px-2 py-1.5 text-xs" value={doc.document_type}
+                <select className="dialog-select px-2 py-1.5 text-xs" value={doc.document_type}
                   onChange={e => updDraftDoc(doc._key, "document_type", e.target.value)}>
                   {DOC_TYPES.map(dt => <option key={dt} value={dt}>{dt}</option>)}
                 </select>
@@ -469,7 +469,7 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
         <FormSection title="Notes">
           <div>
             <label className="block text-xs text-muted mb-1">Internal Notes (staff only)</label>
-            <textarea className="input-dark w-full px-3 py-2.5 text-sm resize-none" rows={2} value={internalNotes}
+            <textarea className="dialog-textarea" rows={2} value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)} placeholder="Internal notes not visible to contact" />
           </div>
         </FormSection>
@@ -481,6 +481,6 @@ export default function AddBuyerDialog({ isOpen, onClose, onSaved, editContact }
             : editing ? "Update Contact" : "Save Contact"}
         </button>
       </form>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

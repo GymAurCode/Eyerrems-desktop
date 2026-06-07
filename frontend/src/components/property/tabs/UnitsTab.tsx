@@ -204,7 +204,6 @@ export default function UnitsTab({ refresh }: Props) {
       icon: Users,
       onClick: (row: Unit) => {
         /* TODO: open tenant assignment dialog */
-        console.log("Assign tenant to", row.tid);
       },
     },
     {
@@ -213,7 +212,6 @@ export default function UnitsTab({ refresh }: Props) {
       icon: Wrench,
       onClick: (row: Unit) => {
         /* TODO: open maintenance recording dialog */
-        console.log("Maintenance for", row.tid);
       },
     },
     {
@@ -222,7 +220,6 @@ export default function UnitsTab({ refresh }: Props) {
       icon: Calendar,
       onClick: (row: Unit) => {
         /* TODO: navigate to lease view */
-        console.log("View lease for", row.tid);
       },
     },
     {

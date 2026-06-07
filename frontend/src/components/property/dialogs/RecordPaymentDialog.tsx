@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi, SaleInstalment } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 
@@ -55,7 +55,7 @@ export default function RecordPaymentDialog({ isOpen, onClose, onSaved, saleId, 
   };
 
   return (
-    <ModuleDialog
+    <AppDialog
       isOpen={isOpen}
       onClose={onClose}
       title="Record Payment"
@@ -65,7 +65,7 @@ export default function RecordPaymentDialog({ isOpen, onClose, onSaved, saleId, 
         {instalments.length > 0 && (
           <div>
             <label className="block text-xs text-muted mb-1">Select Instalment</label>
-            <select className="select-dark w-full px-3 py-2.5 text-sm" value={instalId}
+            <select className="dialog-select" value={instalId}
               onChange={(e) => {
                 const id = e.target.value ? Number(e.target.value) : "";
                 setInstalId(id);
@@ -86,18 +86,18 @@ export default function RecordPaymentDialog({ isOpen, onClose, onSaved, saleId, 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-muted mb-1">Amount (Rs) *</label>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={amount}
+            <input className="dialog-input" type="number" value={amount}
               onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div>
             <label className="block text-xs text-muted mb-1">Payment Date *</label>
-            <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={date}
+            <input className="dialog-input" type="date" value={date}
               onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
         <div>
           <label className="block text-xs text-muted mb-1">Reference No.</label>
-          <input className="input-dark w-full px-3 py-2.5 text-sm" value={refNo}
+          <input className="dialog-input" value={refNo}
             onChange={(e) => setRefNo(e.target.value)} placeholder="Optional" />
         </div>
         <button
@@ -113,6 +113,6 @@ export default function RecordPaymentDialog({ isOpen, onClose, onSaved, saleId, 
           )}
         </button>
       </div>
-    </ModuleDialog>
+    </AppDialog>
   );
 }

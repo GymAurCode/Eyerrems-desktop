@@ -1,59 +1,11 @@
-import { useState, useEffect, FormEvent } from "react";
-import { createPortal } from "react-dom";
-import { AlertCircle, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AlertCircle, FileText } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
+import { FormSection, FormRow, FormField } from "../ui/DialogForm";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 import AttachmentsButton from "../attachments/AttachmentsButton";
 import { accountsApi, type AccountTreeNode, type Account } from "../../lib/financeApi";
 import { useLookup } from "../../hooks/useLookup";
-
-function getPortalRoot(): HTMLElement {
-  let el = document.getElementById("modal-portal-root");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "modal-portal-root";
-    el.className = "app-shell";
-    document.body.appendChild(el);
-  }
-  return el;
-}
-
-function Overlay({ children }: { children: React.ReactNode }) {
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)" }}>
-      {children}
-    </div>,
-    getPortalRoot()
-  );
-}
-
-function DialogBox({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl w-full max-w-md overflow-hidden"
-      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
-      <div className="flex items-center justify-between px-5 py-4"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface2)" }}>
-        <p className="text-sm font-semibold text-primary">{title}</p>
-        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-lg transition-colors"
-          style={{ color: "var(--text-muted)" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-          <X size={14} />
-        </button>
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5"
-        style={{ color: "var(--text-muted)" }}>{label}</label>
-      {children}
-    </div>
-  );
-}
 
 // ── Account Create / Edit Dialog ──────────────────────────────────────────────
 export function AccountDialog({
@@ -81,8 +33,7 @@ export function AccountDialog({
     accountsApi.list().then(setAccounts).catch(() => {});
   }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!name.trim()) { setErr("Name is required"); return; }
     if (mode === "create" && !code.trim()) { setErr("Code is required"); return; }
     setSaving(true); setErr("");
@@ -104,83 +55,80 @@ export function AccountDialog({
 
   const title = mode === "create"
     ? (parentAccount ? `Add Sub-account under ${parentAccount.name}` : "Create Account")
-    : `Edit — ${initial?.name}`;
+    : `Edit \u2014 ${initial?.name}`;
+
+  const subtitle = mode === "create"
+    ? (parentAccount ? `Create a sub-account under ${parentAccount.name}` : "Add a new account to the chart of accounts")
+    : "Edit account details";
 
   return (
-    <Overlay>
-      <DialogBox title={title} onClose={onClose}>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {parentAccount && mode === "create" && (
-            <div className="px-3 py-2 rounded-lg text-xs"
-              style={{ background: "rgba(59,130,246,0.08)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
-              Parent: {parentAccount.code} — {parentAccount.name}
-            </div>
-          )}
+    <AppDialog
+      isOpen={true}
+      onClose={onClose}
+      title={title}
+      subtitle={subtitle}
+      size="md"
+      icon={<FileText size={18} />}
+      footer={
+        <>
+          <DialogCancelButton onClick={onClose} />
+          <DialogSubmitButton onClick={handleSubmit} label={mode === "create" ? "Create Account" : "Save Changes"} loading={saving} />
+        </>
+      }
+    >
+      {parentAccount && mode === "create" && (
+        <div className="px-3 py-2 rounded-lg text-xs"
+          style={{ background: "rgba(59,130,246,0.08)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
+          Parent: {parentAccount.code} — {parentAccount.name}
+        </div>
+      )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Account Code">
-              <input className="input-dark w-full px-3 py-2 text-sm"
-                value={code} onChange={e => setCode(e.target.value)}
-                placeholder="e.g. 1110" disabled={mode === "edit"} />
-            </Field>
-            <Field label="Account Type">
-              <select className="select-dark w-full px-3 py-2 text-sm"
-                value={type} onChange={e => setType(e.target.value)}>
-                {ACCOUNT_TYPE_OPTS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+      <FormRow cols={2}>
+        <FormField label="Account Code" required>
+          <input className="dialog-input" value={code} onChange={e => setCode(e.target.value)}
+            placeholder="e.g. 1110" disabled={mode === "edit"} />
+        </FormField>
+        <FormField label="Account Type" required>
+          <select className="dialog-select" value={type} onChange={e => setType(e.target.value)}>
+            {ACCOUNT_TYPE_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </FormField>
+      </FormRow>
 
-          <Field label="Account Name">
-            <input className="input-dark w-full px-3 py-2 text-sm"
-              value={name} onChange={e => setName(e.target.value)}
-              placeholder="e.g. Petty Cash" />
-          </Field>
+      <FormField label="Account Name" required>
+        <input className="dialog-input" value={name} onChange={e => setName(e.target.value)}
+          placeholder="e.g. Petty Cash" />
+      </FormField>
 
-          <Field label="Description (optional)">
-            <input className="input-dark w-full px-3 py-2 text-sm"
-              value={desc} onChange={e => setDesc(e.target.value)}
-              placeholder="Brief description..." />
-          </Field>
+      <FormField label="Description" hint="Optional">
+        <input className="dialog-input" value={desc} onChange={e => setDesc(e.target.value)}
+          placeholder="Brief description..." />
+      </FormField>
 
-          {mode === "edit" && (
-            <Field label="Parent Account">
-              <select className="select-dark w-full px-3 py-2 text-sm"
-                value={parentId} onChange={e => setParentId(e.target.value)}>
-                <option value="">None (Root)</option>
-                {accounts
-                  .filter(a => a.id !== initial?.id)
-                  .map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-              </select>
-            </Field>
-          )}
+      {mode === "edit" && (
+        <FormField label="Parent Account">
+          <select className="dialog-select" value={parentId} onChange={e => setParentId(e.target.value)}>
+            <option value="">None (Root)</option>
+            {accounts
+              .filter(a => a.id !== initial?.id)
+              .map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+          </select>
+        </FormField>
+      )}
 
-          {err && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-              style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <AlertCircle size={12} /> {err}
-            </div>
-          )}
+      {err && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <AlertCircle size={12} /> {err}
+        </div>
+      )}
 
-          <div className="flex gap-2 pt-1">
-            <AttachmentsButton module="account" recordId={initial?.id} />
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
-              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-              Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-50">
-              {saving ? "Saving..." : mode === "create" ? "Create Account" : "Save Changes"}
-            </button>
-          </div>
-        </form>
-      </DialogBox>
-    </Overlay>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <AttachmentsButton module="account" recordId={initial?.id} />
+      </div>
+    </AppDialog>
   );
 }
 
@@ -201,38 +149,31 @@ export function ConfirmDeleteDialog({
   };
 
   return (
-    <Overlay>
-      <DialogBox title="Delete Account" onClose={onClose}>
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 px-3 py-3 rounded-lg"
-            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "#f87171" }}>This cannot be undone</p>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Account <span className="font-mono text-primary">{account.code}</span> — {account.name} will be permanently deleted.
-                This will fail if the account has journal entries or sub-accounts.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={onClose}
-              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
-              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-              Cancel
-            </button>
-            <button onClick={handleConfirm} disabled={loading}
-              className="flex-1 py-2.5 text-sm rounded-xl disabled:opacity-50 transition-colors"
-              style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }}
-              onMouseEnter={e => !loading && (e.currentTarget.style.background = "rgba(239,68,68,0.25)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(239,68,68,0.15)")}>
-              {loading ? "Deleting..." : "Delete Account"}
-            </button>
-          </div>
+    <AppDialog
+      isOpen={true}
+      onClose={onClose}
+      title="Delete Account"
+      subtitle="Are you sure you want to delete this account?"
+      size="sm"
+      icon={<AlertCircle size={18} />}
+      footer={
+        <>
+          <DialogCancelButton onClick={onClose} />
+          <DialogSubmitButton onClick={handleConfirm} label="Delete Account" loading={loading} variant="danger" />
+        </>
+      }
+    >
+      <div className="flex items-start gap-3 px-3 py-3 rounded-lg"
+        style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+        <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0, marginTop: 1 }} />
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "#f87171" }}>This cannot be undone</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Account <span className="font-mono text-primary">{account.code}</span> — {account.name} will be permanently deleted.
+            This will fail if the account has journal entries or sub-accounts.
+          </p>
         </div>
-      </DialogBox>
-    </Overlay>
+      </div>
+    </AppDialog>
   );
 }

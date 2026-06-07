@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.config import settings
 from sqlalchemy import create_engine, text
 
-engine = create_engine(settings.database_url)
+engine = create_engine(settings.database_url_fixed)
 with engine.connect() as conn:
     exists = conn.execute(text(
         "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alembic_version')"

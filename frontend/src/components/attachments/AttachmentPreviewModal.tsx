@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import AppDialog from "../ui/AppDialog";
 import { attachmentApi } from "../../lib/attachmentApi";
 import { isImage, isPDF } from "../../utils/fileHelpers";
 
@@ -54,82 +55,42 @@ export default function AttachmentPreviewModal({
   const downloadUrl = attachmentApi.downloadUrl(attachment.id);
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
-      onClick={onClose}
-    >
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 z-10 text-white/80 hover:text-white bg-black/40 rounded-full p-1.5 transition-colors"
-      >
-        <X size={24} />
-      </button>
-
-      {/* Previous */}
-      {currentIndex > 0 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); goPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-2 transition-colors"
-        >
-          <ChevronLeft size={32} />
-        </button>
-      )}
-
-      {/* Next */}
-      {currentIndex < attachments.length - 1 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); goNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-2 transition-colors"
-        >
-          <ChevronRight size={32} />
-        </button>
-      )}
-
-      {/* Content */}
-      <div
-        className="max-w-[90vw] max-h-[90vh] flex flex-col items-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="text-white/90 text-sm mb-2 truncate max-w-full">
-          {attachment.file_name}
-          {attachments.length > 1 && (
-            <span className="text-white/50 ml-2">
-              ({currentIndex + 1} / {attachments.length})
-            </span>
-          )}
-        </p>
-
-        {isImage(attachment.file_type) && (
-          <img
-            src={downloadUrl}
-            alt={attachment.file_name}
-            className="max-w-full max-h-[80vh] object-contain rounded"
-          />
+    <AppDialog isOpen={open && attachment !== null} onClose={onClose} title={attachment?.file_name ?? ""} size="lg">
+      {/* Navigation */}
+      <div className="flex items-center justify-center gap-4 mb-2">
+        {currentIndex > 0 && (
+          <button onClick={goPrev} className="p-2 rounded-full hover:bg-hover transition-colors">
+            <ChevronLeft size={20} />
+          </button>
         )}
-
-        {isPDF(attachment.file_type) && (
-          <iframe
-            src={downloadUrl}
-            title={attachment.file_name}
-            className="w-[90vw] h-[80vh] rounded"
-          />
-        )}
-
-        {!isImage(attachment.file_type) && !isPDF(attachment.file_type) && (
-          <div className="text-white/70 text-center py-8">
-            <p className="text-lg mb-2">Preview not available</p>
-            <a
-              href={downloadUrl}
-              download={attachment.file_name}
-              className="text-blue-400 underline hover:text-blue-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Download {attachment.file_name}
-            </a>
-          </div>
+        <span className="text-xs text-muted">
+          {attachments.length > 1 && attachment
+            ? `${currentIndex + 1} / ${attachments.length}`
+            : attachment?.file_name ?? ""}
+        </span>
+        {currentIndex < attachments.length - 1 && (
+          <button onClick={goNext} className="p-2 rounded-full hover:bg-hover transition-colors">
+            <ChevronRight size={20} />
+          </button>
         )}
       </div>
-    </div>
+
+      {attachment && isImage(attachment.file_type) && (
+        <img src={downloadUrl} alt={attachment.file_name} className="max-w-full max-h-[70vh] object-contain rounded mx-auto" />
+      )}
+
+      {attachment && isPDF(attachment.file_type) && (
+        <iframe src={downloadUrl} title={attachment.file_name} className="w-full h-[70vh] rounded" />
+      )}
+
+      {attachment && !isImage(attachment.file_type) && !isPDF(attachment.file_type) && (
+        <div className="text-center py-8">
+          <p className="text-sm mb-2">Preview not available</p>
+          <a href={downloadUrl} download={attachment.file_name} className="text-blue-500 underline hover:text-blue-400">
+            Download {attachment.file_name}
+          </a>
+        </div>
+      )}
+    </AppDialog>
   );
 }

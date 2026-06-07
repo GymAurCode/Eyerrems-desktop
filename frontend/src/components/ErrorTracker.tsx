@@ -22,6 +22,7 @@ class ErrorTracker {
   private static instance: ErrorTracker;
   private errors: ErrorReport[] = [];
   private listeners: ((errors: ErrorReport[]) => void)[] = [];
+  private originalConsoleError: (...args: any[]) => void;
 
   static getInstance(): ErrorTracker {
     if (!ErrorTracker.instance) {
@@ -31,6 +32,8 @@ class ErrorTracker {
   }
 
   constructor() {
+    this.originalConsoleError = console.error;
+
     // Global error handler
     window.addEventListener('error', (event) => {
       this.captureError({
@@ -52,7 +55,6 @@ class ErrorTracker {
     });
 
     // React error boundary integration
-    const originalConsoleError = console.error;
     console.error = (...args) => {
       // Check if this looks like a React error
       const message = args.join(' ');
@@ -64,7 +66,7 @@ class ErrorTracker {
           component: 'React Component',
         });
       }
-      originalConsoleError.apply(console, args);
+      this.originalConsoleError.apply(console, args);
     };
   }
 
@@ -102,17 +104,12 @@ class ErrorTracker {
       try {
         listener(this.errors);
       } catch (e) {
-        console.error('Error tracker listener failed:', e);
+        this.originalConsoleError('Error tracker listener failed:', e);
       }
     });
 
-    // Log to console for debugging
-    console.group('🐛 Error Captured');
-    console.error('Message:', error.message);
-    console.error('Stack:', error.stack);
-    console.error('URL:', error.url);
-    console.error('Component:', error.component);
-    console.groupEnd();
+    // Log to console for debugging (use original to avoid recursion)
+    this.originalConsoleError('🐛 Error Captured:', error.message);
   }
 
   getErrors(): ErrorReport[] {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Building2, User, Phone, Mail, FileText, Download, Plus,
 } from "lucide-react";
-import ModuleDialog from "../../ui/ModuleDialog";
+import AppDialog from "../../ui/AppDialog";
 import { propApi, Contact, ContactDocument, ContactInteraction } from "../../../lib/propertyApi";
 import { formatCurrency } from "../../../lib/currency";
 import { uploadsUrl } from "../../../lib/config";
@@ -103,7 +103,7 @@ export default function BuyerProfileDialog({ isOpen, onClose, contactId }: Buyer
 
   return (
     <>
-      <ModuleDialog isOpen={isOpen} onClose={onClose} title="Contact Profile" size="xl">
+      <AppDialog isOpen={isOpen} onClose={onClose} title="Contact Profile" size="xl">
         {contact ? (
           <div className="space-y-4">
             {/* Header */}
@@ -227,7 +227,7 @@ export default function BuyerProfileDialog({ isOpen, onClose, contactId }: Buyer
                           <KYCStatusBadge status={doc.status} />
                         </div>
                         <div className="flex items-center gap-2">
-                          <select className="select-dark px-1.5 py-0.5 text-[9px]" value={doc.status}
+                          <select className="dialog-select px-1.5 py-0.5 text-[9px]" value={doc.status}
                             onChange={async (e) => {
                               await propApi.updateContactDocumentStatus(contact!.id, doc.id, e.target.value);
                               const updated = await propApi.listContactDocuments(contact!.id);
@@ -290,7 +290,7 @@ export default function BuyerProfileDialog({ isOpen, onClose, contactId }: Buyer
             <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           </div>
         )}
-      </ModuleDialog>
+      </AppDialog>
 
       <LogInteractionDialog
         isOpen={logOpen}

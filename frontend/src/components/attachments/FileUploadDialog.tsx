@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Paperclip, Loader2 } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 import { attachmentApi, AttachmentItem } from "../../lib/attachmentApi";
 import { DataTable } from "../data-table";
 import type { PaginationConfig } from "../data-table";
@@ -169,7 +169,7 @@ export default function FileUploadDialog({
   };
 
   return (
-    <Modal open={open} title={title} onClose={onClose} size="2xl">
+    <AppDialog isOpen={open} title={title} onClose={onClose} size="md" icon={<Paperclip size={16} />} subtitle="Upload and manage files">
       <div className="space-y-4">
         {/* ── Top Section: File Select, Description, Status ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -214,12 +214,7 @@ export default function FileUploadDialog({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs rounded-lg outline-none"
-              style={{
-                background: "var(--bg-surface-hover, #2a2a3a)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-              }}
+              className="dialog-input"
             />
           </div>
 
@@ -230,12 +225,7 @@ export default function FileUploadDialog({
             <select
               value={documentStatus}
               onChange={(e) => setDocumentStatus(e.target.value as "VERIFIED" | "PENDING" | "REJECTED")}
-              className="w-full px-3 py-1.5 text-xs rounded-lg outline-none"
-              style={{
-                background: "var(--bg-surface-hover, #2a2a3a)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-              }}
+              className="dialog-select"
             >
               <option value="VERIFIED">VERIFIED</option>
               <option value="PENDING">PENDING</option>
@@ -367,6 +357,6 @@ export default function FileUploadDialog({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }

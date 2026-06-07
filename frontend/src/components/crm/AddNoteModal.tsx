@@ -1,6 +1,8 @@
 import { FormEvent, useState } from "react";
 import { StickyNote } from "lucide-react";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
+import { FormField } from "../ui/DialogForm";
+import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
 
 type Props = {
   open: boolean;
@@ -16,8 +18,8 @@ export default function AddNoteModal({ open, onClose, onSubmit }: Props) {
   const reset = () => { setNote(""); setErr(""); };
   const handleClose = () => { reset(); onClose(); };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
     if (!note.trim()) { setErr("Note cannot be empty."); return; }
     setSaving(true); setErr("");
     try {
@@ -32,42 +34,26 @@ export default function AddNoteModal({ open, onClose, onSubmit }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Add Note">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <StickyNote size={14} style={{ color: "#10b981" }} />
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            Add a note linked to this lead/client.
-          </span>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5"
-            style={{ color: "var(--text-muted)" }}>Note *</label>
-          <textarea
-            className="input-dark w-full px-3 py-2 text-sm resize-none"
-            rows={5}
-            value={note}
+    <AppDialog isOpen={open} onClose={handleClose} title="Add Note"
+      icon={<StickyNote size={18} />}
+      subtitle="Add a note linked to this lead/client"
+      size="sm"
+      footer={
+        <>
+          <DialogCancelButton onClick={handleClose} />
+          <DialogSubmitButton onClick={handleSubmit} label="Save Note" loading={saving} />
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        <FormField label="Note" required>
+          <textarea className="dialog-textarea w-full" rows={5} value={note}
             onChange={e => setNote(e.target.value)}
-            placeholder="Write your note here…"
-            autoFocus
-          />
-        </div>
+            placeholder="Write your note here…" autoFocus />
+        </FormField>
 
         {err && <p className="text-xs text-red-400">{err}</p>}
-
-        <div className="flex gap-2 pt-1">
-          <button type="button" onClick={handleClose}
-            className="flex-1 px-4 py-2 text-sm rounded-lg"
-            style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving || !note.trim()}
-            className="flex-1 btn-primary px-4 py-2 text-sm disabled:opacity-50">
-            {saving ? "Saving…" : "Save Note"}
-          </button>
-        </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

@@ -5,7 +5,7 @@ import AttachmentsButton from "../../components/attachments/AttachmentsButton";
 import { printRecord } from "../../components/actions";
 import DataTable from "../../components/data-table/DataTable";
 import type { TableColumn, TableAction } from "../../components/data-table/types";
-import Modal from "../../components/Modal";
+import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 import { townApi, Town } from "../../lib/townApi";
 
@@ -71,8 +71,8 @@ function TownFormModal({
   };
 
   return (
-    <Modal
-      open={open}
+    <AppDialog
+      isOpen={open}
       onClose={onClose}
       title={initial?.id ? "Edit Town" : "New Town"}
     >
@@ -124,7 +124,7 @@ function TownFormModal({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 
@@ -153,7 +153,7 @@ function DeleteModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Delete Town">
+    <AppDialog isOpen={open} onClose={onClose} title="Delete Town">
       <div className="space-y-4">
         <p className="text-sm text-secondary">
           This will permanently delete{" "}
@@ -180,7 +180,7 @@ function DeleteModal({
           </button>
         </div>
       </div>
-    </Modal>
+    </AppDialog>
   );
 }
 

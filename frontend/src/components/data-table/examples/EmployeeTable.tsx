@@ -231,7 +231,6 @@ export default function EmployeeTable() {
       icon: Edit2,
       variant: 'secondary',
       onClick: (employee) => {
-        console.log('Edit employee:', employee);
         // Handle edit action
       },
       permission: 'hr:manage',
@@ -242,7 +241,6 @@ export default function EmployeeTable() {
       icon: Trash2,
       variant: 'danger',
       onClick: (employee) => {
-        console.log('Delete employee:', employee);
         // Handle delete action
       },
       disabled: (employee) => employee.status === 'active',
@@ -257,7 +255,6 @@ export default function EmployeeTable() {
       label: 'Activate Selected',
       variant: 'success',
       onClick: (employees) => {
-        console.log('Activate employees:', employees);
         // Handle bulk activate
       },
       disabled: (employees) => employees.every(emp => emp.status === 'active'),
@@ -268,7 +265,6 @@ export default function EmployeeTable() {
       label: 'Deactivate Selected',
       variant: 'warning',
       onClick: (employees) => {
-        console.log('Deactivate employees:', employees);
         // Handle bulk deactivate
       },
       disabled: (employees) => employees.every(emp => emp.status !== 'active'),
@@ -280,7 +276,6 @@ export default function EmployeeTable() {
       icon: Download,
       variant: 'secondary',
       onClick: (employees) => {
-        console.log('Export employees:', employees);
         // Handle export
       },
     },
@@ -294,7 +289,6 @@ export default function EmployeeTable() {
       icon: UserPlus,
       variant: 'primary',
       onClick: () => {
-        console.log('Add new employee');
         // Handle add employee
       },
       permission: 'hr:manage',
@@ -305,7 +299,6 @@ export default function EmployeeTable() {
       icon: Upload,
       variant: 'secondary',
       onClick: () => {
-        console.log('Import employees');
         // Handle import
       },
       permission: 'hr:manage',
@@ -316,7 +309,6 @@ export default function EmployeeTable() {
       icon: Download,
       variant: 'secondary',
       onClick: () => {
-        console.log('Export all employees');
         // Handle export all
       },
     },
@@ -358,7 +350,6 @@ export default function EmployeeTable() {
         
         // Row interaction
         onRowClick={(employee) => {
-          console.log('View employee details:', employee);
           // Navigate to employee detail page
         }}
       />

@@ -108,7 +108,6 @@ export default function AdminPanel() {
         ]}
         activeTab={activeTab}
         onChange={(v) => setActiveTab(v as 'users' | 'pending' | 'roles' | 'permissions')}
-        moduleColor="#3b82f6"
       />
 
       {loading && <div>Loading...</div>}

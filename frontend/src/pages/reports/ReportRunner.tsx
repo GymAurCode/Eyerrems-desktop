@@ -1,27 +1,13 @@
-﻿/**
- * ReportRunner — Report generation page.
- *
- * Layout:
- *   - Breadcrumb bar (back to Reports Center)
- *   - Report title + export buttons
- *   - Collapsible inline filter bar (top, NOT a left sidebar)
- *   - Full-width preview area
- *
- * No inner sidebar. No double navigation.
- */
-import React, { useCallback, useState } from "react";
+﻿import React, { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Download, FileSpreadsheet, Printer, RefreshCw,
   Play, SlidersHorizontal, Calendar, Search, X, Loader2,
-  FileText, CheckCircle, AlertCircle, Hash, User, Building2,
-  Clock, ChevronDown, ChevronUp,
+  FileText, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { generateReport, exportReport, downloadBlob } from "../../lib/reportsApi";
-import { ReportRequest, ReportResult } from "../../components/reports/types";
-import ReportTable from "../../components/reports/ReportTable";
-import ReportSummaryCards from "../../components/reports/ReportSummaryCards";
-import ReportErrorBoundary from "../../components/reports/ReportErrorBoundary";
+import { generateReport } from "../../lib/reportsApi";
+import { ReportRequest } from "../../components/reports/types";
+import ReportViewer from "../../components/reports/ReportViewer.jsx";
 
 // Minimal category config for the breadcrumb icon in the runner
 import {
@@ -40,7 +26,6 @@ const CAT_CONFIG: Record<string, { icon: React.ElementType; accent: string; bg: 
   maintenance:  { icon: Wrench,    accent: "#ec4899", bg: "rgba(236,72,153,0.12)" },
 };
 
-// ── Report metadata ───────────────────────────────────────────────────────────
 const REPORT_META: Record<string, {
   name: string; description: string;
   filters: string[]; requiresEntity?: string;
@@ -62,26 +47,105 @@ const REPORT_META: Record<string, {
   rent_ledger:              { name: "Rent Ledger",              description: "Rent payment history with running balance",         filters: ["date_range"],                            requiresEntity: "tenant"  },
   rent_due_report:          { name: "Rent Due Report",          description: "All pending and overdue rent records",              filters: ["date_range"]                                                   },
   security_deposit_report:  { name: "Security Deposit",         description: "Security deposits held for all tenants",           filters: ["status"]                                                       },
-
-  // Construction reports
   material_usage:           { name: "Material Usage",           description: "Materials consumed per project phase",             filters: ["date_range", "search"]                                         },
   work_progress:            { name: "Work Progress Summary",    description: "Phase completion status and progress",             filters: ["date_range", "status"]                                         },
-
-  // Maintenance reports
   complaint_report:         { name: "Complaint Report",         description: "All maintenance complaints and status",           filters: ["date_range", "search", "status"]                               },
   pending_requests:         { name: "Pending Requests",         description: "Open and unresolved maintenance requests",        filters: ["date_range", "status"]                                         },
-
-  // CRM inline button reports (used via ReportModal)
   deal_report:              { name: "Deal Summary Report",      description: "Complete deal summary with financial details",    filters: []                                          },
   outstanding_payments:     { name: "Outstanding Payments",     description: "Customer outstanding payment summary",            filters: ["date_range"]                                                   },
   token_receipt:            { name: "Token Receipt",            description: "Booking token payment receipt",                   filters: []                                          },
   unit_statement:           { name: "Unit Statement",           description: "Complete unit financial statement",               filters: ["date_range"]                            },
   tenant_history:           { name: "Tenant History",           description: "Tenant occupancy history for a unit",             filters: []                                          },
+  employees_list:           { name: "Employees List",           description: "All employees with department and position",      filters: ["search", "status"] },
+  salary_report:            { name: "Salary Report",            description: "Payroll summary with allowances & deductions",    filters: ["search"] },
+  attendance_report:        { name: "Attendance Report",        description: "Daily attendance records by employee",            filters: ["date_range", "status"] },
 };
 
 const DEFAULT_FILTERS: ReportRequest = { page: 1, page_size: 100, sort_order: "asc" };
 
-// ── Inline filter bar ─────────────────────────────────────────────────────────
+// ── Map report key to its column config ────────────────────────────────────────
+const REPORT_COLUMNS: Record<string, any[]> = {
+  lead_summary: [
+    { key:'id', label:'Lead ID', width:'110px', align:'left', format:'text' },
+    { key:'name', label:'Name', align:'left', format:'text' },
+    { key:'phone', label:'Phone', width:'130px', align:'left', format:'text' },
+    { key:'source', label:'Source', width:'120px', align:'left', format:'text' },
+    { key:'assigned_to', label:'Assigned To', align:'left', format:'text' },
+    { key:'status', label:'Status', width:'120px', align:'center', format:'badge',
+      badgeColors:{ new:'blue', contacted:'amber', converted:'green', negotiation:'blue', lost:'red' }},
+    { key:'created_at', label:'Created', width:'110px', align:'center', format:'date' },
+  ],
+  deal_report: [
+    { key:'id', label:'Deal ID', width:'120px', align:'left', format:'text' },
+    { key:'title', label:'Deal Title', align:'left', format:'text' },
+    { key:'client_name', label:'Client', align:'left', format:'text' },
+    { key:'property_name', label:'Property', align:'left', format:'text' },
+    { key:'deal_value', label:'Deal Value (PKR)', width:'150px', align:'right', format:'currency' },
+    { key:'down_payment', label:'Down Payment', width:'140px', align:'right', format:'currency' },
+    { key:'status', label:'Status', width:'110px', align:'center', format:'badge',
+      badgeColors:{ active:'blue', won:'green', lost:'red', cancelled:'gray' }},
+    { key:'dealer_name', label:'Dealer', align:'left', format:'text' },
+    { key:'deal_date', label:'Date', width:'110px', align:'center', format:'date' },
+  ],
+  customer_ledger: [
+    { key:'date', label:'Date', width:'110px', align:'center', format:'date' },
+    { key:'description', label:'Description', align:'left', format:'text' },
+    { key:'reference', label:'Reference', width:'130px', align:'left', format:'text' },
+    { key:'debit', label:'Debit (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'credit', label:'Credit (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'balance', label:'Balance (PKR)', width:'150px', align:'right', format:'currency' },
+  ],
+  installment_schedule: [
+    { key:'installment_no', label:'#', width:'50px', align:'center', format:'number' },
+    { key:'description', label:'Description', align:'left', format:'text' },
+    { key:'due_date', label:'Due Date', width:'120px', align:'center', format:'date' },
+    { key:'amount', label:'Amount (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'paid_amount', label:'Paid (PKR)', width:'130px', align:'right', format:'currency' },
+    { key:'outstanding', label:'Outstanding (PKR)', width:'150px', align:'right', format:'currency' },
+    { key:'status', label:'Status', width:'110px', align:'center', format:'badge',
+      badgeColors:{ paid:'green', pending:'amber', overdue:'red', upcoming:'gray' }},
+  ],
+  inventory_report: [
+    { key:'name', label:'Property', align:'left', format:'text' },
+    { key:'category', label:'Type', width:'110px', align:'left', format:'text' },
+    { key:'total_units', label:'Total Units', width:'110px', align:'center', format:'number' },
+    { key:'available', label:'Available', width:'100px', align:'center', format:'number' },
+    { key:'occupied', label:'Occupied', width:'100px', align:'center', format:'number' },
+    { key:'reserved', label:'Reserved', width:'100px', align:'center', format:'number' },
+    { key:'sold', label:'Sold', width:'80px', align:'center', format:'number' },
+    { key:'occupancy_pct', label:'Occupancy %', width:'110px', align:'center', format:'number' },
+  ],
+  rent_ledger: [
+    { key:'month', label:'Month', width:'110px', align:'left', format:'text' },
+    { key:'due_date', label:'Due Date', width:'120px', align:'center', format:'date' },
+    { key:'amount_due', label:'Amount Due (PKR)', width:'150px', align:'right', format:'currency' },
+    { key:'paid_date', label:'Paid Date', width:'120px', align:'center', format:'date' },
+    { key:'amount_paid', label:'Amount Paid (PKR)', width:'150px', align:'right', format:'currency' },
+    { key:'balance', label:'Balance (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'status', label:'Status', width:'100px', align:'center', format:'badge',
+      badgeColors:{ paid:'green', partial:'amber', overdue:'red', pending:'gray' }},
+  ],
+  salary_report: [
+    { key:'emp_id', label:'Emp ID', width:'90px', align:'left', format:'text' },
+    { key:'name', label:'Employee', align:'left', format:'text' },
+    { key:'department', label:'Department', width:'130px', align:'left', format:'text' },
+    { key:'basic_salary', label:'Basic (PKR)', width:'130px', align:'right', format:'currency' },
+    { key:'allowances', label:'Allowances (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'deductions', label:'Deductions (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'net_salary', label:'Net (PKR)', width:'130px', align:'right', format:'currency' },
+    { key:'status', label:'Status', width:'100px', align:'center', format:'badge',
+      badgeColors:{ paid:'green', pending:'amber', hold:'red' }},
+  ],
+  cash_flow: [
+    { key:'date', label:'Date', width:'110px', align:'center', format:'date' },
+    { key:'description', label:'Description', align:'left', format:'text' },
+    { key:'category', label:'Category', width:'130px', align:'left', format:'text' },
+    { key:'inflow', label:'Inflow (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'outflow', label:'Outflow (PKR)', width:'140px', align:'right', format:'currency' },
+    { key:'balance', label:'Balance (PKR)', width:'150px', align:'right', format:'currency' },
+  ],
+};
+
 function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, onReset }: {
   filters: ReportRequest;
   onChange: (f: ReportRequest) => void;
@@ -100,7 +164,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
       className="flex flex-wrap items-end gap-3 px-5 py-3 border-b"
       style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
     >
-      {/* Search */}
       {availableFilters.includes("search") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Search</label>
@@ -113,31 +176,27 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Date From */}
       {availableFilters.includes("date_range") && (
-        <div className="flex flex-col gap-1">
-          <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">From</label>
-          <div className="relative">
-            <Calendar size={11} className="absolute left-2.5 top-2 text-muted" />
-            <input type="date" value={filters.date_from || ""} onChange={(e) => set("date_from", e.target.value)}
-              className={`${inputCls} pl-7 w-36`} style={inputStyle} />
+        <>
+          <div className="flex flex-col gap-1">
+            <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">From</label>
+            <div className="relative">
+              <Calendar size={11} className="absolute left-2.5 top-2 text-muted" />
+              <input type="date" value={filters.date_from || ""} onChange={(e) => set("date_from", e.target.value)}
+                className={`${inputCls} pl-7 w-36`} style={inputStyle} />
+            </div>
           </div>
-        </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">To</label>
+            <div className="relative">
+              <Calendar size={11} className="absolute left-2.5 top-2 text-muted" />
+              <input type="date" value={filters.date_to || ""} onChange={(e) => set("date_to", e.target.value)}
+                className={`${inputCls} pl-7 w-36`} style={inputStyle} />
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Date To */}
-      {availableFilters.includes("date_range") && (
-        <div className="flex flex-col gap-1">
-          <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">To</label>
-          <div className="relative">
-            <Calendar size={11} className="absolute left-2.5 top-2 text-muted" />
-            <input type="date" value={filters.date_to || ""} onChange={(e) => set("date_to", e.target.value)}
-              className={`${inputCls} pl-7 w-36`} style={inputStyle} />
-          </div>
-        </div>
-      )}
-
-      {/* Status */}
       {availableFilters.includes("status") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Status</label>
@@ -155,7 +214,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Payment Method */}
       {availableFilters.includes("payment_method") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Method</label>
@@ -168,7 +226,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Lead Source */}
       {availableFilters.includes("lead_source") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Source</label>
@@ -184,7 +241,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Client ID */}
       {availableFilters.includes("client_id") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Client ID</label>
@@ -194,7 +250,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Tenant ID */}
       {availableFilters.includes("tenant_id") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Tenant ID</label>
@@ -204,7 +259,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Booking ID */}
       {availableFilters.includes("booking_id") && (
         <div className="flex flex-col gap-1">
           <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Booking ID</label>
@@ -214,7 +268,6 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </div>
       )}
 
-      {/* Rows */}
       <div className="flex flex-col gap-1">
         <label className="text-[9px] font-semibold text-muted uppercase tracking-wider">Rows</label>
         <select value={filters.page_size || 100} onChange={(e) => set("page_size", parseInt(e.target.value))}
@@ -227,10 +280,8 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
         </select>
       </div>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Action buttons */}
       <div className="flex items-center gap-2">
         <button onClick={onReset} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-40"
@@ -248,143 +299,32 @@ function FilterBar({ filters, onChange, availableFilters, loading, onGenerate, o
   );
 }
 
-// ── Preview area ──────────────────────────────────────────────────────────────
-function PreviewArea({ result, loading, onExportPDF, onExportExcel, onPrint, exporting }: {
-  result?: ReportResult; loading: boolean;
-  onExportPDF: () => void; onExportExcel: () => void;
-  onPrint: () => void; exporting: boolean;
-}) {
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(59,130,246,0.12)" }}>
-          <Loader2 size={22} className="text-blue-400 animate-spin" />
-        </div>
-        <p className="text-sm text-muted">Generating report...</p>
-      </div>
-    );
-  }
-
-  if (!result) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(59,130,246,0.06)", border: "1px dashed rgba(59,130,246,0.2)" }}>
-          <Play size={24} className="text-blue-400/40" />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-secondary">Ready to generate</p>
-          <p className="text-xs text-muted mt-1">Set your filters above and click Generate</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (result.error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <AlertCircle size={28} className="text-red-400" />
-        <p className="text-sm text-red-400">{result.error}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Result meta bar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <CheckCircle size={13} className="text-green-400" />
-            <span className="text-sm font-bold text-primary">{result.meta.title}</span>
-          </div>
-          {result.meta.subtitle && (
-            <span className="text-xs text-muted">{result.meta.subtitle}</span>
-          )}
-          <span className="text-[10px] px-2 py-0.5 rounded-full"
-            style={{ background: "rgba(16,185,129,0.12)", color: "#34d399" }}>
-            {result.meta.total_records.toLocaleString()} records
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-muted">
-            <Clock size={10} />
-            {new Date(result.meta.generated_at).toLocaleString()}
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-muted">
-            <User size={10} />
-            {result.meta.generated_by}
-          </span>
-          {result.meta.report_id && (
-            <span className="flex items-center gap-1 text-[10px] text-muted font-mono">
-              <Hash size={10} />
-              {result.meta.report_id}
-            </span>
-          )}
-          {result.generation_time_ms > 0 && (
-            <span className="text-[10px] text-muted">{result.generation_time_ms}ms</span>
-          )}
-        </div>
-
-        {/* Export buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={onPrint} disabled={exporting} title="Print"
-            className="p-2 rounded-lg border text-muted hover:text-secondary transition-colors disabled:opacity-40"
-            style={{ borderColor: "var(--border)" }}>
-            <Printer size={14} />
-          </button>
-          <button onClick={onExportExcel} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-40"
-            style={{ borderColor: "rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.08)", color: "#34d399" }}>
-            <FileSpreadsheet size={13} /> Excel
-          </button>
-          <button onClick={onExportPDF} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-40"
-            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#f87171" }}>
-            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-            PDF
-          </button>
-        </div>
-      </div>
-
-      {/* Active filters */}
-      {Object.keys(result.meta.filters_applied).length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] text-muted">Filters:</span>
-          {Object.entries(result.meta.filters_applied).map(([k, v]) => (
-            <span key={k} className="text-[10px] px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
-              {k}: {v}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Summary cards */}
-      {result.summary && result.summary.length > 0 && (
-        <ReportSummaryCards summary={result.summary} />
-      )}
-
-      {/* Data table */}
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-        <ReportTable columns={result.columns} rows={result.rows} meta={result.meta} showPagination />
-      </div>
-    </div>
-  );
+// ── Map backend result rows to ReportViewer compatible format ─────────────────
+function mapResultToViewer(result: any, columns: any[]) {
+  if (!result || !result.rows) return { data: [], summaryRows: [] }
+  const data = result.rows.map((row: any) => {
+    const mapped: any = {}
+    columns.forEach(col => {
+      mapped[col.key] = row[col.key]
+    })
+    return mapped
+  })
+  const summaryRows = result.summary ? result.summary.map((s: any) => ({ [columns[0]?.key || 'label']: s.label, ...(s.value !== undefined ? { [columns[columns.length-1]?.key || 'value']: s.value } : {}) })) : []
+  return { data, summaryRows }
 }
 
-// ── Main ReportRunner ─────────────────────────────────────────────────────────
 export default function ReportRunner() {
   const { reportKey } = useParams<{ reportKey: string }>();
   const navigate = useNavigate();
-  const [result, setResult] = useState<ReportResult | undefined>();
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [filters, setFilters] = useState<ReportRequest>(DEFAULT_FILTERS);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<ReportRequest>(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(true);
 
   const meta = reportKey ? REPORT_META[reportKey] : undefined;
-  // Derive category group from the report key for the breadcrumb icon
+  const columns = reportKey ? (REPORT_COLUMNS[reportKey] || []) : [];
+
   const KEY_TO_GROUP: Record<string, string> = {
     customer_profile: "client", customer_ledger: "client", installment_schedule: "client", outstanding_report: "client",
     lead_summary: "crm",
@@ -395,12 +335,12 @@ export default function ReportRunner() {
     complaint_report: "maintenance", pending_requests: "maintenance",
     deal_report: "crm", outstanding_payments: "client", token_receipt: "client",
     unit_statement: "property", tenant_history: "tenant",
+    employees_list: "hr", salary_report: "hr", attendance_report: "hr",
   };
   const groupId = reportKey ? (KEY_TO_GROUP[reportKey] ?? "client") : "client";
   const cat = CAT_CONFIG[groupId] ?? CAT_CONFIG["client"];
   const CatIcon = cat?.icon ?? FileText;
 
-  // Build filter list
   const availableFilters = [...(meta?.filters ?? [])];
   if (meta?.requiresEntity === "client")  availableFilters.push("client_id");
   if (meta?.requiresEntity === "tenant")  availableFilters.push("tenant_id");
@@ -412,57 +352,49 @@ export default function ReportRunner() {
     if (!reportKey) return;
     setLoading(true);
     setError(null);
+    setResult(null);
     try {
-      const data = await generateReport(reportKey, f);
-      setResult(data);
-      // Track recent
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token')
+      const API_BASE_URL = (window as any).API_BASE_URL || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000)
+
+      const response = await fetch(
+        `${API_BASE_URL}/reports/${reportKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(f),
+          signal: controller.signal
+        }
+      )
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.detail || `Server error ${response.status}`)
+      }
+
+      const data = await response.json()
+      setResult(data)
+
       const recent: string[] = JSON.parse(localStorage.getItem("report_recent") || "[]");
       localStorage.setItem("report_recent", JSON.stringify([reportKey, ...recent.filter((k) => k !== reportKey)].slice(0, 10)));
-      // Track history
-      const hist = JSON.parse(localStorage.getItem("report_history") || "[]");
-      hist.unshift({ id: Date.now().toString(), reportKey, reportName: meta?.name ?? reportKey, format: "preview", generatedAt: new Date().toISOString(), recordCount: data.meta.total_records });
-      localStorage.setItem("report_history", JSON.stringify(hist.slice(0, 50)));
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Failed to generate report");
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(err?.response?.data?.detail || err?.message || "Failed to generate report")
+      }
     } finally {
       setLoading(false);
     }
-  }, [reportKey, meta]);
+  }, [reportKey]);
 
-  const handleReset = () => { setFilters(DEFAULT_FILTERS); setResult(undefined); setError(null); };
-
-  const handleExportPDF = async () => {
-    if (!reportKey) return;
-    setExporting(true);
-    try {
-      const blob = await exportReport(reportKey, { ...filters, format: "pdf", export_mode: true });
-      downloadBlob(blob, `${reportKey}_${new Date().toISOString().slice(0, 10)}.pdf`);
-      // Track history
-      const hist = JSON.parse(localStorage.getItem("report_history") || "[]");
-      hist.unshift({ id: Date.now().toString(), reportKey, reportName: meta?.name ?? reportKey, format: "pdf", generatedAt: new Date().toISOString(), recordCount: result?.meta.total_records });
-      localStorage.setItem("report_history", JSON.stringify(hist.slice(0, 50)));
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "PDF export failed");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleExportExcel = async () => {
-    if (!reportKey) return;
-    setExporting(true);
-    try {
-      const blob = await exportReport(reportKey, { ...filters, format: "excel", export_mode: true });
-      downloadBlob(blob, `${reportKey}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      const hist = JSON.parse(localStorage.getItem("report_history") || "[]");
-      hist.unshift({ id: Date.now().toString(), reportKey, reportName: meta?.name ?? reportKey, format: "excel", generatedAt: new Date().toISOString(), recordCount: result?.meta.total_records });
-      localStorage.setItem("report_history", JSON.stringify(hist.slice(0, 50)));
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Excel export failed");
-    } finally {
-      setExporting(false);
-    }
-  };
+  const handleReset = () => { setFilters(DEFAULT_FILTERS); setResult(null); setError(null); };
 
   if (!reportKey || !meta) {
     return (
@@ -477,24 +409,30 @@ export default function ReportRunner() {
     );
   }
 
-  return (
-    <ReportErrorBoundary key={reportKey}>
-    <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg-base)" }}>
+  // Use backend columns if available, otherwise use our predefined columns
+  const viewerColumns = (result?.columns && result.columns.length > 0)
+    ? result.columns.map((c: any) => ({
+        key: c.key,
+        label: c.label,
+        align: c.align || 'left',
+        format: c.data_type === 'currency' ? 'currency' : c.data_type === 'date' ? 'date' : c.data_type === 'badge' ? 'badge' : c.data_type === 'number' ? 'number' : 'text',
+        badgeColors: c.badge_map || undefined,
+        width: c.width || undefined,
+      }))
+    : columns
 
-      {/* ── Top bar: breadcrumb + title + actions ─────────────────────────── */}
+  const viewerData = result ? result.rows || [] : []
+
+  return (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg-base)" }}>
       <div className="shrink-0 px-5 py-3 border-b flex items-center gap-3"
         style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-
-        {/* Back */}
         <button onClick={() => navigate("/reports")}
           className="flex items-center gap-1.5 text-xs text-muted hover:text-secondary transition-colors shrink-0">
           <ArrowLeft size={14} />
           <span className="hidden sm:inline">Reports</span>
         </button>
-
         <span className="text-muted text-xs shrink-0">/</span>
-
-        {/* Report icon + name */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
             style={{ background: cat?.bg ?? "rgba(59,130,246,0.12)" }}>
@@ -505,8 +443,6 @@ export default function ReportRunner() {
             <p className="text-[10px] text-muted truncate mt-0.5 hidden sm:block">{meta.description}</p>
           </div>
         </div>
-
-        {/* Right actions */}
         <div className="flex items-center gap-2 shrink-0">
           {result && (
             <button onClick={() => generate({ ...filters, page: 1 })} disabled={loading}
@@ -532,7 +468,6 @@ export default function ReportRunner() {
         </div>
       </div>
 
-      {/* ── Inline filter bar (collapsible) ──────────────────────────────── */}
       {hasFilters && filtersOpen && (
         <FilterBar
           filters={filters}
@@ -544,8 +479,7 @@ export default function ReportRunner() {
         />
       )}
 
-      {/* ── No-filter reports: show generate button inline ────────────────── */}
-      {!hasFilters && !result && !loading && (
+      {!hasFilters && !result && !loading && !error && (
         <div className="shrink-0 px-5 py-3 border-b flex items-center gap-3"
           style={{ borderColor: "var(--border)" }}>
           <button onClick={() => generate(filters)}
@@ -557,7 +491,6 @@ export default function ReportRunner() {
         </div>
       )}
 
-      {/* ── Error banner ─────────────────────────────────────────────────── */}
       {error && (
         <div className="shrink-0 mx-5 mt-3 px-4 py-2.5 rounded-lg border flex items-center gap-2 text-xs"
           style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.2)", color: "#f87171" }}>
@@ -567,18 +500,16 @@ export default function ReportRunner() {
         </div>
       )}
 
-      {/* ── Preview area (full width, scrollable) ────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-5 py-5 print-area">
-        <PreviewArea
-          result={result}
-          loading={loading}
-          onExportPDF={handleExportPDF}
-          onExportExcel={handleExportExcel}
-          onPrint={() => window.print()}
-          exporting={exporting}
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+        <ReportViewer
+          reportTitle={meta.name}
+          reportSubtitle={filters.date_from && filters.date_to ? `Period: ${filters.date_from} - ${filters.date_to}` : ''}
+          columns={viewerColumns}
+          data={viewerData}
+          loading={loading && !result}
+          error={error}
         />
       </div>
     </div>
-    </ReportErrorBoundary>
   );
 }

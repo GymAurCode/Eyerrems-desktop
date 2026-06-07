@@ -1,12 +1,13 @@
-import { useState } from "react";
-import PropertiesTab from "../components/property/tabs/PropertiesTab";
-import UnitsTab from "../components/property/tabs/UnitsTab";
-import LeaseTab from "../components/property/tabs/LeaseTab";
-import SalesTab from "../components/property/tabs/SalesTab";
-import BuyersTab from "../components/property/tabs/BuyersTab";
-import SellersTab from "../components/property/tabs/SellersTab";
+import { lazy, Suspense, useState, memo, useCallback } from "react";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
+
+const PropertiesTab = lazy(() => import("../components/property/tabs/PropertiesTab"));
+const UnitsTab = lazy(() => import("../components/property/tabs/UnitsTab"));
+const LeaseTab = lazy(() => import("../components/property/tabs/LeaseTab"));
+const SalesTab = lazy(() => import("../components/property/tabs/SalesTab"));
+const BuyersTab = lazy(() => import("../components/property/tabs/BuyersTab"));
+const SellersTab = lazy(() => import("../components/property/tabs/SellersTab"));
 
 const TABS = [
   { label: "Properties", value: "properties" },
@@ -19,10 +20,14 @@ const TABS = [
 
 type TabKey = typeof TABS[number]["value"];
 
-export default function PropertyPage() {
+function TabFallback() {
+  return <div className="h-32 flex items-center justify-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+}
+
+const PropertyPage = memo(function PropertyPage() {
   const [tab, setTab]       = useState<TabKey>("properties");
   const [refresh, setRefresh] = useState(0);
-  const bump = () => setRefresh((n) => n + 1);
+  const bump = useCallback(() => setRefresh((n) => n + 1), []);
 
   return (
     <div className="px-6 py-5 space-y-5 animate-slide-up">
@@ -35,15 +40,19 @@ export default function PropertyPage() {
         tabs={TABS}
         activeTab={tab}
         onChange={(v) => setTab(v as TabKey)}
-        moduleColor={MODULE_COLORS.property}
+        moduleColor={MODULE_COLORS.properties.primary}
       />
 
-      {tab === "properties" && <PropertiesTab onView={() => {}} refresh={refresh} onRefresh={bump} />}
-      {tab === "units"      && <UnitsTab refresh={refresh} />}
-      {tab === "lease"      && <LeaseTab refresh={refresh} onRefresh={bump} />}
-      {tab === "sales"      && <SalesTab refresh={refresh} onRefresh={bump} />}
-      {tab === "buyers"     && <BuyersTab refresh={refresh} onRefresh={bump} />}
-      {tab === "sellers"    && <SellersTab refresh={refresh} onRefresh={bump} />}
+      <Suspense fallback={<TabFallback />}>
+        {tab === "properties" && <PropertiesTab onView={() => {}} refresh={refresh} onRefresh={bump} />}
+        {tab === "units"      && <UnitsTab refresh={refresh} />}
+        {tab === "lease"      && <LeaseTab refresh={refresh} onRefresh={bump} />}
+        {tab === "sales"      && <SalesTab refresh={refresh} onRefresh={bump} />}
+        {tab === "buyers"     && <BuyersTab refresh={refresh} onRefresh={bump} />}
+        {tab === "sellers"    && <SellersTab refresh={refresh} onRefresh={bump} />}
+      </Suspense>
     </div>
   );
-}
+});
+
+export default PropertyPage;

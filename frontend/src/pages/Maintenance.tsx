@@ -9,7 +9,7 @@ import { tenantApi, type Maintenance, type MaintenanceAnalytics, type UnitTenant
 import { propApi, type Property, type Unit } from "../lib/propertyApi";
 import { syncApi } from "../lib/financeApi";
 import { formatCurrency } from "../lib/currency";
-import PortalModal from "../components/Modal";
+import AppDialog from "../components/ui/AppDialog";
 import { printRecord } from "../components/actions";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
@@ -217,7 +217,7 @@ function MaintenanceFormModal({
   };
 
   return (
-    <PortalModal open title={record ? "Edit Request" : "New Maintenance Request"} onClose={onClose} size="lg">
+    <AppDialog isOpen title={record ? "Edit Request" : "New Maintenance Request"} onClose={onClose} size="lg">
       <div className="space-y-4">
         {error && (
           <div className="px-3 py-2.5 rounded-xl text-xs flex items-center gap-2"
@@ -407,7 +407,7 @@ function MaintenanceFormModal({
           </button>
         </div>
       </div>
-    </PortalModal>
+    </AppDialog>
   );
 }
 // ── Status Update Modal ───────────────────────────────────────────────────────
@@ -439,7 +439,7 @@ function StatusUpdateModal({
   };
 
   return (
-    <PortalModal open title="Update Status" onClose={onClose} size="md">
+    <AppDialog isOpen title="Update Status" onClose={onClose} size="md">
       <div className="space-y-4">
         {error && (
           <div className="px-3 py-2 rounded-xl text-xs flex items-center gap-2"
@@ -512,7 +512,7 @@ function StatusUpdateModal({
           </button>
         </div>
       </div>
-    </PortalModal>
+    </AppDialog>
   );
 }
 
@@ -994,7 +994,7 @@ export default function MaintenancePage() {
         ]}
         activeTab={tab}
         onChange={(v) => setTab(v as Tab)}
-        moduleColor={MODULE_COLORS.maintenance}
+        moduleColor={MODULE_COLORS.maintenance.primary}
       />
 
       {tab === "requests"  && <RequestsTab onSelect={setSelected} />}

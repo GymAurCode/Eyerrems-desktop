@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo, useMemo, useCallback, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText } from "lucide-react";
 import ReportModal from "../components/reports/ReportModal";
@@ -9,7 +9,6 @@ import ClientFormDialog from "../components/crm/ClientFormDialog";
 import DealerForm from "../components/crm/DealerForm";
 import DealForm from "../components/crm/DealForm";
 import LeadFormDialog from "../components/crm/LeadFormDialog";
-import Modal from "../components/Modal";
 import { FormField } from "../components/crm/FormField";
 import BookingList from "./crm/bookings/BookingList";
 import CRMDashboard from "./crm/CRMDashboard";
@@ -51,7 +50,229 @@ function Badge({ status }: { status: string }) {
   );
 }
 
-export default function CRMPage() {
+const MemoCRMDashboard = memo(CRMDashboard);
+const MemoBookingList = memo(BookingList);
+const MemoFollowUps = memo(FollowUps);
+const MemoSiteVisits = memo(SiteVisits);
+const MemoPayments = memo(Payments);
+
+interface LeadsTabProps {
+  leads: Lead[];
+  leadsLoading: boolean;
+  leadsErr: string | null;
+  leadsTotal: number;
+  leadsParams: typeof defaultParams;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onPageChange: (config: any) => void;
+  onFilterChange: (filters: any) => void;
+}
+
+const LeadsTab = memo(function LeadsTab({ leads, leadsLoading, leadsErr, leadsTotal, leadsParams, navigate, onRefresh, onPageChange, onFilterChange }: LeadsTabProps) {
+  const leadColumns = useMemo(() => [
+    { key: "lead_id", label: "Lead ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+    { key: "phone", label: "Phone", sortable: true },
+    { key: "source", label: "Source", sortable: true },
+    { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
+  ], []);
+
+  const leadActions = useMemo(() => [
+    { key: "view", label: "View", icon: Eye, onClick: (row: Lead) => navigate(`/crm/leads/${row.lead_id}`) },
+    { key: "print", label: "Print", icon: Printer, onClick: (row: Lead) => printRecord(`Lead ${row.lead_id}`, [
+      { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
+    ]) }
+  ], [navigate]);
+
+  return (
+    <AppTable
+      storageKey="rems_crm_leads_table"
+      title="Leads"
+      subtitle="Track and manage prospective customer leads"
+      data={leads}
+      columns={leadColumns}
+      rowActions={leadActions}
+      loading={leadsLoading}
+      error={leadsErr}
+      onRetry={onRefresh}
+      pagination={{ page: leadsParams.page, pageSize: leadsParams.pageSize, total: leadsTotal }}
+      onPageChange={onPageChange}
+      onFilterChange={onFilterChange}
+      showTypeFilter={false}
+      showStatusFilter={false}
+    />
+  );
+});
+
+interface ClientsTabProps {
+  clients: Client[];
+  clientsLoading: boolean;
+  clientsErr: string | null;
+  clientsTotal: number;
+  clientsParams: typeof defaultParams;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onPageChange: (config: any) => void;
+  onFilterChange: (filters: any) => void;
+  onReport: (report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => void;
+}
+
+const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsErr, clientsTotal, clientsParams, navigate, onRefresh, onPageChange, onFilterChange, onReport }: ClientsTabProps) {
+  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const firstDayOfYear = useMemo(() => new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0], []);
+
+  const clientColumns = useMemo(() => [
+    { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
+    { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
+    { key: "phone", label: "Phone", sortable: true },
+    { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
+  ], []);
+
+  const clientActions = useMemo(() => [
+    { key: "view", label: "View", icon: Eye, onClick: (row: Client) => navigate(`/crm/clients/${row.client_id}`) },
+    { key: "print", label: "Print", icon: Printer, onClick: (row: Client) => printRecord(`Client ${row.client_id}`, [
+      { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
+    ]) },
+    { key: "customer_profile", label: "Customer Profile", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "customer_profile", filters: { client_id: row.id }, title: "Customer Profile" }), variant: "secondary" },
+    { key: "customer_ledger", label: "Customer Ledger", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "customer_ledger", filters: { client_id: row.id, date_from: firstDayOfYear, date_to: today }, title: "Customer Ledger" }), variant: "secondary" },
+    { key: "outstanding_payments", label: "Outstanding Payments", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "outstanding_payments", filters: { client_id: row.id }, title: "Outstanding Payments" }), variant: "secondary" },
+  ], [today, firstDayOfYear, navigate, onReport]);
+
+  return (
+    <AppTable
+      storageKey="rems_crm_clients_table"
+      title="Clients"
+      subtitle="View and manage converted leads and clients"
+      data={clients}
+      columns={clientColumns}
+      rowActions={clientActions}
+      loading={clientsLoading}
+      error={clientsErr}
+      onRetry={onRefresh}
+      pagination={{ page: clientsParams.page, pageSize: clientsParams.pageSize, total: clientsTotal }}
+      onPageChange={onPageChange}
+      onFilterChange={onFilterChange}
+      showTypeFilter={false}
+      showStatusFilter={false}
+    />
+  );
+});
+
+interface DealersTabProps {
+  dealers: Dealer[];
+  dealersLoading: boolean;
+  dealersErr: string | null;
+  dealersTotal: number;
+  dealersParams: typeof defaultParams;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onPageChange: (config: any) => void;
+  onFilterChange: (filters: any) => void;
+  onEdit: (dealer: Dealer) => void;
+}
+
+const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersErr, dealersTotal, dealersParams, navigate, onRefresh, onPageChange, onFilterChange, onEdit }: DealersTabProps) {
+  const dealerColumns = useMemo(() => [
+    { key: "dealer_id", label: "Dealer ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    { key: "name", label: "Name", sortable: true, className: "font-medium" },
+    { key: "phone", label: "Phone", sortable: true },
+    { key: "company", label: "Company", sortable: true },
+    { key: "commission_rate", label: "Commission", render: (val: any, row: Dealer) => row.commission_rate ? `${row.commission_rate}${row.commission_type === "percentage" ? "%" : " (fixed)"}` : "—" }
+  ], []);
+
+  const dealerActions = useMemo(() => [
+    { key: "view", label: "View", icon: Eye, onClick: (row: Dealer) => navigate(`/crm/dealers/${row.id}`) },
+    { key: "edit", label: "Edit", icon: Edit2, onClick: (row: Dealer) => onEdit(row), permission: "crm:manage" },
+    { key: "print", label: "Print", icon: Printer, onClick: (row: Dealer) => printRecord(`Dealer ${row.dealer_id}`, [
+      { label: "Name", value: row.name }, { label: "Company", value: row.company ?? "—" },
+    ]) }
+  ], [navigate, onEdit]);
+
+  return (
+    <AppTable
+      storageKey="rems_crm_dealers_table"
+      title="Dealers"
+      subtitle="Manage agent/dealer partnerships and commission structures"
+      data={dealers}
+      columns={dealerColumns}
+      rowActions={dealerActions}
+      loading={dealersLoading}
+      error={dealersErr}
+      onRetry={onRefresh}
+      pagination={{ page: dealersParams.page, pageSize: dealersParams.pageSize, total: dealersTotal }}
+      onPageChange={onPageChange}
+      onFilterChange={onFilterChange}
+      showTypeFilter={false}
+      showStatusFilter={false}
+    />
+  );
+});
+
+interface DealsTabProps {
+  deals: Deal[];
+  dealsLoading: boolean;
+  dealsErr: string | null;
+  dealsTotal: number;
+  dealsParams: typeof defaultParams;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onPageChange: (config: any) => void;
+  onFilterChange: (filters: any) => void;
+  onReport: (report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => void;
+}
+
+const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTotal, dealsParams, navigate, onRefresh, onPageChange, onFilterChange, onReport }: DealsTabProps) {
+  const dealColumns = useMemo(() => [
+    { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
+    { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
+    { key: "deal_title", label: "Title", sortable: true },
+    { key: "client_name", label: "Client", sortable: true },
+    { key: "deal_value", label: "Value", sortable: true, className: "font-medium text-primary", render: (val: number) => Number(val).toLocaleString() },
+    { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
+  ], []);
+
+  const dealActions = useMemo(() => [
+    { key: "view", label: "View", icon: Eye, onClick: (row: Deal) => navigate(`/crm/deals/${row.deal_id}`) },
+    { key: "print", label: "Print", icon: Printer, onClick: (row: Deal) => printRecord(`Deal ${row.deal_id}`, [
+      { label: "Title", value: row.deal_title ?? "—" }, { label: "Client", value: row.client_name ?? "—" }, { label: "Value", value: String(row.deal_value) }, { label: "Status", value: row.status },
+    ]) },
+    { key: "deal_summary", label: "Deal Summary", icon: FileText, onClick: (row: Deal) => onReport({ open: true, reportType: "deal_report", filters: { deal_id: row.id }, title: "Deal Summary Report" }) },
+    { key: "booking_form", label: "Booking Form", icon: FileText, onClick: (row: Deal) => onReport({ open: true, reportType: "booking_form", filters: { deal_id: row.id }, title: "Booking Form" }), variant: "secondary" },
+  ], [navigate, onReport]);
+
+  return (
+    <AppTable
+      storageKey="rems_crm_deals_table"
+      title="Deals"
+      subtitle="Track client transactions, bookings, and pipeline progress"
+      data={deals}
+      columns={dealColumns}
+      rowActions={dealActions}
+      loading={dealsLoading}
+      error={dealsErr}
+      onRetry={onRefresh}
+      pagination={{ page: dealsParams.page, pageSize: dealsParams.pageSize, total: dealsTotal }}
+      onPageChange={onPageChange}
+      onFilterChange={onFilterChange}
+      showTypeFilter={false}
+      showStatusFilter={false}
+    />
+  );
+});
+
+const defaultParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  filter: "",
+  startDate: "",
+  endDate: "",
+  propertyType: "",
+  status: "",
+};
+
+const MemoCRMPage = memo(function CRMPage() {
   const navigate = useNavigate();
   const { options: LEAD_STATUS_OPTS } = useLookup('lead_status');
   const [tab, setTab] = useState(0);
@@ -60,52 +281,21 @@ export default function CRMPage() {
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [deals, setDeals]     = useState<Deal[]>([]);
 
-  // Leads pagination & query state
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadsErr, setLeadsErr] = useState<string | null>(null);
-  const [leadsParams, setLeadsParams] = useState({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    filter: "",
-    startDate: "",
-    endDate: "",
-    propertyType: "",
-    status: "",
-  });
+  const [leadsParams, setLeadsParams] = useState(defaultParams);
 
-  // Clients pagination & query state
   const [clientsTotal, setClientsTotal] = useState(0);
   const [clientsLoading, setClientsLoading] = useState(false);
   const [clientsErr, setClientsErr] = useState<string | null>(null);
-  const [clientsParams, setClientsParams] = useState({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    filter: "",
-    startDate: "",
-    endDate: "",
-    propertyType: "",
-    status: "",
-  });
+  const [clientsParams, setClientsParams] = useState(defaultParams);
 
-  // Dealers pagination & query state
   const [dealersTotal, setDealersTotal] = useState(0);
   const [dealersLoading, setDealersLoading] = useState(false);
   const [dealersErr, setDealersErr] = useState<string | null>(null);
-  const [dealersParams, setDealersParams] = useState({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    filter: "",
-    startDate: "",
-    endDate: "",
-    propertyType: "",
-    status: "",
-  });
+  const [dealersParams, setDealersParams] = useState(defaultParams);
 
-  // Report modal state
   const [reportModal, setReportModal] = useState<{
     open: boolean;
     reportType: string;
@@ -113,23 +303,10 @@ export default function CRMPage() {
     title?: string;
   }>({ open: false, reportType: "", filters: {} });
 
-  const today = new Date().toISOString().split("T")[0];
-  const firstDayOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
-
-  // Deals pagination & query state
   const [dealsTotal, setDealsTotal] = useState(0);
   const [dealsLoading, setDealsLoading] = useState(false);
   const [dealsErr, setDealsErr] = useState<string | null>(null);
-  const [dealsParams, setDealsParams] = useState({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    filter: "",
-    startDate: "",
-    endDate: "",
-    propertyType: "",
-    status: "",
-  });
+  const [dealsParams, setDealsParams] = useState(defaultParams);
 
   // Modals
   const [leadModal, setLeadModal]     = useState(false);
@@ -138,12 +315,10 @@ export default function CRMPage() {
   const [dealModal, setDealModal]     = useState(false);
   const [editDealer, setEditDealer]   = useState<Dealer | null>(null);
 
-  // Lead form state (managed inside LeadFormDialog)
-
   // Search
   const [searchQ, setSearchQ] = useState("");
 
-  const fetchLeads = async (params: typeof leadsParams) => {
+  const fetchLeads = useCallback(async (params: typeof defaultParams) => {
     setLeadsLoading(true);
     setLeadsErr(null);
     try {
@@ -159,18 +334,17 @@ export default function CRMPage() {
       setLeads(res.data.items || []);
       setLeadsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
-      console.error(e);
       setLeadsErr(e.message || "Failed to load leads");
     } finally {
       setLeadsLoading(false);
     }
-  };
+  }, []);
 
-  const refreshLeads = () => {
+  const refreshLeads = useCallback(() => {
     void fetchLeads(leadsParams);
-  };
+  }, [fetchLeads, leadsParams]);
 
-  const fetchClients = async (params: typeof clientsParams) => {
+  const fetchClients = useCallback(async (params: typeof defaultParams) => {
     setClientsLoading(true);
     setClientsErr(null);
     try {
@@ -186,18 +360,17 @@ export default function CRMPage() {
       setClients(res.data.items || []);
       setClientsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
-      console.error(e);
       setClientsErr(e.message || "Failed to load clients");
     } finally {
       setClientsLoading(false);
     }
-  };
+  }, []);
 
-  const refreshClients = () => {
+  const refreshClients = useCallback(() => {
     void fetchClients(clientsParams);
-  };
+  }, [fetchClients, clientsParams]);
 
-  const fetchDealers = async (params: typeof dealersParams) => {
+  const fetchDealers = useCallback(async (params: typeof defaultParams) => {
     setDealersLoading(true);
     setDealersErr(null);
     try {
@@ -213,18 +386,17 @@ export default function CRMPage() {
       setDealers(res.data.items || []);
       setDealersTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
-      console.error(e);
       setDealersErr(e.message || "Failed to load dealers");
     } finally {
       setDealersLoading(false);
     }
-  };
+  }, []);
 
-  const refreshDealers = () => {
+  const refreshDealers = useCallback(() => {
     void fetchDealers(dealersParams);
-  };
+  }, [fetchDealers, dealersParams]);
 
-  const fetchDeals = async (params: typeof dealsParams) => {
+  const fetchDeals = useCallback(async (params: typeof defaultParams) => {
     setDealsLoading(true);
     setDealsErr(null);
     try {
@@ -240,34 +412,33 @@ export default function CRMPage() {
       setDeals(res.data.items || []);
       setDealsTotal(Number(res.data.total ?? 0));
     } catch (e: any) {
-      console.error(e);
       setDealsErr(e.message || "Failed to load deals");
     } finally {
       setDealsLoading(false);
     }
-  };
+  }, []);
 
-  const refreshDeals = () => {
+  const refreshDeals = useCallback(() => {
     void fetchDeals(dealsParams);
-  };
+  }, [fetchDeals, dealsParams]);
 
   useEffect(() => {
     void fetchLeads(leadsParams);
-  }, [leadsParams]);
+  }, [fetchLeads, leadsParams]);
 
   useEffect(() => {
     void fetchClients(clientsParams);
-  }, [clientsParams]);
+  }, [fetchClients, clientsParams]);
 
   useEffect(() => {
     void fetchDealers(dealersParams);
-  }, [dealersParams]);
+  }, [fetchDealers, dealersParams]);
 
   useEffect(() => {
     void fetchDeals(dealsParams);
-  }, [dealsParams]);
+  }, [fetchDeals, dealsParams]);
 
-  const doSearch = async () => {
+  const doSearch = useCallback(async () => {
     if (!searchQ.trim()) return;
     try {
       const res = await crmApi.search(searchQ.trim());
@@ -275,7 +446,20 @@ export default function CRMPage() {
     } catch {
       alert("No results found for: " + searchQ);
     }
-  };
+  }, [searchQ, navigate]);
+
+  const onLeadsPageChange = useCallback((config: any) => setLeadsParams((prev) => ({ ...prev, ...config })), []);
+  const onLeadsFilterChange = useCallback((filters: any) => setLeadsParams((prev) => ({ ...prev, ...filters })), []);
+  const onClientsPageChange = useCallback((config: any) => setClientsParams((prev) => ({ ...prev, ...config })), []);
+  const onClientsFilterChange = useCallback((filters: any) => setClientsParams((prev) => ({ ...prev, ...filters })), []);
+  const onDealersPageChange = useCallback((config: any) => setDealersParams((prev) => ({ ...prev, ...config })), []);
+  const onDealersFilterChange = useCallback((filters: any) => setDealersParams((prev) => ({ ...prev, ...filters })), []);
+  const onDealsPageChange = useCallback((config: any) => setDealsParams((prev) => ({ ...prev, ...config })), []);
+  const onDealsFilterChange = useCallback((filters: any) => setDealsParams((prev) => ({ ...prev, ...filters })), []);
+
+  const handleSetReportModal = useCallback((report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => {
+    setReportModal(report);
+  }, []);
 
   return (
     <div className="p-6 space-y-5 animate-slide-up">
@@ -301,9 +485,8 @@ export default function CRMPage() {
             else if (tab === 2) setClientModal(true);
             else if (tab === 3) setDealerModal(true);
             else if (tab === 4) setDealModal(true);
-            // tab 5 (Bookings) — BookingList manages its own "New Booking" button
           }} className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
-            <Plus size={15} /> {tab === 5 ? "New Booking" : "New"}
+            <Plus size={15} /> New
           </button>
         </div>
       </div>
@@ -313,308 +496,71 @@ export default function CRMPage() {
         tabs={TABS}
         activeTab={TABS[tab]}
         onChange={(v) => setTab(TABS.indexOf(v))}
-        moduleColor={MODULE_COLORS.crm}
+        moduleColor={MODULE_COLORS.crm.primary}
       />
 
-      {/* Tab content */}
-      {tab === 0 && <CRMDashboard />}
-
-      {tab === 1 && (() => {
-        const leadColumns = [
-          { key: "lead_id", label: "Lead ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
-          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
-          { key: "phone", label: "Phone", sortable: true },
-          { key: "source", label: "Source", sortable: true },
-          {
-            key: "status",
-            label: "Status",
-            render: (val: string) => <Badge status={val} />
-          }
-        ];
-
-        const leadActions = [
-          {
-            key: "view",
-            label: "View",
-            icon: Eye,
-            onClick: (row: Lead) => navigate(`/crm/leads/${row.lead_id}`),
-          },
-          {
-            key: "print",
-            label: "Print",
-            icon: Printer,
-            onClick: (row: Lead) => printRecord(`Lead ${row.lead_id}`, [
-              { label: "Name", value: row.name },
-              { label: "Phone", value: row.phone ?? "—" },
-              { label: "Status", value: row.status },
-            ]),
-          }
-        ];
-
-        return (
-          <AppTable
-            storageKey="rems_crm_leads_table"
-            title="Leads"
-            subtitle="Track and manage prospective customer leads"
-            data={leads}
-            columns={leadColumns}
-            rowActions={leadActions}
-            loading={leadsLoading}
-            error={leadsErr}
-            onRetry={refreshLeads}
-            pagination={{
-              page: leadsParams.page,
-              pageSize: leadsParams.pageSize,
-              total: leadsTotal,
-            }}
-            onPageChange={(config) => setLeadsParams((prev) => ({ ...prev, ...config }))}
-            onFilterChange={(filters) => setLeadsParams((prev) => ({ ...prev, ...filters }))}
-            showTypeFilter={false}
-            showStatusFilter={false}
-          />
-        );
-      })()}
-
-      {tab === 2 && (() => {
-        const clientColumns = [
-          { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
-          { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
-          { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
-          { key: "phone", label: "Phone", sortable: true },
-          {
-            key: "status",
-            label: "Status",
-            render: (val: string) => <Badge status={val} />
-          }
-        ];
-
-        const clientActions = [
-          {
-            key: "view",
-            label: "View",
-            icon: Eye,
-            onClick: (row: Client) => navigate(`/crm/clients/${row.client_id}`),
-          },
-          {
-            key: "print",
-            label: "Print",
-            icon: Printer,
-            onClick: (row: Client) => printRecord(`Client ${row.client_id}`, [
-              { label: "Name", value: row.name },
-              { label: "Phone", value: row.phone ?? "—" },
-              { label: "Status", value: row.status },
-            ]),
-          },
-          {
-            key: "customer_profile",
-            label: "Customer Profile",
-            icon: FileText,
-            onClick: (row: Client) => setReportModal({ open: true, reportType: "customer_profile", filters: { client_id: row.id }, title: "Customer Profile" }),
-            variant: "secondary",
-          },
-          {
-            key: "customer_ledger",
-            label: "Customer Ledger",
-            icon: FileText,
-            onClick: (row: Client) => setReportModal({ open: true, reportType: "customer_ledger", filters: { client_id: row.id, date_from: firstDayOfYear, date_to: today }, title: "Customer Ledger" }),
-            variant: "secondary",
-          },
-          {
-            key: "outstanding_payments",
-            label: "Outstanding Payments",
-            icon: FileText,
-            onClick: (row: Client) => setReportModal({ open: true, reportType: "outstanding_payments", filters: { client_id: row.id }, title: "Outstanding Payments" }),
-            variant: "secondary",
-          },
-        ];
-
-        return (
-          <AppTable
-            storageKey="rems_crm_clients_table"
-            title="Clients"
-            subtitle="View and manage converted leads and clients"
-            data={clients}
-            columns={clientColumns}
-            rowActions={clientActions}
-            loading={clientsLoading}
-            error={clientsErr}
-            onRetry={refreshClients}
-            pagination={{
-              page: clientsParams.page,
-              pageSize: clientsParams.pageSize,
-              total: clientsTotal,
-            }}
-            onPageChange={(config) => setClientsParams((prev) => ({ ...prev, ...config }))}
-            onFilterChange={(filters) => setClientsParams((prev) => ({ ...prev, ...filters }))}
-            showTypeFilter={false}
-            showStatusFilter={false}
-          />
-        );
-      })()}
-
-      {tab === 3 && (() => {
-        const dealerColumns = [
-          { key: "dealer_id", label: "Dealer ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
-          {
-            key: "name", label: "Name", sortable: true, className: "font-medium",
-            render: (val: string, row: Dealer) => (
-              <span
-                className="cursor-pointer hover:underline"
-                style={{ color: "#60a5fa" }}
-                onClick={(e) => { e.stopPropagation(); navigate(`/crm/dealers/${row.id}`); }}
-              >
-                {val}
-              </span>
-            ),
-          },
-          { key: "phone", label: "Phone", sortable: true },
-          { key: "company", label: "Company", sortable: true },
-          {
-            key: "commission_rate",
-            label: "Commission",
-            render: (val: any, row: Dealer) => row.commission_rate
-              ? `${row.commission_rate}${row.commission_type === "percentage" ? "%" : " (fixed)"}`
-              : "—"
-          }
-        ];
-
-        const dealerActions = [
-          {
-            key: "view",
-            label: "View",
-            icon: Eye,
-            onClick: (row: Dealer) => navigate(`/crm/dealers/${row.id}`),
-          },
-          {
-            key: "edit",
-            label: "Edit",
-            icon: Edit2,
-            onClick: (row: Dealer) => setEditDealer(row),
-            permission: "crm:manage"
-          },
-          {
-            key: "print",
-            label: "Print",
-            icon: Printer,
-            onClick: (row: Dealer) => printRecord(`Dealer ${row.dealer_id}`, [
-              { label: "Name", value: row.name },
-              { label: "Company", value: row.company ?? "—" },
-            ]),
-          }
-        ];
-
-        return (
-          <AppTable
-            storageKey="rems_crm_dealers_table"
-            title="Dealers"
-            subtitle="Manage agent/dealer partnerships and commission structures"
-            data={dealers}
-            columns={dealerColumns}
-            rowActions={dealerActions}
-            loading={dealersLoading}
-            error={dealersErr}
-            onRetry={refreshDealers}
-            pagination={{
-              page: dealersParams.page,
-              pageSize: dealersParams.pageSize,
-              total: dealersTotal,
-            }}
-            onPageChange={(config) => setDealersParams((prev) => ({ ...prev, ...config }))}
-            onFilterChange={(filters) => setDealersParams((prev) => ({ ...prev, ...filters }))}
-            showTypeFilter={false}
-            showStatusFilter={false}
-          />
-        );
-      })()}
-
-      {tab === 4 && (() => {
-        const dealColumns = [
-          { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
-          { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
-          { key: "deal_title", label: "Title", sortable: true },
-          { key: "client_name", label: "Client", sortable: true },
-          {
-            key: "deal_value",
-            label: "Value",
-            sortable: true,
-            className: "font-medium text-primary",
-            render: (val: number) => Number(val).toLocaleString()
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (val: string) => <Badge status={val} />
-          }
-        ];
-
-        const dealActions = [
-          {
-            key: "view",
-            label: "View",
-            icon: Eye,
-            onClick: (row: Deal) => navigate(`/crm/deals/${row.deal_id}`),
-          },
-          {
-            key: "print",
-            label: "Print",
-            icon: Printer,
-            onClick: (row: Deal) => printRecord(`Deal ${row.deal_id}`, [
-              { label: "Title", value: row.deal_title ?? "—" },
-              { label: "Client", value: row.client_name ?? "—" },
-              { label: "Value", value: String(row.deal_value) },
-              { label: "Status", value: row.status },
-            ]),
-          },
-          {
-            key: "deal_summary",
-            label: "Deal Summary",
-            icon: FileText,
-            onClick: (row: Deal) => setReportModal({ open: true, reportType: "deal_report", filters: { deal_id: row.id }, title: "Deal Summary Report" }),
-          },
-          {
-            key: "booking_form",
-            label: "Booking Form",
-            icon: FileText,
-            onClick: (row: Deal) => setReportModal({ open: true, reportType: "booking_form", filters: { deal_id: row.id }, title: "Booking Form" }),
-            variant: "secondary",
-          },
-        ];
-
-        return (
-          <AppTable
-            storageKey="rems_crm_deals_table"
-            title="Deals"
-            subtitle="Track client transactions, bookings, and pipeline progress"
-            data={deals}
-            columns={dealColumns}
-            rowActions={dealActions}
-            loading={dealsLoading}
-            error={dealsErr}
-            onRetry={refreshDeals}
-            pagination={{
-              page: dealsParams.page,
-              pageSize: dealsParams.pageSize,
-              total: dealsTotal,
-            }}
-            onPageChange={(config) => setDealsParams((prev) => ({ ...prev, ...config }))}
-            onFilterChange={(filters) => setDealsParams((prev) => ({ ...prev, ...filters }))}
-            showTypeFilter={false}
-            showStatusFilter={false}
-          />
-        );
-      })()}
-
-      {tab === 5 && (
-        <BookingList />
+      {tab === 0 && <MemoCRMDashboard />}
+      {tab === 1 && (
+        <LeadsTab
+          leads={leads}
+          leadsLoading={leadsLoading}
+          leadsErr={leadsErr}
+          leadsTotal={leadsTotal}
+          leadsParams={leadsParams}
+          navigate={navigate}
+          onRefresh={refreshLeads}
+          onPageChange={onLeadsPageChange}
+          onFilterChange={onLeadsFilterChange}
+        />
       )}
+      {tab === 2 && (
+        <ClientsTab
+          clients={clients}
+          clientsLoading={clientsLoading}
+          clientsErr={clientsErr}
+          clientsTotal={clientsTotal}
+          clientsParams={clientsParams}
+          navigate={navigate}
+          onRefresh={refreshClients}
+          onPageChange={onClientsPageChange}
+          onFilterChange={onClientsFilterChange}
+          onReport={handleSetReportModal}
+        />
+      )}
+      {tab === 3 && (
+        <DealersTab
+          dealers={dealers}
+          dealersLoading={dealersLoading}
+          dealersErr={dealersErr}
+          dealersTotal={dealersTotal}
+          dealersParams={dealersParams}
+          navigate={navigate}
+          onRefresh={refreshDealers}
+          onPageChange={onDealersPageChange}
+          onFilterChange={onDealersFilterChange}
+          onEdit={setEditDealer}
+        />
+      )}
+      {tab === 4 && (
+        <DealsTab
+          deals={deals}
+          dealsLoading={dealsLoading}
+          dealsErr={dealsErr}
+          dealsTotal={dealsTotal}
+          dealsParams={dealsParams}
+          navigate={navigate}
+          onRefresh={refreshDeals}
+          onPageChange={onDealsPageChange}
+          onFilterChange={onDealsFilterChange}
+          onReport={handleSetReportModal}
+        />
+      )}
+      {tab === 5 && <MemoBookingList />}
+      {tab === 6 && <MemoFollowUps />}
+      {tab === 7 && <MemoSiteVisits />}
+      {tab === 8 && <MemoPayments />}
 
-      {tab === 6 && <FollowUps />}
-
-      {tab === 7 && <SiteVisits />}
-
-      {tab === 8 && <Payments />}
-
-      {/* Lead Modal */}
+      {/* Modals */}
       <LeadFormDialog
         open={leadModal}
         onClose={() => setLeadModal(false)}
@@ -624,37 +570,27 @@ export default function CRMPage() {
           setLeadsTotal((t) => t + 1);
         }}
       />
-
-      {/* Client Modal */}
       <ClientFormDialog
         open={clientModal}
         onClose={() => setClientModal(false)}
         onSaved={() => { setClientModal(false); refreshClients(); }}
       />
-
-      {/* Dealer Modal (new) */}
       <DealerForm
         open={dealerModal}
         onClose={() => setDealerModal(false)}
         onSaved={() => { setDealerModal(false); refreshDealers(); }}
       />
-
-      {/* Dealer Edit Modal */}
       <DealerForm
         open={!!editDealer}
         onClose={() => setEditDealer(null)}
         initial={editDealer}
         onSaved={() => { setEditDealer(null); refreshDealers(); }}
       />
-
-      {/* Deal Modal */}
       <DealForm
         open={dealModal}
         onClose={() => setDealModal(false)}
         onSaved={() => { setDealModal(false); refreshDeals(); }}
       />
-
-      {/* Report Modal */}
       <ReportModal
         open={reportModal.open}
         onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
@@ -664,7 +600,9 @@ export default function CRMPage() {
       />
     </div>
   );
-}
+});
+
+export default MemoCRMPage;
 
 // ── Table helpers ─────────────────────────────────────────────────────────────
 

@@ -558,6 +558,40 @@ ipcMain.on("log:renderer", (event, level, message, details) => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// PRODUCTION HARDENING
+// ══════════════════════════════════════════════════════════════════════════════
+
+if (app.isPackaged) {
+  // Prevent the crash dialog (bug icon) when a renderer process crashes
+  app.on("render-process-gone", (event, webContents, details) => {
+    console.error("[main] Render process gone:", details);
+    event.preventDefault();
+  });
+
+  // Handle uncaught exceptions silently
+  process.on("uncaughtException", (error) => {
+    console.error("[main] Uncaught exception:", error);
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("[main] Unhandled rejection:", reason);
+  });
+
+  // Block DevTools keyboard shortcuts in production
+  app.on("web-contents-created", (_event, contents) => {
+    contents.on("before-input-event", (_event, input) => {
+      if (
+        input.type === "keyDown" &&
+        (input.key === "F12" ||
+          (input.control && input.shift && input.key.toLowerCase() === "i") ||
+          (input.control && input.shift && input.key.toLowerCase() === "j"))
+      ) {
+        _event.preventDefault();
+      }
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // APP LIFECYCLE
 // ══════════════════════════════════════════════════════════════════════════════
 

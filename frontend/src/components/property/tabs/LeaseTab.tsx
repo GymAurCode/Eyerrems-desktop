@@ -3,7 +3,7 @@ import {
   Plus, Printer, Eye, Edit2, Trash2, Calendar, X, ChevronDown, ChevronRight,
   Download, FileText, RotateCcw,
 } from "lucide-react";
-import Modal from "../../Modal";
+import AppDialog from "../../ui/AppDialog";
 import ReportModal from "../../reports/ReportModal";
 import { propApi, Lease, LeaseDetail, LeasePayment } from "../../../lib/propertyApi";
 import { syncApi } from "../../../lib/financeApi";
@@ -381,7 +381,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1b — LEASE DETAIL MODAL                                   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Lease Details" size="2xl">
+      <AppDialog isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="Lease Details" size="2xl">
         {detailLease ? (
           <div className="space-y-4">
             {/* Tabs */}
@@ -535,12 +535,12 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
         ) : (
           <div className="flex items-center justify-center py-8"><div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>
         )}
-      </Modal>
+      </AppDialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 2b — RENEW LEASE MODAL                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Modal open={renewOpen} onClose={() => setRenewOpen(false)} title="Renew Lease">
+      <AppDialog isOpen={renewOpen} onClose={() => setRenewOpen(false)} title="Renew Lease">
         <div className="space-y-4">
           <div>
             <label className="block text-xs text-muted mb-1">New Start Date *</label>
@@ -568,12 +568,12 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
             Renew Lease
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 3b — RECORD PAYMENT MODAL                                 */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Record Payment">
+      <AppDialog isOpen={payOpen} onClose={() => setPayOpen(false)} title="Record Payment">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -608,12 +608,12 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
             Record Payment
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 4b — TERMINATE LEASE MODAL                                */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Modal open={termOpen} onClose={() => setTermOpen(false)} title="Terminate Lease">
+      <AppDialog isOpen={termOpen} onClose={() => setTermOpen(false)} title="Terminate Lease">
         <div className="space-y-4">
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
             This will mark the lease as terminated and make the unit available.
@@ -644,7 +644,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
             Terminate Lease
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* Report Modal */}
       <ReportModal

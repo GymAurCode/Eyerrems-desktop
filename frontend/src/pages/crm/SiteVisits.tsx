@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, MapPin, Building2, MessageSquareText } from "lucide-react";
 import DataTable from '../../components/data-table/DataTable';
 import { crmApi, SiteVisit } from "../../lib/crmApi";
-import Modal from "../../components/Modal";
+import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
@@ -166,7 +166,7 @@ export default function SiteVisits() {
       />
 
       {/* ── Create Modal ── */}
-      <Modal open={modal} onClose={() => setModal(false)} title="New Site Visit">
+      <AppDialog isOpen={modal} onClose={() => setModal(false)} title="New Site Visit">
         <div className="space-y-4">
           {err && <p className="text-xs text-red-400">{err}</p>}
           <FormField label="Lead" required>
@@ -202,11 +202,11 @@ export default function SiteVisits() {
           </FormField>
           <button onClick={create} disabled={saving} className="btn-primary w-full py-3 text-sm">{saving ? "Saving..." : "Create Site Visit"}</button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── Complete with Feedback Modal ── */}
-      <Modal
-        open={completingId !== null}
+      <AppDialog
+        isOpen={completingId !== null}
         onClose={() => { setCompletingId(null); setFeedbackText(""); }}
         title={`Complete Visit — ${completingRef}`}
       >
@@ -241,11 +241,11 @@ export default function SiteVisits() {
             </button>
           </div>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* ── View Feedback Modal ── */}
-      <Modal
-        open={viewingFeedback !== null}
+      <AppDialog
+        isOpen={viewingFeedback !== null}
         onClose={() => setViewingFeedback(null)}
         title={`Feedback — ${viewingFeedback?.ref ?? ""}`}
       >
@@ -255,7 +255,7 @@ export default function SiteVisits() {
         >
           {viewingFeedback?.text ?? "No feedback recorded."}
         </div>
-      </Modal>
+      </AppDialog>
     </div>
   );
 }

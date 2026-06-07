@@ -10,9 +10,10 @@ SEED_DATA = [
     ("property_type", "Land", "land", 6),
 
     ("property_status", "Available", "available", 1, True),
-    ("property_status", "Occupied", "occupied", 2),
-    ("property_status", "Under Maintenance", "under_maintenance", 3),
-    ("property_status", "Reserved", "reserved", 4),
+    ("property_status", "Sold", "sold", 2),
+    ("property_status", "Reserved", "reserved", 3),
+    ("property_status", "On Hold", "on_hold", 4),
+    ("property_status", "Under Contract", "under_contract", 5),
 
     ("unit_type", "Studio", "studio", 1),
     ("unit_type", "1 Bedroom", "1_bedroom", 2),
@@ -61,11 +62,6 @@ SEED_DATA = [
     ("lease_status", "Terminated", "terminated", 3),
     ("lease_status", "Pending", "pending", 4),
 
-    ("payment_method", "Cash", "cash", 1),
-    ("payment_method", "Bank Transfer", "bank_transfer", 2),
-    ("payment_method", "Cheque", "cheque", 3),
-    ("payment_method", "Online", "online", 4),
-
     # ── CRM Module ──
     ("lead_status", "New", "new", 1, True),
     ("lead_status", "Contacted", "contacted", 2),
@@ -88,7 +84,9 @@ SEED_DATA = [
     # ── Client / Dealer Status ──
     ("client_status", "Active", "active", 1, True),
     ("client_status", "Inactive", "inactive", 2),
-    ("client_status", "Potential", "potential", 3),
+    ("client_status", "Lead", "lead", 3),
+    ("client_status", "Prospect", "prospect", 4),
+    ("client_status", "Closed", "closed", 5),
 
     ("dealer_status", "Active", "active", 1, True),
     ("dealer_status", "Inactive", "inactive", 2),
@@ -206,15 +204,101 @@ SEED_DATA = [
     ("payment_method", "Cheque", "cheque", 3),
     ("payment_method", "Credit Card", "credit_card", 4),
     ("payment_method", "Online", "online", 5),
+
+    # ── Installment Type (CRM / Bookings)
+    ("installment_type", "Monthly", "monthly", 1),
+    ("installment_type", "Quarterly", "quarterly", 2),
+    ("installment_type", "Semi-Annual", "semi_annual", 3),
+    ("installment_type", "Annual", "annual", 4),
+    ("installment_type", "One-Time", "one_time", 5),
+
+    # ── Listing Status (property listing visibility)
+    ("listing_status", "Active", "active", 1, True),
+    ("listing_status", "Inactive", "inactive", 2),
+    ("listing_status", "Draft", "draft", 3),
+    ("listing_status", "Archived", "archived", 4),
+    ("listing_status", "Pending Review", "pending_review", 5),
+
+    # ── Operational Status (property condition / lifecycle)
+    ("operational_status", "Active", "active", 1, True),
+    ("operational_status", "Under Construction", "under_construction", 2),
+    ("operational_status", "Under Renovation", "under_renovation", 3),
+    ("operational_status", "Completed", "completed", 4),
+    ("operational_status", "Decommissioned", "decommissioned", 5),
+
+    # ── Size Unit (property / land measurement)
+    ("size_unit", "Sq Ft", "sqft", 1, True),
+    ("size_unit", "Sq M", "sqm", 2),
+    ("size_unit", "Marla", "marla", 3),
+    ("size_unit", "Kanal", "kanal", 4),
+    ("size_unit", "Acre", "acre", 5),
+    ("size_unit", "Hectare", "hectare", 6),
+    ("size_unit", "Sq Yard", "sq_yard", 7),
+
+    # ── Owner Type (property ownership)
+    ("owner_type", "Individual", "individual", 1, True),
+    ("owner_type", "Company", "company", 2),
+    ("owner_type", "Joint Venture", "joint_venture", 3),
+    ("owner_type", "Trust", "trust", 4),
+    ("owner_type", "Government", "government", 5),
+
+    # ── Regulatory Authority (property governing body)
+    ("regulatory_authority", "RERA", "rera", 1),
+    ("regulatory_authority", "DHA", "dha", 2),
+    ("regulatory_authority", "LDA", "lda", 3),
+    ("regulatory_authority", "CDA", "cda", 4),
+    ("regulatory_authority", "MDA", "mda", 5),
+    ("regulatory_authority", "Private", "private", 6),
+    ("regulatory_authority", "Other", "other", 99),
+
+    # ── Unit Ownership (tenure type)
+    ("unit_ownership", "Freehold", "freehold", 1, True),
+    ("unit_ownership", "Leasehold", "leasehold", 2),
+    ("unit_ownership", "Co-operative", "cooperative", 3),
+    ("unit_ownership", "Time Share", "timeshare", 4),
+
+    # ── Contact Type (general purpose)
+    ("contact_type", "Buyer", "buyer", 1),
+    ("contact_type", "Seller", "seller", 2),
+    ("contact_type", "Tenant", "tenant", 3),
+    ("contact_type", "Owner", "owner", 4),
+    ("contact_type", "Agent", "agent", 5),
+    ("contact_type", "Vendor", "vendor", 6),
+    ("contact_type", "Other", "other", 99),
+
+    # ── Payment Frequency (leases / recurring billing)
+    ("payment_frequency", "Monthly", "monthly", 1, True),
+    ("payment_frequency", "Quarterly", "quarterly", 2),
+    ("payment_frequency", "Semi-Annual", "semi_annual", 3),
+    ("payment_frequency", "Annual", "annual", 4),
 ]
 
 
-def seed_lookup_values(db_session) -> int:
-    """Insert seed lookup values. Returns count of inserted rows."""
+def _get_existing_categories(db_session) -> set[str]:
+    """Return set of category names that already have at least one row."""
     from sqlalchemy import text
+    rows = db_session.execute(text("SELECT DISTINCT category FROM lookup_values")).fetchall()
+    return {r[0] for r in rows}
+
+
+def seed_lookup_values(db_session, *, missing_categories_only: bool = False) -> int:
+    """Insert seed lookup values. Returns count of inserted rows.
+
+    When *missing_categories_only* is True, only categories that have
+    zero existing rows in the target database will be seeded.  This
+    guarantees user customisations are never overwritten.
+    """
+    from sqlalchemy import text
+
+    skip_categories: set[str] | None = None
+    if missing_categories_only:
+        skip_categories = _get_existing_categories(db_session)
+
     count = 0
     for row in SEED_DATA:
         category, label, value, sort_order = row[:4]
+        if skip_categories is not None and category in skip_categories:
+            continue
         is_default = row[4] if len(row) > 4 else False
         sql = text("""
             INSERT INTO lookup_values (category, label, value, sort_order, is_default)

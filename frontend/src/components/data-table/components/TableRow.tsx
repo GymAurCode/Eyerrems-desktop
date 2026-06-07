@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { TableColumn, TableAction } from '../types';
 import { ConfirmDialog } from '../../actions';
@@ -54,7 +54,7 @@ const actionBtnHover = (color: string, bg: string): React.CSSProperties => ({
   color,
 });
 
-function ActionBtn({ icon: Icon, tooltip, color, hoverBg, onClick }: {
+const ActionBtn = memo(function ActionBtn({ icon: Icon, tooltip, color, hoverBg, onClick }: {
   icon: React.ElementType;
   tooltip: string;
   color: string;
@@ -74,14 +74,14 @@ function ActionBtn({ icon: Icon, tooltip, color, hoverBg, onClick }: {
       <Icon size={15} />
     </button>
   );
-}
+});
 
 function getRecordName<T>(row: T): string {
   const r = row as any;
   return r.name || r.title || r.label || r.code || r.reference || `#${r.id}` || 'Record';
 }
 
-export default function TableRow<T = any>({
+const TableRow = memo(function TableRow<T = any>({
   row,
   index,
   columns,
@@ -233,4 +233,6 @@ export default function TableRow<T = any>({
       )}
     </tr>
   );
-}
+});
+
+export default TableRow;

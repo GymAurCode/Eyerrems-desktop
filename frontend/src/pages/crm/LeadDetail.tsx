@@ -19,7 +19,7 @@ const STATUS_FLOW = [
   { key: "converted", label: "Converted", color: "#10b981" },
 ];
 
-const CRM_ACCENT = MODULE_COLORS.crm;
+const CRM_ACCENT = MODULE_COLORS.crm.primary;
 
 const STATUS_COLORS: Record<string, string> = {
   new: "#3b82f6", contacted: "#8b5cf6", interested: "#f59e0b",

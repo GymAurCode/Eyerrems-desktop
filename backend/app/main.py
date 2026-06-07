@@ -36,6 +36,7 @@ from app.api.routes.import_routes import router as import_router
 from app.api.routes.chat_routes import router as chat_router
 from app.api.routes.superadmin import router as superadmin_router
 from app.api.routes.attachments import router as attachments_router
+from app.routers.files import router as files_router
 from app.api.routes.lookups import router as lookups_router
 from app.api.routes.async_select import router as async_select_router
 from app.core.config import settings
@@ -127,6 +128,7 @@ app.include_router(import_router, prefix="/import", tags=["import"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(superadmin_router)
 app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
+app.include_router(files_router)
 app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
 
@@ -151,7 +153,7 @@ def on_startup():
 
     # ── Seed superadmin user in public schema ───────────────────────────────
     try:
-        sa_engine = create_engine(settings.database_url, pool_pre_ping=True)
+        sa_engine = create_engine(settings.database_url_fixed, pool_pre_ping=True)
         sa_session = sessionmaker(autocommit=False, autoflush=False, bind=sa_engine)()
         try:
             from app.core.security import hash_password
@@ -199,7 +201,7 @@ def on_startup():
                 try:
                     # Ensure all model tables exist (creates audit_logs if missing)
                     tenant_engine = create_engine(
-                        settings.database_url,
+                        settings.database_url_fixed,
                         connect_args={"options": f"-csearch_path={schema_name},public"},
                         pool_pre_ping=True,
                     )
@@ -240,7 +242,7 @@ def on_startup():
                     # Seed RBAC data if permissions table is empty
                     repair_session = sessionmaker(
                         bind=create_engine(
-                            settings.database_url,
+                            settings.database_url_fixed,
                             connect_args={"options": f"-csearch_path={schema_name},public"},
                             pool_pre_ping=True,
                         )
@@ -292,7 +294,7 @@ def on_startup():
     # ── Seed default lookup values (public schema + all company schemas) ──────
     try:
         # Seed in public schema
-        public_engine = create_engine(settings.database_url, pool_pre_ping=True)
+        public_engine = create_engine(settings.database_url_fixed, pool_pre_ping=True)
         pub_session = sessionmaker(bind=public_engine)()
         try:
             Base.metadata.create_all(bind=public_engine)

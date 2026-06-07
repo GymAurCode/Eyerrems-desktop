@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Building2, MapPin, Tag, Layers, Paperclip, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { propApi, PropertyDetail as PD, Location, Amenity, Floor, Unit } from "../../lib/propertyApi";
 import { uploadsUrl } from "../../lib/config";
-import Modal from "../Modal";
+import AppDialog from "../ui/AppDialog";
 
 type Props = { propertyId: number; onClose: () => void };
 
@@ -102,10 +102,10 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-30 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-30 bg-black/40" />
 
       {/* Add Floor Modal — outside drawer so z-50 is not clipped */}
-      <Modal open={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
+      <AppDialog isOpen={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" type="number"
             value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
@@ -113,10 +113,10 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
             Add Floor
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* Add Unit Modal — outside drawer */}
-      <Modal open={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
+      <AppDialog isOpen={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
         <div className="space-y-3">
           <input className="input-dark w-full px-4 py-3 text-sm" value={unitNum}
             onChange={(e) => setUnitNum(e.target.value)} placeholder="Unit number (e.g. 101)" />
@@ -134,7 +134,7 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
             Add Unit
           </button>
         </div>
-      </Modal>
+      </AppDialog>
 
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 w-full max-w-2xl z-40 flex flex-col overflow-hidden animate-slide-up"

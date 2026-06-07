@@ -150,7 +150,7 @@ export default function ClientDetail() {
           ]}
           activeTab={activeTab}
           onChange={(v) => setActiveTab(v as Tab)}
-          moduleColor={MODULE_COLORS.crm}
+          moduleColor={MODULE_COLORS.crm.primary}
         />
 
         {activeTab === "Quick Actions" && (
