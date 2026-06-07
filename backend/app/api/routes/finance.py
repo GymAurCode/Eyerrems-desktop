@@ -2,6 +2,7 @@ from decimal import Decimal
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Query
+from pydantic import BaseModel
 from sqlalchemy import func, and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
@@ -664,6 +665,77 @@ async def list_payments(
     if end_date:
         query = query.filter(Payment.date <= datetime.fromisoformat(end_date) + timedelta(days=1))
     return query.order_by(Payment.date.desc()).offset(skip).limit(limit).all()
+
+
+class PostPaymentRequest(BaseModel):
+    credit_account_id: int | None = None
+    debit_account_id: int | None = None
+
+
+@router.patch("/payments/{payment_id}/post", response_model=PaymentResponse)
+async def post_payment_to_finance(
+    payment_id: int,
+    body: PostPaymentRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permissions("finance:manage")),
+):
+    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    if payment.posted_to_finance:
+        raise HTTPException(status_code=400, detail="Payment already posted to finance")
+
+    dr_account_id = body.debit_account_id
+    if not dr_account_id:
+        if payment.method == "cash":
+            dr_account = db.query(Account).filter(Account.code == "1010").first()
+            dr_account_id = dr_account.id if dr_account else None
+        elif payment.method in ("bank", "cheque", "online"):
+            dr_account = db.query(Account).filter(Account.code == "1100").first()
+            dr_account_id = dr_account.id if dr_account else None
+        if not dr_account_id:
+            raise HTTPException(status_code=400, detail="Cannot determine debit account: specify debit_account_id or ensure a valid payment method")
+
+    cr_account_id = body.credit_account_id
+    if not cr_account_id:
+        if payment.invoice_id:
+            ar_account = db.query(Account).filter(Account.code == "1200").first()
+            cr_account_id = ar_account.id if ar_account else None
+        if not cr_account_id:
+            other_income = db.query(Account).filter(Account.code == "4300").first()
+            cr_account_id = other_income.id if other_income else None
+        if not cr_account_id:
+            raise HTTPException(status_code=400, detail="Cannot determine credit account: specify credit_account_id or link payment to an invoice")
+
+    journal = JournalService.create_journal_entry(
+        db=db,
+        entries=[
+            JournalEntryData(account_id=dr_account_id, debit=payment.amount,
+                             description=f"Payment #{payment.id}"),
+            JournalEntryData(account_id=cr_account_id, credit=payment.amount,
+                             description=f"Payment #{payment.id}"),
+        ],
+        reference_type="payment",
+        reference_id=str(payment.id),
+        description=f"Payment received: {payment.received_from or 'N/A'}",
+        date=payment.date,
+        user=user,
+        source=payment.source or "MANUAL",
+    )
+
+    payment.posted_to_finance = True
+    payment.finance_journal_id = journal.id
+    db.commit()
+    log_activity(
+        db=db, user=user, action="post_to_finance", module="finance",
+        record_type="Payment", record_id=str(payment.id),
+        record_label=f"Payment {payment.id}",
+        new_values={"posted_to_finance": True, "finance_journal_id": journal.id},
+    )
+    db.commit()
+    await ws_manager.broadcast("payment_posted", {"payment_id": payment.id})
+    db.refresh(payment)
+    return payment
 
 
 # ── COMMISSION ENDPOINTS ────────────────────────────────────────────────────

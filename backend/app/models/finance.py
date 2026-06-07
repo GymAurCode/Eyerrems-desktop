@@ -66,8 +66,8 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(Integer, primary_key=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String(20), nullable=False, default="pending", index=True)  # pending, paid, partial

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Briefcase, Building2, Calculator, User, Zap } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import SearchableSelect from "../ui/SearchableSelect";
+import AttachmentPanel from "../attachments/AttachmentPanel";
 import { crmApi } from "../../lib/crmApi";
 import {
   commissionsApi,
@@ -41,6 +42,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [createdCommissionId, setCreatedCommissionId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -149,6 +151,13 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
     setType("earned");
     setReference("");
     setDescription("");
+    setCreatedCommissionId(null);
+  };
+
+  const handleDone = () => {
+    reset();
+    onSuccess();
+    onClose();
   };
 
   const handleSubmit = async () => {
@@ -159,7 +168,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
     setSubmitting(true);
     setError("");
     try {
-      await commissionsApi.create({
+      const commission = await commissionsApi.create({
         dealer_id: Number(dealerId),
         property_id: Number(propertyId),
         deal_id: dealId ? Number(dealId) : null,
@@ -179,9 +188,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
         amount: finalAmount || Number(amountOverride) || 0,
         property_name: "",
       }).catch(() => {});
-      reset();
-      onSuccess();
-      onClose();
+      setCreatedCommissionId(commission.id);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(typeof msg === "string" ? msg : "Failed to record commission");
@@ -193,8 +200,21 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
   const finalAmount = amountOverride ? Number(amountOverride) : calc?.calculated_amount;
 
   return (
-    <AppDialog isOpen={isOpen} onClose={() => { reset(); onClose(); }} title="Record Commission" size="xl">
+    <AppDialog isOpen={isOpen} onClose={handleDone} title={createdCommissionId ? "Commission Recorded" : "Record Commission"} size="xl">
       <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+        {createdCommissionId ? (
+          <div className="space-y-4">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+              <p className="text-sm font-semibold text-emerald-400">Commission #{createdCommissionId} recorded successfully</p>
+              <p className="text-xs text-muted mt-1">You can now attach files below</p>
+            </div>
+            <AttachmentPanel module="finance" recordId={createdCommissionId} title="Attachments" />
+            <div className="flex justify-end">
+              <button type="button" onClick={handleDone} className="btn-primary px-5 py-2 text-sm">Done</button>
+            </div>
+          </div>
+        ) : (
+        <>
         {error && (
           <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
             {error}
@@ -331,6 +351,8 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
             {submitting ? "Saving…" : `Record ${finalAmount ? formatCurrency(finalAmount) : ""}`}
           </button>
         </div>
+        </>
+      )}
       </div>
     </AppDialog>
   );

@@ -226,16 +226,18 @@ function AppDialogs({ dlg, setDlg, accounts, onRefresh }: any) {
     <>
       <CreateAccountDialog isOpen={dlg === "account"} onClose={() => setDlg(null)} onSubmit={async (d) => { await accountsApi.create(d); await onRefresh(); }} />
       <CreateInvoiceDialog isOpen={dlg === "invoice"} onClose={() => setDlg(null)} onSubmit={async (d) => { const inv = await invoicesApi.create(d); await onRefresh(); return inv.id; }} accounts={accounts} />
-      <MakePaymentDialog isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))} onClose={() => setDlg(null)} onSubmit={async (d) => { await paymentsApi.create(d); await onRefresh(); }} accounts={accounts} preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined} />
-      <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { await expensesApi.create(d); await onRefresh(); }} accounts={accounts} />
+      <MakePaymentDialog isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))} onClose={() => setDlg(null)} onSubmit={async (d) => { const p = await paymentsApi.create(d); await onRefresh(); return p.id; }} accounts={accounts} preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined} />
+      <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { const e = await expensesApi.create(d); await onRefresh(); return e.id; }} accounts={accounts} />
       <CommissionWorkflow isOpen={dlg === "commission"} onClose={() => setDlg(null)} onSuccess={onRefresh} />
-      <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { await journalsApi.create(d); await onRefresh(); }} accounts={accounts} />
+      <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { const j = await journalsApi.create(d); await onRefresh(); return j.id; }} accounts={accounts} />
       <BankCashDialog isOpen={["bank_payment","bank_receipt","cash_payment","cash_receipt"].includes(dlg ?? "")} type={dlg as any} onClose={() => setDlg(null)} onSubmit={async (d) => {
-        if (dlg === "bank_payment") await bankCashApi.bankPayment(d);
-        if (dlg === "bank_receipt") await bankCashApi.bankReceipt(d);
-        if (dlg === "cash_payment") await bankCashApi.cashPayment(d);
-        if (dlg === "cash_receipt") await bankCashApi.cashReceipt(d);
+        let result: any;
+        if (dlg === "bank_payment") result = await bankCashApi.bankPayment(d);
+        if (dlg === "bank_receipt") result = await bankCashApi.bankReceipt(d);
+        if (dlg === "cash_payment") result = await bankCashApi.cashPayment(d);
+        if (dlg === "cash_receipt") result = await bankCashApi.cashReceipt(d);
         await onRefresh();
+        return result?.id;
       }} accounts={accounts} />
     </>
   );
@@ -784,6 +786,7 @@ function PaymentsTab({ accounts }: { accounts: Account[] }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [postingId, setPostingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useState({ page: 1, pageSize: 10, search: "", filter: "", startDate: "", endDate: "", propertyType: "", status: "" });
 
@@ -800,6 +803,18 @@ function PaymentsTab({ accounts }: { accounts: Account[] }) {
 
   useEffect(() => { void fetchPayments(params); }, [params, fetchPayments]);
 
+  const handlePostToFinance = useCallback(async (payment: Payment) => {
+    setPostingId(payment.id);
+    try {
+      await api.patch(`/finance/payments/${payment.id}/post`);
+      await fetchPayments(params);
+    } catch (e: any) {
+      setError(e.response?.data?.detail || e.message || "Failed to post payment");
+    } finally {
+      setPostingId(null);
+    }
+  }, [fetchPayments, params]);
+
   const paymentColumns = [
     { key: "id", label: "PAY-ID", className: "font-mono text-[10px] text-blue-400 font-semibold", render: (val: number) => `PAY-${String(val).padStart(4, "0")}` },
     { key: "date", label: "Date", sortable: true, render: (val: string) => new Date(val).toLocaleDateString() },
@@ -809,7 +824,11 @@ function PaymentsTab({ accounts }: { accounts: Account[] }) {
     { key: "amount", label: "Amount", className: "font-semibold text-emerald-400 text-right", render: (val: number) => formatCurrency(val) },
     { key: "method", label: "Method", render: (val: string) => <StatusBadge status={val} /> },
     { key: "invoice_id", label: "Invoice", render: (val: any) => val ? `#${val}` : "—" },
-    { key: "posted_to_finance", label: "Finance Posted", render: (val: any, row: Payment) => row.posted_to_finance ? <span className="text-emerald-400 text-[10px]">✓ JE-{String(row.finance_journal_id).padStart(4, "0")}</span> : <span className="text-yellow-400 text-[10px]">⏳ Pending</span> },
+    { key: "posted_to_finance", label: "Finance Posted", render: (val: any, row: Payment) => row.posted_to_finance ? <span className="text-emerald-400 text-[10px]">✓ JE-{String(row.finance_journal_id).padStart(4, "0")}</span> : postingId === row.id ? <span className="text-yellow-400 text-[10px]">⏳ Posting…</span> : <span className="text-yellow-400 text-[10px]">⏳ Pending</span> },
+  ];
+
+  const paymentRowActions = [
+    { key: "post", label: "Post to Finance", icon: Upload, onClick: handlePostToFinance, hidden: (row: Payment) => row.posted_to_finance || postingId === row.id },
   ];
 
   return (
@@ -823,6 +842,7 @@ function PaymentsTab({ accounts }: { accounts: Account[] }) {
       onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
       onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
       showDateFilter={false} showStatusFilter={false} showTypeFilter={false}
+      rowActions={paymentRowActions}
     />
   );
 }
@@ -1494,14 +1514,11 @@ function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: any) {
 function CreateInvoiceDialog({ isOpen, onClose, onSubmit, accounts, isLoading }: any) {
   const [form, setForm] = useState({ tenant_id: "", property_id: "", unit_id: "", amount: "", due_date: "", description: "", invoice_type: "rent", client_name: "", reference: "" });
   const [error, setError] = useState("");
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null);
 
   const reset = () => {
     setForm({ tenant_id: "", property_id: "", unit_id: "", amount: "", due_date: "", description: "", invoice_type: "rent", client_name: "", reference: "" });
     setError("");
-    setPendingFiles([]);
   };
 
   const handleSubmit = async () => {
@@ -1509,31 +1526,33 @@ function CreateInvoiceDialog({ isOpen, onClose, onSubmit, accounts, isLoading }:
     setError("");
     try {
       const invoiceId = await onSubmit({ ...form, tenant_id: form.tenant_id ? Number(form.tenant_id) : null, property_id: form.property_id ? Number(form.property_id) : null, unit_id: form.unit_id ? Number(form.unit_id) : null, amount: Number(form.amount) });
-      if (pendingFiles.length > 0) {
-        setUploading(true);
-        await Promise.allSettled(
-          pendingFiles.map(file =>
-            attachmentApi.upload("finance", invoiceId, file, form.description || "", "PENDING")
-          )
-        );
-        setUploading(false);
-      }
-      reset();
-      onClose();
+      setCreatedInvoiceId(invoiceId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to create invoice");
     }
   };
 
-  const handleFilePick = () => fileInputRef.current?.click();
-
-  const addFiles = (files: FileList | File[]) => {
-    setPendingFiles(prev => [...prev, ...Array.from(files)]);
-  };
-
-  const removeFile = (index: number) => {
-    setPendingFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  if (createdInvoiceId) {
+    return (
+      <AppDialog isOpen={isOpen} onClose={() => { setCreatedInvoiceId(null); onClose(); }} title="Create Invoice" subtitle="Invoice created successfully" size="lg">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Check size={16} className="text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-400">Invoice created successfully</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdInvoiceId} />
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => { setCreatedInvoiceId(null); reset(); }} className="btn-ghost px-4 py-2 text-xs">
+              Add Another
+            </button>
+            <button onClick={() => { setCreatedInvoiceId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
+              Done
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+    );
+  }
 
   return (
     <AppDialog isOpen={isOpen} onClose={() => { reset(); onClose(); }} title="Create Invoice" subtitle="Generate a new invoice" size="lg">
@@ -1552,57 +1571,11 @@ function CreateInvoiceDialog({ isOpen, onClose, onSubmit, accounts, isLoading }:
           <FormField label="Reference"><Input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Invoice reference" /></FormField>
         </div>
         <FormField label="Description"><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description" /></FormField>
-
-        {/* Attachments */}
-        <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Paperclip size={14} className="text-blue-400" />
-              <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>Attachments</span>
-              {pendingFiles.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
-                  {pendingFiles.length}
-                </span>
-              )}
-            </div>
-            <button type="button" onClick={handleFilePick}
-              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium rounded-lg transition-colors"
-              style={{ border: "1px solid var(--border)", color: "var(--text-primary)" }}>
-              <Upload size={12} /> Attach Files
-            </button>
-            <input ref={fileInputRef} type="file" className="hidden" multiple
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
-              onChange={e => { if (e.target.files) { addFiles(e.target.files); e.target.value = ""; } }} />
-          </div>
-          {pendingFiles.length > 0 && (
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {pendingFiles.map((file, i) => (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs"
-                  style={{ background: "var(--bg-tertiary)" }}>
-                  <FileText size={12} className="shrink-0 text-blue-400" />
-                  <span className="flex-1 truncate" style={{ color: "var(--text-primary)" }}>{file.name}</span>
-                  <span className="shrink-0" style={{ color: "var(--text-secondary)" }}>
-                    {fileService.formatFileSize ? fileService.formatFileSize(file.size) : `${(file.size / 1024).toFixed(0)} KB`}
-                  </span>
-                  <button type="button" onClick={() => removeFile(i)}
-                    className="p-0.5 rounded hover:bg-red-500/10 shrink-0" style={{ color: "#ef4444" }}>
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {pendingFiles.length === 0 && (
-            <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>No files selected. Attach invoices, receipts, or supporting documents.</p>
-          )}
-        </div>
-
         {error && <p className="text-[10px]" style={{ color: "#ef4444" }}>{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={() => { reset(); onClose(); }} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
-          <button onClick={handleSubmit} disabled={isLoading || uploading} className="btn-primary px-4 py-2 text-xs">
-            {isLoading || uploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-            {uploading ? "Uploading..." : "Create Invoice"}
+          <button onClick={handleSubmit} disabled={isLoading} className="btn-primary px-4 py-2 text-xs">
+            {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Create Invoice
           </button>
         </div>
       </div>
@@ -1613,6 +1586,9 @@ function CreateInvoiceDialog({ isOpen, onClose, onSubmit, accounts, isLoading }:
 function MakePaymentDialog({ isOpen, onClose, onSubmit, accounts, preselectedInvoiceId, isLoading }: any) {
   const [form, setForm] = useState({ invoice_id: preselectedInvoiceId || "", method: "bank", amount: "", date: new Date().toISOString().slice(0, 10), reference_number: "", received_from: "", payment_type: "manual", notes: "" });
   const [error, setError] = useState("");
+  const [createdPaymentId, setCreatedPaymentId] = useState<number | null>(null);
+
+  const defaultForm = () => ({ invoice_id: "", method: "bank", amount: "", date: new Date().toISOString().slice(0, 10), reference_number: "", received_from: "", payment_type: "manual", notes: "" });
 
   useEffect(() => {
     if (preselectedInvoiceId) setForm(f => ({ ...f, invoice_id: preselectedInvoiceId }));
@@ -1621,10 +1597,35 @@ function MakePaymentDialog({ isOpen, onClose, onSubmit, accounts, preselectedInv
   const handleSubmit = async () => {
     if (!form.amount) { setError("Amount is required"); return; }
     setError("");
-    await onSubmit({ ...form, invoice_id: form.invoice_id ? Number(form.invoice_id) : null, amount: Number(form.amount), date: form.date || new Date().toISOString() });
-    setForm({ invoice_id: "", method: "bank", amount: "", date: new Date().toISOString().slice(0, 10), reference_number: "", received_from: "", payment_type: "manual", notes: "" });
-    onClose();
+    try {
+      const paymentId = await onSubmit({ ...form, invoice_id: form.invoice_id ? Number(form.invoice_id) : null, amount: Number(form.amount), date: form.date || new Date().toISOString() });
+      setCreatedPaymentId(paymentId);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || "Failed to record payment");
+    }
   };
+
+  if (createdPaymentId) {
+    return (
+      <AppDialog isOpen={isOpen} onClose={() => { setCreatedPaymentId(null); onClose(); }} title="Record Payment" subtitle="Payment recorded successfully" size="lg">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Check size={16} className="text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-400">Payment recorded successfully</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdPaymentId} />
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => { setCreatedPaymentId(null); setForm(defaultForm()); }} className="btn-ghost px-4 py-2 text-xs">
+              Add Another
+            </button>
+            <button onClick={() => { setCreatedPaymentId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
+              Done
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+    );
+  }
 
   return (
     <AppDialog isOpen={isOpen} onClose={onClose} title="Record Payment" subtitle="Record money received" size="lg">
@@ -1658,14 +1659,42 @@ function AddExpenseDialog({ isOpen, onClose, onSubmit, accounts, isLoading }: an
   const expenseAccounts = accounts?.filter((a: Account) => a.account_type === "Expense") || [];
   const [form, setForm] = useState({ account_id: "", paid_from: "bank", amount: "", date: new Date().toISOString().slice(0, 10), description: "", vendor_name: "", invoice_bill_no: "", payment_method: "", payment_status: "pending", reference: "" });
   const [error, setError] = useState("");
+  const [createdExpenseId, setCreatedExpenseId] = useState<number | null>(null);
+
+  const defaultForm = () => ({ account_id: "", paid_from: "bank", amount: "", date: new Date().toISOString().slice(0, 10), description: "", vendor_name: "", invoice_bill_no: "", payment_method: "", payment_status: "pending", reference: "" });
 
   const handleSubmit = async () => {
     if (!form.account_id || !form.amount || !form.description) { setError("Account, Amount, and Description are required"); return; }
     setError("");
-    await onSubmit({ ...form, account_id: Number(form.account_id), amount: Number(form.amount) });
-    setForm({ account_id: "", paid_from: "bank", amount: "", date: new Date().toISOString().slice(0, 10), description: "", vendor_name: "", invoice_bill_no: "", payment_method: "", payment_status: "pending", reference: "" });
-    onClose();
+    try {
+      const expenseId = await onSubmit({ ...form, account_id: Number(form.account_id), amount: Number(form.amount) });
+      setCreatedExpenseId(expenseId);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || "Failed to add expense");
+    }
   };
+
+  if (createdExpenseId) {
+    return (
+      <AppDialog isOpen={isOpen} onClose={() => { setCreatedExpenseId(null); onClose(); }} title="Add Expense" subtitle="Expense recorded successfully" size="lg">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Check size={16} className="text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-400">Expense recorded successfully</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdExpenseId} />
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => { setCreatedExpenseId(null); setForm(defaultForm()); }} className="btn-ghost px-4 py-2 text-xs">
+              Add Another
+            </button>
+            <button onClick={() => { setCreatedExpenseId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
+              Done
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+    );
+  }
 
   return (
     <AppDialog isOpen={isOpen} onClose={onClose} title="Add Expense" subtitle="Record a corporate expense" size="lg">
@@ -1712,6 +1741,10 @@ function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoading }:
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), description: "", reference_type: "manual", reference_id: "", source: "MANUAL" });
   const [lines, setLines] = useState([{ account_id: "", description: "", debit: "", credit: "" }]);
   const [error, setError] = useState("");
+  const [createdJournalId, setCreatedJournalId] = useState<number | null>(null);
+
+  const defaultForm = () => ({ date: new Date().toISOString().slice(0, 10), description: "", reference_type: "manual", reference_id: "", source: "MANUAL" });
+  const defaultLines = () => [{ account_id: "", description: "", debit: "", credit: "" }];
 
   const addLine = () => setLines(l => [...l, { account_id: "", description: "", debit: "", credit: "" }]);
   const updateLine = (i: number, field: string, value: string) => {
@@ -1731,23 +1764,47 @@ function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoading }:
     if (!balanced) { setError("Debits must equal credits"); return; }
     if (lines.some(l => !l.account_id)) { setError("All lines must have an account"); return; }
     setError("");
-    await onSubmit({
-      date: form.date || undefined,
-      description: form.description,
-      reference_type: form.reference_type,
-      reference_id: form.reference_id || null,
-      source: form.source,
-      lines: lines.map(l => ({
-        account_id: Number(l.account_id),
-        debit: Number(l.debit) || 0,
-        credit: Number(l.credit) || 0,
-        description: l.description || null,
-      })),
-    });
-    setForm({ date: new Date().toISOString().slice(0, 10), description: "", reference_type: "manual", reference_id: "", source: "MANUAL" });
-    setLines([{ account_id: "", description: "", debit: "", credit: "" }]);
-    onClose();
+    try {
+      const journalId = await onSubmit({
+        date: form.date || undefined,
+        description: form.description,
+        reference_type: form.reference_type,
+        reference_id: form.reference_id || null,
+        source: form.source,
+        lines: lines.map(l => ({
+          account_id: Number(l.account_id),
+          debit: Number(l.debit) || 0,
+          credit: Number(l.credit) || 0,
+          description: l.description || null,
+        })),
+      });
+      setCreatedJournalId(journalId);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || "Failed to post journal");
+    }
   };
+
+  if (createdJournalId) {
+    return (
+      <AppDialog isOpen={isOpen} onClose={() => { setCreatedJournalId(null); onClose(); }} title="Manual Journal Entry" subtitle="Journal posted successfully" size="lg">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Check size={16} className="text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-400">Journal entry posted successfully</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdJournalId} />
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => { setCreatedJournalId(null); setForm(defaultForm()); setLines(defaultLines()); }} className="btn-ghost px-4 py-2 text-xs">
+              Add Another
+            </button>
+            <button onClick={() => { setCreatedJournalId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
+              Done
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+    );
+  }
 
   return (
     <AppDialog isOpen={isOpen} onClose={onClose} title="Manual Journal Entry" subtitle="Create a double-entry journal posting" size="lg">
@@ -1826,14 +1883,42 @@ function BankCashDialog({ isOpen, type, onClose, onSubmit, accounts, isLoading }
   const title = `${isBank ? "Bank" : "Cash"} ${isPayment ? "Payment" : "Receipt"}`;
   const [form, setForm] = useState({ account_id: "", amount: "", description: "", date: new Date().toISOString().slice(0, 10), reference: "" });
   const [error, setError] = useState("");
+  const [createdTxnId, setCreatedTxnId] = useState<number | null>(null);
+
+  const defaultForm = () => ({ account_id: "", amount: "", description: "", date: new Date().toISOString().slice(0, 10), reference: "" });
 
   const handleSubmit = async () => {
     if (!form.account_id || !form.amount || !form.description) { setError("All fields required"); return; }
     setError("");
-    await onSubmit({ ...form, account_id: Number(form.account_id), amount: Number(form.amount) });
-    setForm({ account_id: "", amount: "", description: "", date: new Date().toISOString().slice(0, 10), reference: "" });
-    onClose();
+    try {
+      const txnId = await onSubmit({ ...form, account_id: Number(form.account_id), amount: Number(form.amount) });
+      setCreatedTxnId(txnId);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || "Failed to record transaction");
+    }
   };
+
+  if (createdTxnId) {
+    return (
+      <AppDialog isOpen={isOpen} onClose={() => { setCreatedTxnId(null); onClose(); }} title={title} subtitle="Transaction recorded successfully" size="lg">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Check size={16} className="text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-400">{title} recorded successfully</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdTxnId} />
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => { setCreatedTxnId(null); setForm(defaultForm()); }} className="btn-ghost px-4 py-2 text-xs">
+              Add Another
+            </button>
+            <button onClick={() => { setCreatedTxnId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
+              Done
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+    );
+  }
 
   return (
     <AppDialog isOpen={isOpen} onClose={onClose} title={title} subtitle={`Record ${isPayment ? "money out" : "money in"}`}>

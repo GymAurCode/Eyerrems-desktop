@@ -39,10 +39,62 @@ const REFRESH_ALL: (keyof import("../store/useDataStore").DataState & `forceRefr
   "forceRefreshEmployees",
 ];
 
+const FETCH_TO_FLAG: Record<string, string> = {
+  fetchProperties: "properties",
+  fetchUnits: "units",
+  fetchLeases: "leases",
+  fetchTowns: "towns",
+  fetchLeads: "leads",
+  fetchClients: "clients",
+  fetchDealers: "dealers",
+  fetchDeals: "deals",
+  fetchBookings: "bookings",
+  fetchFollowUps: "followUps",
+  fetchSiteVisits: "siteVisits",
+  fetchAccounts: "accounts",
+  fetchJournals: "journals",
+  fetchInvoices: "invoices",
+  fetchPayments: "payments",
+  fetchCommissions: "commissions",
+  fetchExpenses: "expenses",
+  fetchBankTransactions: "bankTransactions",
+  fetchCashTransactions: "cashTransactions",
+  fetchDepartments: "departments",
+  fetchEmployees: "employees",
+  fetchAttendance: "attendance",
+  fetchTenants: "tenants",
+  fetchMaintenanceRequests: "maintenanceRequests",
+  fetchConstructionProjects: "constructionProjects",
+  fetchReminders: "reminders",
+};
+
+async function runBatchConcurrently(
+  keys: string[],
+  concurrency = 4,
+) {
+  for (let i = 0; i < keys.length; i += concurrency) {
+    const batch = keys.slice(i, i + concurrency);
+    await Promise.allSettled(
+      batch.map(async (key) => {
+        const store = useDataStore.getState();
+        try {
+          await (store as any)[key]();
+        } catch (err) {
+          const flag = FETCH_TO_FLAG[key];
+          if (flag) {
+            useDataStore.setState(s => ({
+              _fetched: { ...s._fetched, [flag]: true },
+            }));
+          }
+        }
+      }),
+    );
+  }
+}
+
 export function useAppBootstrap() {
   useEffect(() => {
-    const store = useDataStore.getState();
-    Promise.allSettled(FETCH_ALL.map((key) => (store as any)[key]()));
+    runBatchConcurrently(FETCH_ALL, 4);
   }, []);
 }
 

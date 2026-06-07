@@ -227,7 +227,7 @@ export default function FileUpload({
       className={`relative cursor-pointer rounded-xl border-2 border-dashed transition-all duration-200 ${
         dragOver
           ? "border-blue-500 bg-blue-500/5"
-          : "border-[var(--color-border-secondary,#3a3a4e)] bg-[var(--color-background-secondary,#1e1e2e)]"
+          : "border-[var(--border,#E2E8F0)] bg-[var(--bg-surface2,#F8FAFC)]"
       } ${disabled ? "opacity-50 cursor-not-allowed" : "hover:border-blue-400/50"}`}
     >
       <input

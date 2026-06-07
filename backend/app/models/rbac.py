@@ -91,10 +91,6 @@ class RoleUser(Base):
     login_history = relationship("LoginHistory",
                                   back_populates="user",
                                   cascade="all, delete-orphan")
-    activity_logs = relationship("ActivityLog",
-                                  back_populates="user",
-                                  cascade="all, delete-orphan")
-
     def to_dict(self):
         return {
             "id": self.id,
@@ -151,8 +147,7 @@ class ActivityLog(Base):
 
     id = Column(String, primary_key=True,
                 default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("rbac_role_users.id"),
-                     nullable=True)
+    user_id = Column(String, nullable=True)
     user_email = Column(String(255), nullable=False)
     user_name = Column(String(200), nullable=True)
 
@@ -168,8 +163,6 @@ class ActivityLog(Base):
 
     ip_address = Column(String(50), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
-
-    user = relationship("RoleUser", back_populates="activity_logs")
 
     def to_dict(self):
         return {

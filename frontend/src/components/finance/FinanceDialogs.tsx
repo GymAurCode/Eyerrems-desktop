@@ -3,7 +3,7 @@ import { AlertCircle, Plus, Trash2, FileText, DollarSign, CreditCard, Receipt, T
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
 import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
-import FileUpload from "../ui/FileUpload";
+import AttachmentPanel from "../attachments/AttachmentPanel";
 import { accountsApi, type Account } from "../../lib/financeApi";
 import { useLookup } from "../../hooks/useLookup";
 
@@ -159,12 +159,7 @@ export function CreateInvoiceDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
             <p className="text-sm font-semibold text-emerald-400">Invoice #{createdInvoiceId} created successfully</p>
             <p className="text-xs text-muted mt-1">You can now attach files below</p>
           </div>
-          <FileUpload
-            module="finance"
-            recordType="invoice"
-            recordId={String(createdInvoiceId)}
-            documentTypes={["Invoice", "Receipt", "Purchase Order", "Bank Statement", "Other"]}
-          />
+          <AttachmentPanel module="finance" recordId={createdInvoiceId} title="Attachments" />
         </div>
       ) : (
         <>
@@ -202,7 +197,7 @@ export function CreateInvoiceDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
 interface MakePaymentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<number>;
   invoices: any[];
   preselectedInvoiceId?: number;
   isLoading?: boolean;
@@ -216,6 +211,7 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
   const [date,      setDate]      = useState("");
   const [refNum,    setRefNum]    = useState("");
   const [error,     setError]     = useState("");
+  const [createdPaymentId, setCreatedPaymentId] = useState<number | null>(null);
 
   useEffect(() => {
     if (preselectedInvoiceId) setInvoiceId(String(preselectedInvoiceId));
@@ -223,7 +219,7 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
 
   const selectedInvoice = invoices.find(i => i.id === Number(invoiceId));
 
-  const reset = () => { setInvoiceId(""); setMethod("bank"); setAmount(""); setDate(""); setRefNum(""); setError(""); };
+  const reset = () => { setInvoiceId(""); setMethod("bank"); setAmount(""); setDate(""); setRefNum(""); setError(""); setCreatedPaymentId(null); };
 
   const handleSubmit = async () => {
     setError("");
@@ -234,8 +230,8 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
       return;
     }
     try {
-      await onSubmit({ invoice_id: Number(invoiceId), method, amount: Number(amount), date: date ? new Date(date).toISOString() : undefined, reference_number: refNum || undefined });
-      reset(); onClose();
+      const paymentId = await onSubmit({ invoice_id: Number(invoiceId), method, amount: Number(amount), date: date ? new Date(date).toISOString() : undefined, reference_number: refNum || undefined });
+      setCreatedPaymentId(paymentId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to record payment");
     }
@@ -245,51 +241,67 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
     <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
-      title="Record Payment"
-      subtitle="Record a payment toward an invoice"
+      title={createdPaymentId ? "Payment Recorded" : "Record Payment"}
+      subtitle={createdPaymentId ? "Payment has been recorded successfully" : "Record a payment toward an invoice"}
       size="md"
       icon={<CreditCard size={18} />}
       footer={
-        <>
-          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
-          <AppDialogSubmitButton onClick={handleSubmit} label="Record Payment" loading={isLoading} />
-        </>
+        createdPaymentId ? (
+          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} label="Done" />
+        ) : (
+          <>
+            <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
+            <AppDialogSubmitButton onClick={handleSubmit} label="Record Payment" loading={isLoading} />
+          </>
+        )
       }
     >
-      {error && <ErrorBanner msg={error} />}
-      <FormField label="Invoice" required>
-        <select className="dialog-select" value={invoiceId} onChange={e => setInvoiceId(e.target.value)} disabled={isLoading}>
-          <option value="">Select invoice...</option>
-          {invoices.map(inv => (
-            <option key={inv.id} value={inv.id}>#{inv.id} — {inv.amount} ({inv.status})</option>
-          ))}
-        </select>
-      </FormField>
-      {selectedInvoice && (
-        <div className="p-3 bg-secondary/50 rounded text-xs text-muted">
-          Invoice amount: <span className="text-primary font-medium">{selectedInvoice.amount}</span> | Status: <span className="text-primary">{selectedInvoice.status}</span>
+      {createdPaymentId ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+            <p className="text-sm font-semibold text-emerald-400">Payment #{createdPaymentId} recorded successfully</p>
+            <p className="text-xs text-muted mt-1">You can now attach files below</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdPaymentId} title="Attachments" />
         </div>
+      ) : (
+        <>
+          {error && <ErrorBanner msg={error} />}
+          <FormField label="Invoice" required>
+            <select className="dialog-select" value={invoiceId} onChange={e => setInvoiceId(e.target.value)} disabled={isLoading}>
+              <option value="">Select invoice...</option>
+              {invoices.map(inv => (
+                <option key={inv.id} value={inv.id}>#{inv.id} — {inv.amount} ({inv.status})</option>
+              ))}
+            </select>
+          </FormField>
+          {selectedInvoice && (
+            <div className="p-3 bg-secondary/50 rounded text-xs text-muted">
+              Invoice amount: <span className="text-primary font-medium">{selectedInvoice.amount}</span> | Status: <span className="text-primary">{selectedInvoice.status}</span>
+            </div>
+          )}
+          <FormRow cols={2}>
+            <FormField label="Payment Method" required>
+              <select className="dialog-select" value={method} onChange={e => setMethod(e.target.value)} disabled={isLoading}>
+                {PAYMENT_METHOD_OPTS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Amount" required>
+              <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
+            <FormField label="Date" hint="Optional">
+              <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
+            </FormField>
+            <FormField label="Reference No." hint="Optional">
+              <input className="dialog-input" value={refNum} onChange={e => setRefNum(e.target.value)} placeholder="e.g. CHQ-001" disabled={isLoading} />
+            </FormField>
+          </FormRow>
+        </>
       )}
-      <FormRow cols={2}>
-        <FormField label="Payment Method" required>
-          <select className="dialog-select" value={method} onChange={e => setMethod(e.target.value)} disabled={isLoading}>
-            {PAYMENT_METHOD_OPTS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </FormField>
-        <FormField label="Amount" required>
-          <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
-        </FormField>
-      </FormRow>
-      <FormRow cols={2}>
-        <FormField label="Date" hint="Optional">
-          <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
-        </FormField>
-        <FormField label="Reference No." hint="Optional">
-          <input className="dialog-input" value={refNum} onChange={e => setRefNum(e.target.value)} placeholder="e.g. CHQ-001" disabled={isLoading} />
-        </FormField>
-      </FormRow>
     </AppDialog>
   );
 }
@@ -299,7 +311,7 @@ export function MakePaymentDialog({ isOpen, onClose, onSubmit, invoices, presele
 interface AddExpenseDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<number>;
   accounts: Account[];
   isLoading?: boolean;
 }
@@ -312,16 +324,17 @@ export function AddExpenseDialog({ isOpen, onClose, onSubmit, accounts, isLoadin
   const [description, setDescription] = useState("");
   const [reference,   setReference]   = useState("");
   const [error,       setError]       = useState("");
+  const [createdExpenseId, setCreatedExpenseId] = useState<number | null>(null);
 
-  const reset = () => { setAccountId(""); setPaidFrom("bank"); setAmount(""); setDate(""); setDescription(""); setReference(""); setError(""); };
+  const reset = () => { setAccountId(""); setPaidFrom("bank"); setAmount(""); setDate(""); setDescription(""); setReference(""); setError(""); setCreatedExpenseId(null); };
 
   const handleSubmit = async () => {
     setError("");
     if (!accountId || !amount || !description) { setError("Account, amount and description are required"); return; }
     if (Number(amount) <= 0) { setError("Amount must be greater than 0"); return; }
     try {
-      await onSubmit({ account_id: Number(accountId), paid_from: paidFrom, amount: Number(amount), date: date ? new Date(date).toISOString() : undefined, description, reference: reference || undefined });
-      reset(); onClose();
+      const expenseId = await onSubmit({ account_id: Number(accountId), paid_from: paidFrom, amount: Number(amount), date: date ? new Date(date).toISOString() : undefined, description, reference: reference || undefined });
+      setCreatedExpenseId(expenseId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to add expense");
     }
@@ -331,49 +344,62 @@ export function AddExpenseDialog({ isOpen, onClose, onSubmit, accounts, isLoadin
     <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
-      title="Add Expense"
-      subtitle="Log a new business expense"
+      title={createdExpenseId ? "Expense Added" : "Add Expense"}
+      subtitle={createdExpenseId ? "Expense has been added successfully" : "Log a new business expense"}
       size="md"
       icon={<Receipt size={18} />}
       footer={
-        <>
-          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
-          <AppDialogSubmitButton onClick={handleSubmit} label="Add Expense" loading={isLoading} />
-        </>
+        createdExpenseId ? (
+          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} label="Done" />
+        ) : (
+          <>
+            <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
+            <AppDialogSubmitButton onClick={handleSubmit} label="Add Expense" loading={isLoading} />
+          </>
+        )
       }
     >
-      {error && <ErrorBanner msg={error} />}
-      <FormRow cols={2}>
-        <FormField label="Expense Account" required>
-          <select className="dialog-select" value={accountId} onChange={e => setAccountId(e.target.value)} disabled={isLoading}>
-            <option value="">Select expense account...</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-          </select>
-        </FormField>
-        <FormField label="Paid From" required>
-          <select className="dialog-select" value={paidFrom} onChange={e => setPaidFrom(e.target.value)} disabled={isLoading}>
-            <option value="bank">Bank</option>
-            <option value="cash">Cash</option>
-          </select>
-        </FormField>
-      </FormRow>
-      <FormRow cols={2}>
-        <FormField label="Amount" required>
-          <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
-        </FormField>
-        <FormField label="Date" hint="Optional">
-          <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
-        </FormField>
-      </FormRow>
-      <FormField label="Description" required>
-        <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Office supplies" disabled={isLoading} />
-      </FormField>
-      <FormField label="Reference" hint="Optional">
-        <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. INV-001" disabled={isLoading} />
-      </FormField>
-      <div className="pt-2">
-        <FileUpload module="finance" recordType="expense" recordId="" compact disabled={isLoading} documentTypes={["Receipt", "Invoice", "Approval", "Other"]} />
-      </div>
+      {createdExpenseId ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+            <p className="text-sm font-semibold text-emerald-400">Expense #{createdExpenseId} added successfully</p>
+            <p className="text-xs text-muted mt-1">You can now attach files below</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdExpenseId} title="Attachments" />
+        </div>
+      ) : (
+        <>
+          {error && <ErrorBanner msg={error} />}
+          <FormRow cols={2}>
+            <FormField label="Expense Account" required>
+              <select className="dialog-select" value={accountId} onChange={e => setAccountId(e.target.value)} disabled={isLoading}>
+                <option value="">Select expense account...</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Paid From" required>
+              <select className="dialog-select" value={paidFrom} onChange={e => setPaidFrom(e.target.value)} disabled={isLoading}>
+                <option value="bank">Bank</option>
+                <option value="cash">Cash</option>
+              </select>
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
+            <FormField label="Amount" required>
+              <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
+            </FormField>
+            <FormField label="Date" hint="Optional">
+              <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
+            </FormField>
+          </FormRow>
+          <FormField label="Description" required>
+            <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Office supplies" disabled={isLoading} />
+          </FormField>
+          <FormField label="Reference" hint="Optional">
+            <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. INV-001" disabled={isLoading} />
+          </FormField>
+        </>
+      )}
     </AppDialog>
   );
 }
@@ -383,7 +409,7 @@ export function AddExpenseDialog({ isOpen, onClose, onSubmit, accounts, isLoadin
 interface CreateCommissionDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<number>;
   isLoading?: boolean;
 }
 
@@ -396,16 +422,17 @@ export function CreateCommissionDialog({ isOpen, onClose, onSubmit, isLoading }:
   const [reference,   setReference]   = useState("");
   const [description, setDescription] = useState("");
   const [error,       setError]       = useState("");
+  const [createdCommissionId, setCreatedCommissionId] = useState<number | null>(null);
 
-  const reset = () => { setAgentId(""); setPropertyId(""); setAmount(""); setType("earned"); setDate(""); setReference(""); setDescription(""); setError(""); };
+  const reset = () => { setAgentId(""); setPropertyId(""); setAmount(""); setType("earned"); setDate(""); setReference(""); setDescription(""); setError(""); setCreatedCommissionId(null); };
 
   const handleSubmit = async () => {
     setError("");
     if (!agentId || !propertyId || !amount) { setError("Agent, property and amount are required"); return; }
     if (Number(amount) <= 0) { setError("Amount must be greater than 0"); return; }
     try {
-      await onSubmit({ agent_id: Number(agentId), property_id: Number(propertyId), amount: Number(amount), type, date: date ? new Date(date).toISOString() : undefined, reference: reference || undefined, description: description || undefined });
-      reset(); onClose();
+      const commissionId = await onSubmit({ agent_id: Number(agentId), property_id: Number(propertyId), amount: Number(amount), type, date: date ? new Date(date).toISOString() : undefined, reference: reference || undefined, description: description || undefined });
+      setCreatedCommissionId(commissionId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to record commission");
     }
@@ -415,48 +442,64 @@ export function CreateCommissionDialog({ isOpen, onClose, onSubmit, isLoading }:
     <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
-      title="Record Commission"
-      subtitle="Record an agent commission"
+      title={createdCommissionId ? "Commission Recorded" : "Record Commission"}
+      subtitle={createdCommissionId ? "Commission has been recorded successfully" : "Record an agent commission"}
       size="md"
       icon={<TrendingUp size={18} />}
       footer={
-        <>
-          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
-          <AppDialogSubmitButton onClick={handleSubmit} label="Record Commission" loading={isLoading} />
-        </>
+        createdCommissionId ? (
+          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} label="Done" />
+        ) : (
+          <>
+            <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
+            <AppDialogSubmitButton onClick={handleSubmit} label="Record Commission" loading={isLoading} />
+          </>
+        )
       }
     >
-      {error && <ErrorBanner msg={error} />}
-      <FormRow cols={2}>
-        <FormField label="Agent ID" required>
-          <input className="dialog-input" type="number" value={agentId} onChange={e => setAgentId(e.target.value)} placeholder="Agent ID" disabled={isLoading} />
-        </FormField>
-        <FormField label="Property ID" required>
-          <input className="dialog-input" type="number" value={propertyId} onChange={e => setPropertyId(e.target.value)} placeholder="Property ID" disabled={isLoading} />
-        </FormField>
-      </FormRow>
-      <FormField label="Type" required>
-        <select className="dialog-select" value={type} onChange={e => setType(e.target.value)} disabled={isLoading}>
-          <option value="earned">Earned (DR: Commission Receivable, CR: Commission Income)</option>
-          <option value="paid">Paid (DR: Commission Expense, CR: Bank)</option>
-        </select>
-      </FormField>
-      <FormRow cols={2}>
-        <FormField label="Amount" required>
-          <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
-        </FormField>
-        <FormField label="Date" hint="Optional">
-          <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
-        </FormField>
-      </FormRow>
-      <FormRow cols={2}>
-        <FormField label="Reference" hint="Optional">
-          <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. DEAL-001" disabled={isLoading} />
-        </FormField>
-        <FormField label="Description" hint="Optional">
-          <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Notes..." disabled={isLoading} />
-        </FormField>
-      </FormRow>
+      {createdCommissionId ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+            <p className="text-sm font-semibold text-emerald-400">Commission #{createdCommissionId} recorded successfully</p>
+            <p className="text-xs text-muted mt-1">You can now attach files below</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdCommissionId} title="Attachments" />
+        </div>
+      ) : (
+        <>
+          {error && <ErrorBanner msg={error} />}
+          <FormRow cols={2}>
+            <FormField label="Agent ID" required>
+              <input className="dialog-input" type="number" value={agentId} onChange={e => setAgentId(e.target.value)} placeholder="Agent ID" disabled={isLoading} />
+            </FormField>
+            <FormField label="Property ID" required>
+              <input className="dialog-input" type="number" value={propertyId} onChange={e => setPropertyId(e.target.value)} placeholder="Property ID" disabled={isLoading} />
+            </FormField>
+          </FormRow>
+          <FormField label="Type" required>
+            <select className="dialog-select" value={type} onChange={e => setType(e.target.value)} disabled={isLoading}>
+              <option value="earned">Earned (DR: Commission Receivable, CR: Commission Income)</option>
+              <option value="paid">Paid (DR: Commission Expense, CR: Bank)</option>
+            </select>
+          </FormField>
+          <FormRow cols={2}>
+            <FormField label="Amount" required>
+              <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
+            </FormField>
+            <FormField label="Date" hint="Optional">
+              <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
+            <FormField label="Reference" hint="Optional">
+              <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. DEAL-001" disabled={isLoading} />
+            </FormField>
+            <FormField label="Description" hint="Optional">
+              <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Notes..." disabled={isLoading} />
+            </FormField>
+          </FormRow>
+        </>
+      )}
     </AppDialog>
   );
 }
@@ -466,7 +509,7 @@ export function CreateCommissionDialog({ isOpen, onClose, onSubmit, isLoading }:
 interface ManualJournalDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<number>;
   accounts: Account[];
   isLoading?: boolean;
 }
@@ -486,9 +529,10 @@ export function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoa
     { account_id: "", debit: "", credit: "", description: "" },
   ]);
   const [error, setError] = useState("");
+  const [createdJournalId, setCreatedJournalId] = useState<number | null>(null);
 
   const reset = () => {
-    setDescription(""); setDate(""); setError("");
+    setDescription(""); setDate(""); setError(""); setCreatedJournalId(null);
     setLines([{ account_id: "", debit: "", credit: "", description: "" }, { account_id: "", debit: "", credit: "", description: "" }]);
   };
 
@@ -509,7 +553,7 @@ export function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoa
     const validLines = lines.filter(l => l.account_id && (Number(l.debit) > 0 || Number(l.credit) > 0));
     if (validLines.length < 2) { setError("At least 2 valid lines required"); return; }
     try {
-      await onSubmit({
+      const journalId = await onSubmit({
         reference_type: "manual",
         description: description || undefined,
         date: date ? new Date(date).toISOString() : undefined,
@@ -520,7 +564,7 @@ export function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoa
           description: l.description || undefined,
         })),
       });
-      reset(); onClose();
+      setCreatedJournalId(journalId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to post journal");
     }
@@ -530,80 +574,92 @@ export function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoa
     <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
-      title="Manual Journal Entry"
-      subtitle="Post a balanced journal entry with debits and credits"
+      title={createdJournalId ? "Journal Posted" : "Manual Journal Entry"}
+      subtitle={createdJournalId ? "Journal entry has been posted successfully" : "Post a balanced journal entry with debits and credits"}
       size="lg"
       icon={<BookOpen size={18} />}
       footer={
-        <>
-          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
-          <AppDialogSubmitButton onClick={handleSubmit} label="Post Journal" loading={isLoading} />
-        </>
+        createdJournalId ? (
+          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} label="Done" />
+        ) : (
+          <>
+            <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
+            <AppDialogSubmitButton onClick={handleSubmit} label="Post Journal" loading={isLoading} />
+          </>
+        )
       }
     >
-      {error && <ErrorBanner msg={error} />}
-      <FormRow cols={2}>
-        <FormField label="Description" hint="Optional">
-          <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Journal description" disabled={isLoading} />
-        </FormField>
-        <FormField label="Date" hint="Optional">
-          <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
-        </FormField>
-      </FormRow>
-
-      <FormSection title="Journal Lines">
-        <div className="flex items-center justify-between mb-2">
-          <button type="button" onClick={addLine} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
-            <Plus size={12}/> Add Line
-          </button>
-        </div>
-        <div className="space-y-2">
-          <div className="grid grid-cols-12 gap-1 text-[10px] text-muted px-1">
-            <span className="col-span-4">Account</span>
-            <span className="col-span-2 text-right">Debit</span>
-            <span className="col-span-2 text-right">Credit</span>
-            <span className="col-span-3">Description</span>
-            <span className="col-span-1"></span>
+      {createdJournalId ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+            <p className="text-sm font-semibold text-emerald-400">Journal #{createdJournalId} posted successfully</p>
+            <p className="text-xs text-muted mt-1">You can now attach files below</p>
           </div>
-          {lines.map((line, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-1 items-center">
-              <div className="col-span-4">
-                <select className="dialog-select text-xs py-1.5" value={line.account_id} onChange={e => updateLine(idx, "account_id", e.target.value)} disabled={isLoading}>
-                  <option value="">Account...</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-                </select>
+          <AttachmentPanel module="finance" recordId={createdJournalId} title="Attachments" />
+        </div>
+      ) : (
+        <>
+          {error && <ErrorBanner msg={error} />}
+          <FormRow cols={2}>
+            <FormField label="Description" hint="Optional">
+              <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Journal description" disabled={isLoading} />
+            </FormField>
+            <FormField label="Date" hint="Optional">
+              <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
+            </FormField>
+          </FormRow>
+
+          <FormSection title="Journal Lines">
+            <div className="flex items-center justify-between mb-2">
+              <button type="button" onClick={addLine} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
+                <Plus size={12}/> Add Line
+              </button>
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-1 text-[10px] text-muted px-1">
+                <span className="col-span-4">Account</span>
+                <span className="col-span-2 text-right">Debit</span>
+                <span className="col-span-2 text-right">Credit</span>
+                <span className="col-span-3">Description</span>
+                <span className="col-span-1"></span>
               </div>
-              <div className="col-span-2">
-                <input className="dialog-input text-xs py-1.5 text-right" type="number" step="0.01" min="0" value={line.debit} onChange={e => updateLine(idx, "debit", e.target.value)} placeholder="0.00" disabled={isLoading} />
-              </div>
-              <div className="col-span-2">
-                <input className="dialog-input text-xs py-1.5 text-right" type="number" step="0.01" min="0" value={line.credit} onChange={e => updateLine(idx, "credit", e.target.value)} placeholder="0.00" disabled={isLoading} />
-              </div>
-              <div className="col-span-3">
-                <input className="dialog-input text-xs py-1.5" value={line.description} onChange={e => updateLine(idx, "description", e.target.value)} placeholder="Note..." disabled={isLoading} />
-              </div>
-              <div className="col-span-1 flex justify-center">
-                <button type="button" onClick={() => removeLine(idx)} disabled={lines.length <= 2} className="p-1 hover:bg-red-500/20 rounded text-red-400 disabled:opacity-30">
-                  <Trash2 size={12}/>
-                </button>
+              {lines.map((line, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-1 items-center">
+                  <div className="col-span-4">
+                    <select className="dialog-select text-xs py-1.5" value={line.account_id} onChange={e => updateLine(idx, "account_id", e.target.value)} disabled={isLoading}>
+                      <option value="">Account...</option>
+                      {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <input className="dialog-input text-xs py-1.5 text-right" type="number" step="0.01" min="0" value={line.debit} onChange={e => updateLine(idx, "debit", e.target.value)} placeholder="0.00" disabled={isLoading} />
+                  </div>
+                  <div className="col-span-2">
+                    <input className="dialog-input text-xs py-1.5 text-right" type="number" step="0.01" min="0" value={line.credit} onChange={e => updateLine(idx, "credit", e.target.value)} placeholder="0.00" disabled={isLoading} />
+                  </div>
+                  <div className="col-span-3">
+                    <input className="dialog-input text-xs py-1.5" value={line.description} onChange={e => updateLine(idx, "description", e.target.value)} placeholder="Note..." disabled={isLoading} />
+                  </div>
+                  <div className="col-span-1 flex justify-center">
+                    <button type="button" onClick={() => removeLine(idx)} disabled={lines.length <= 2} className="p-1 hover:bg-red-500/20 rounded text-red-400 disabled:opacity-30">
+                      <Trash2 size={12}/>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 p-3 bg-secondary/50 rounded flex justify-between text-xs">
+              <span className="text-muted">Totals</span>
+              <div className="flex gap-6">
+                <span>DR: <span className="text-blue-400 font-medium">{totalDebit.toFixed(2)}</span></span>
+                <span>CR: <span className="text-blue-400 font-medium">{totalCredit.toFixed(2)}</span></span>
+                <span className={balanced ? "text-green-400" : "text-red-400"}>{balanced ? "\u2713 Balanced" : "\u2717 Unbalanced"}</span>
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="mt-3 p-3 bg-secondary/50 rounded flex justify-between text-xs">
-          <span className="text-muted">Totals</span>
-          <div className="flex gap-6">
-            <span>DR: <span className="text-blue-400 font-medium">{totalDebit.toFixed(2)}</span></span>
-            <span>CR: <span className="text-blue-400 font-medium">{totalCredit.toFixed(2)}</span></span>
-            <span className={balanced ? "text-green-400" : "text-red-400"}>{balanced ? "\u2713 Balanced" : "\u2717 Unbalanced"}</span>
-          </div>
-        </div>
-      </FormSection>
-
-      <div className="pt-2">
-        <FileUpload module="finance" recordType="journal" recordId="" compact disabled={isLoading} documentTypes={["Supporting Document", "Approval", "Other"]} />
-      </div>
+          </FormSection>
+        </>
+      )}
     </AppDialog>
   );
 }
@@ -614,7 +670,7 @@ interface BankCashDialogProps {
   isOpen: boolean;
   type: "bank_payment" | "bank_receipt" | "cash_payment" | "cash_receipt" | null;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<number>;
   accounts: Account[];
   isLoading?: boolean;
 }
@@ -626,8 +682,9 @@ export function BankCashDialog({ isOpen, type, onClose, onSubmit, accounts, isLo
   const [description, setDescription] = useState("");
   const [reference,   setReference]   = useState("");
   const [error,       setError]       = useState("");
+  const [createdTxnId, setCreatedTxnId] = useState<number | null>(null);
 
-  const reset = () => { setAccountId(""); setAmount(""); setDate(""); setDescription(""); setReference(""); setError(""); };
+  const reset = () => { setAccountId(""); setAmount(""); setDate(""); setDescription(""); setReference(""); setError(""); setCreatedTxnId(null); };
 
   const titles: Record<string, string> = {
     bank_payment: "Bank Payment",
@@ -648,8 +705,8 @@ export function BankCashDialog({ isOpen, type, onClose, onSubmit, accounts, isLo
     if (!accountId || !amount || !description) { setError("Account, amount and description are required"); return; }
     if (Number(amount) <= 0) { setError("Amount must be greater than 0"); return; }
     try {
-      await onSubmit({ account_id: Number(accountId), amount: Number(amount), description, date: date ? new Date(date).toISOString() : undefined, reference: reference || undefined });
-      reset(); onClose();
+      const txnId = await onSubmit({ account_id: Number(accountId), amount: Number(amount), description, date: date ? new Date(date).toISOString() : undefined, reference: reference || undefined });
+      setCreatedTxnId(txnId);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to record transaction");
     }
@@ -661,39 +718,55 @@ export function BankCashDialog({ isOpen, type, onClose, onSubmit, accounts, isLo
     <AppDialog
       isOpen={isOpen}
       onClose={() => { reset(); onClose(); }}
-      title={titles[type] || "Transaction"}
-      subtitle="Record a bank or cash transaction"
+      title={createdTxnId ? titles[type] + " Recorded" : titles[type] || "Transaction"}
+      subtitle={createdTxnId ? "Transaction has been recorded successfully" : "Record a bank or cash transaction"}
       size="md"
       icon={<Landmark size={18} />}
       footer={
-        <>
-          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
-          <AppDialogSubmitButton onClick={handleSubmit} label={titles[type]} loading={isLoading} />
-        </>
+        createdTxnId ? (
+          <AppDialogCancelButton onClick={() => { reset(); onClose(); }} label="Done" />
+        ) : (
+          <>
+            <AppDialogCancelButton onClick={() => { reset(); onClose(); }} />
+            <AppDialogSubmitButton onClick={handleSubmit} label={titles[type]} loading={isLoading} />
+          </>
+        )
       }
     >
-      {error && <ErrorBanner msg={error} />}
-      <div className="p-3 bg-secondary/50 rounded text-xs text-muted">{hints[type]}</div>
-      <FormField label="Counter Account" required>
-        <select className="dialog-select" value={accountId} onChange={e => setAccountId(e.target.value)} disabled={isLoading}>
-          <option value="">Select account...</option>
-          {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name} ({a.account_type})</option>)}
-        </select>
-      </FormField>
-      <FormRow cols={2}>
-        <FormField label="Amount" required>
-          <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
-        </FormField>
-        <FormField label="Date" hint="Optional">
-          <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
-        </FormField>
-      </FormRow>
-      <FormField label="Description" required>
-        <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Transaction description" disabled={isLoading} />
-      </FormField>
-      <FormField label="Reference" hint="Optional">
-        <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. TXN-001" disabled={isLoading} />
-      </FormField>
+      {createdTxnId ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+            <p className="text-sm font-semibold text-emerald-400">{titles[type]} #{createdTxnId} recorded successfully</p>
+            <p className="text-xs text-muted mt-1">You can now attach files below</p>
+          </div>
+          <AttachmentPanel module="finance" recordId={createdTxnId} title="Attachments" />
+        </div>
+      ) : (
+        <>
+          {error && <ErrorBanner msg={error} />}
+          <div className="p-3 bg-secondary/50 rounded text-xs text-muted">{hints[type]}</div>
+          <FormField label="Counter Account" required>
+            <select className="dialog-select" value={accountId} onChange={e => setAccountId(e.target.value)} disabled={isLoading}>
+              <option value="">Select account...</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name} ({a.account_type})</option>)}
+            </select>
+          </FormField>
+          <FormRow cols={2}>
+            <FormField label="Amount" required>
+              <input className="dialog-input" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" disabled={isLoading} />
+            </FormField>
+            <FormField label="Date" hint="Optional">
+              <input className="dialog-input" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isLoading} />
+            </FormField>
+          </FormRow>
+          <FormField label="Description" required>
+            <input className="dialog-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Transaction description" disabled={isLoading} />
+          </FormField>
+          <FormField label="Reference" hint="Optional">
+            <input className="dialog-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. TXN-001" disabled={isLoading} />
+          </FormField>
+        </>
+      )}
     </AppDialog>
   );
 }

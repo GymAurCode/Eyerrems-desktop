@@ -81,13 +81,13 @@ def search_properties(
         like = f"%{search.strip()}%"
         q = q.filter(
             or_(
-                Property.title.ilike(like),
+                Property.name.ilike(like),
                 Property.address.ilike(like),
                 Property.property_id.ilike(like),
             )
         )
-    q = q.order_by(Property.title.asc())
-    return _paginated_response(q, page, Property, "title", "address")
+    q = q.order_by(Property.name.asc())
+    return _paginated_response(q, page, Property, "name", "address")
 
 
 # ── Units ──────────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { Paperclip, X, Upload, UserPlus } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
 import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
+import AsyncDebouncedSelect, { AsyncSelectOption } from "../ui/AsyncDebouncedSelect";
 import { crmApi, Lead } from "../../lib/crmApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 
@@ -23,6 +24,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   const [investorType, setInvestorType] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("new");
+  const [dealerId, setDealerId] = useState<number | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -32,7 +34,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
     setName(""); setPhone(""); setEmail(""); setSource("");
     setBudgetMin(""); setBudgetMax(""); setPreferredTown("");
     setInvestorType(""); setNotes(""); setStatus("new");
-    setFiles([]); setErr(""); setSaving(false);
+    setDealerId(null); setFiles([]); setErr(""); setSaving(false);
   };
 
   const handleSubmit = async (e?: FormEvent) => {
@@ -51,6 +53,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
         investor_type: investorType || null,
         notes: notes.trim() || null,
         status,
+        assigned_dealer_id: dealerId,
       });
 
       if (files.length > 0) {
@@ -172,6 +175,16 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
             <FormField label="Notes">
               <textarea className="dialog-textarea w-full" rows={2}
                 value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes…" />
+            </FormField>
+          </FormRow>
+          <FormRow cols={1}>
+            <FormField label="Assign to Dealer" fullWidth>
+              <AsyncDebouncedSelect
+                endpoint="/crm/async-select/dealers"
+                placeholder="Search dealer…"
+                value={dealerId}
+                onChange={(opt: AsyncSelectOption | null) => setDealerId(opt ? Number(opt.id) : null)}
+              />
             </FormField>
           </FormRow>
         </FormSection>
