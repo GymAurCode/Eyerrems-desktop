@@ -37,6 +37,8 @@ from app.api.routes.chat_routes import router as chat_router
 from app.api.routes.superadmin import router as superadmin_router
 from app.api.routes.attachments import router as attachments_router
 from app.routers.files import router as files_router
+from app.routers.rbac_auth import router as rbac_auth_router
+from app.routers.rbac_admin import router as rbac_admin_router
 from app.api.routes.lookups import router as lookups_router
 from app.api.routes.async_select import router as async_select_router
 from app.core.config import settings
@@ -131,6 +133,10 @@ app.include_router(attachments_router, prefix="/attachments", tags=["attachments
 app.include_router(files_router)
 app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
+
+# RBAC System
+app.include_router(rbac_auth_router)
+app.include_router(rbac_admin_router)
 
 
 @app.on_event("startup")

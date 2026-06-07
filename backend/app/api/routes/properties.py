@@ -10,6 +10,7 @@ from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_any_permission
 from app.core.audit import log_action
+from app.core.activity_logger import log_activity
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.tid import next_tid
@@ -123,6 +124,13 @@ def create_category(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"name": cat.name, "id": cat.id},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="category", record_id=cat.id,
+        record_label=f"Property Category: {cat.name}",
+        new_values={"name": cat.name, "id": cat.id},
+    )
+    db.commit()
     return cat
 
 
@@ -141,6 +149,13 @@ def delete_category(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data={"name": cat.name, "id": cat.id},
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="property",
+        record_type="category", record_id=category_id,
+        record_label=f"Property Category: {cat.name}",
+        old_values={"name": cat.name, "id": cat.id},
+    )
+    db.commit()
     db.delete(cat)
     db.commit()
 
@@ -178,6 +193,13 @@ def create_location(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in loc.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="location", record_id=loc.id,
+        record_label=f"Location: {loc.name}",
+        new_values={k: str(v) for k, v in loc.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     out = LocationOut.model_validate(loc)
     out.has_children = False
     return out
@@ -209,6 +231,13 @@ def create_amenity(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"name": a.name, "id": a.id},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="amenity", record_id=a.id,
+        record_label=f"Amenity: {a.name}",
+        new_values={"name": a.name, "id": a.id},
+    )
+    db.commit()
     return a
 
 
@@ -320,6 +349,13 @@ async def create_property(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="property", record_id=prop.id,
+        record_label=f"Property: {prop.name}",
+        new_values={k: str(v) for k, v in prop.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
     return _prop_out(prop)
 
@@ -392,6 +428,13 @@ async def update_property(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="property", record_id=prop.id,
+        record_label=f"Property: {prop.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return _prop_out(prop)
 
 
@@ -411,6 +454,13 @@ async def delete_property(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="property",
+        record_type="property", record_id=property_id,
+        record_label=f"Property: {prop.name}",
+        old_values=old_data,
+    )
+    db.commit()
     db.delete(prop)
     db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
@@ -446,6 +496,13 @@ async def create_floor(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in floor.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="floor", record_id=floor.id,
+        record_label=f"Floor: {floor.floor_number}",
+        new_values={k: str(v) for k, v in floor.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return floor
 
 
@@ -465,6 +522,13 @@ def delete_floor(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="property",
+        record_type="floor", record_id=floor_id,
+        record_label=f"Floor: {floor.floor_number}",
+        old_values=old_data,
+    )
+    db.commit()
     db.delete(floor)
     db.commit()
 
@@ -561,6 +625,13 @@ async def create_unit(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in unit.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="unit", record_id=unit.id,
+        record_label=f"Unit: {unit.unit_number}",
+        new_values={k: str(v) for k, v in unit.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
     return _unit_out(unit)
 
@@ -587,6 +658,13 @@ async def update_unit(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="unit", record_id=unit.id,
+        record_label=f"Unit: {unit.unit_number}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
     return _unit_out(unit)
 
@@ -848,6 +926,13 @@ async def create_lease(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="lease", record_id=lease.id,
+        record_label=f"Lease: {lease.tenant_name}",
+        new_values={k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
     return _lease_out(lease)
 
@@ -871,6 +956,12 @@ async def update_lease(
         record_id=str(lease_id), record_label=f"Lease: {lease.tenant_name}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="lease", record_id=lease.id,
+        record_label=f"Lease: {lease.tenant_name}",
+    )
+    db.commit()
     return _lease_out(lease)
 
 
@@ -905,6 +996,13 @@ async def record_lease_payment(
         record_id=str(pmt.id), record_label=f"Lease Payment: {pmt.amount}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="lease_payment", record_id=pmt.id,
+        record_label=f"Lease Payment: {pmt.amount}",
+        new_values={k: str(v) for k, v in pmt.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return pmt
 
 
@@ -964,6 +1062,13 @@ async def renew_lease(
         record_id=str(new_lease.id), record_label=f"Lease Renewed: {new_lease.tenant_name}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="lease", record_id=new_lease.id,
+        record_label=f"Lease Renewed: {new_lease.tenant_name}",
+        new_values={k: str(v) for k, v in new_lease.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return _lease_out(new_lease)
 
 
@@ -993,6 +1098,12 @@ async def terminate_lease(
         record_id=str(lease_id), record_label=f"Lease Terminated: {lease.tenant_name}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="lease", record_id=lease.id,
+        record_label=f"Lease Terminated: {lease.tenant_name}",
+    )
+    db.commit()
     return _lease_out(lease)
 
 
@@ -1105,6 +1216,13 @@ async def create_contact(
                record_label=f"Contact: {contact.name}",
                changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
                new_data={k: str(v) for k, v in contact.__dict__.items() if not k.startswith('_')})
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="contact", record_id=contact.id,
+        record_label=f"Contact: {contact.name}",
+        new_values={k: str(v) for k, v in contact.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return contact
 
 
@@ -1148,6 +1266,13 @@ async def update_contact(
                record_label=f"Contact: {contact.name}",
                changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
                new_data={k: str(v) for k, v in data.items()})
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="contact", record_id=contact.id,
+        record_label=f"Contact: {contact.name}",
+        new_values={k: str(v) for k, v in data.items()},
+    )
+    db.commit()
     return contact
 
 
@@ -1306,6 +1431,13 @@ def create_buyer(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in buyer.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="buyer", record_id=buyer.id,
+        record_label=f"Buyer: {buyer.name}",
+        new_values={k: str(v) for k, v in buyer.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return buyer
 
 
@@ -1357,6 +1489,13 @@ def create_seller(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in seller.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="seller", record_id=seller.id,
+        record_label=f"Seller: {seller.name}",
+        new_values={k: str(v) for k, v in seller.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return seller
 
 
@@ -1458,6 +1597,13 @@ async def create_sale(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in sale.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="property",
+        record_type="sale", record_id=sale.id,
+        record_label=f"Sale: {sale.id}",
+        new_values={k: str(v) for k, v in sale.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
     return sale
 
@@ -1500,6 +1646,13 @@ async def update_sale(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in data.items()},
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="sale", record_id=sale.id,
+        record_label=f"Sale: {sale.id}",
+        new_values={k: str(v) for k, v in data.items()},
+    )
+    db.commit()
     return sale
 
 
@@ -1539,6 +1692,13 @@ async def update_sale_stage(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"from_stage": from_stage, "to_stage": payload.stage},
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="property",
+        record_type="sale", record_id=sale.id,
+        record_label=f"Sale: {sale.id}",
+        new_values={"from_stage": from_stage, "to_stage": payload.stage},
+    )
+    db.commit()
     return sale
 
 

@@ -15,6 +15,7 @@ from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
 from app.core.audit import log_action
+from app.core.activity_logger import log_activity
 from app.core.database import get_db
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.tid import next_tid
@@ -326,6 +327,13 @@ def create_tenant_wizard(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="tenant",
+        record_type="tenant", record_id=tenant.id,
+        record_label=f"Tenant {tenant.name}",
+        new_values={k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return _build_detail(db, tenant)
 
 
@@ -410,6 +418,13 @@ def record_payment(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="tenant",
+        record_type="payment", record_id=payment.id,
+        record_label=f"Payment {payment.id}",
+        new_values={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return payment
 
 
@@ -635,6 +650,13 @@ def create_maintenance(
         new_data={k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="maintenance",
+        record_type="maintenance", record_id=record.id,
+        record_label=f"Maintenance {record.description[:80] if record.description else ''}",
+        new_values={k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
 
     db.commit()
     db.refresh(record)
@@ -660,6 +682,7 @@ def update_maintenance(
     if not record:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
 
+    old_data = {k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')}
     old_status = record.status
     update_data = payload.model_dump(exclude_none=True, exclude={"status_note"})
 
@@ -713,6 +736,14 @@ def update_maintenance(
         changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="maintenance",
+        record_type="maintenance", record_id=record.id,
+        record_label=f"Maintenance {record.description[:80] if record.description else ''}",
+        old_values=old_data,
+        new_values={k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
 
     db.commit()
     db.refresh(record)
@@ -733,6 +764,7 @@ def delete_maintenance(
     if not record:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
 
+    old_data = {k: str(v) for k, v in record.__dict__.items() if not k.startswith('_')}
     log_action(
         db=db, module="maintenance", action="DELETE",
         record_id=str(record_id),
@@ -741,6 +773,13 @@ def delete_maintenance(
         changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="maintenance",
+        record_type="maintenance", record_id=record_id,
+        record_label=f"Maintenance {record.description[:80] if record.description else ''}",
+        old_values=old_data,
+    )
+    db.commit()
 
     db.delete(record)
     db.commit()
@@ -784,6 +823,13 @@ def update_tenant(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="tenant",
+        record_type="tenant", record_id=tenant.id,
+        record_label=f"Tenant {tenant.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return tenant
 
 
@@ -803,6 +849,13 @@ def delete_tenant(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="tenant",
+        record_type="tenant", record_id=tenant_id,
+        record_label=f"Tenant {tenant.name}",
+        old_values=old_data,
+    )
+    db.commit()
     db.delete(tenant)
     db.commit()
 
@@ -851,6 +904,13 @@ def end_lease(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="tenant",
+        record_type="lease", record_id=lease.id,
+        record_label=f"Lease {lease.id}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     d = LeaseOut.model_validate(lease).model_dump()
     d["property_name"] = lease.property_rel.name if lease.property_rel else None
     d["unit_number"]   = lease.unit_rel.unit_number if lease.unit_rel else None
@@ -915,6 +975,13 @@ def increase_rent(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in increase.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="tenant",
+        record_type="rent_increase", record_id=increase.id,
+        record_label=f"Rent Increase {increase.id}",
+        new_values={k: str(v) for k, v in increase.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return increase
 
 

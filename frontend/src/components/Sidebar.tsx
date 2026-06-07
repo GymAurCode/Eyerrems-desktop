@@ -3,6 +3,7 @@ import { useAuthStore } from "../store/auth";
 import { useUIStore } from "../store/ui";
 import { useMailStore } from "../store/mail";
 import { canAccess } from "../utils/permissions";
+import { usePermissions } from "../hooks/usePermissions";
 import { LayoutDashboard, Building2, Users, Wallet, ShieldCheck, Zap, Home, Wrench, HardHat, Bell, UserCog, MapPin, BarChart2, Brain, MessageSquare, Clock } from "lucide-react";
 import { MODULE_COLORS } from "../config/moduleColors";
 
@@ -48,6 +49,7 @@ export default function Sidebar() {
   const user      = useAuthStore((s) => s.user);
   const hasFeature = useAuthStore((s) => s.hasFeature);
   const companyPermissions = useAuthStore((s) => s.companyPermissions);
+  const { canAccessModule } = usePermissions();
   const open      = useUIStore((s) => s.sidebarOpen);
   const location  = useLocation();
   const mailStats = useMailStore((s) => s.stats);
@@ -60,6 +62,7 @@ export default function Sidebar() {
     if (!roleOk) return false;
     if (item.feature && !hasFeature(item.feature)) return false;
     if (item.module && !canAccess(companyPermissions, item.module, item.tab)) return false;
+    if (item.module && !canAccessModule(item.module)) return false;
     return true;
   });
 

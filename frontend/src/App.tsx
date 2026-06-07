@@ -10,6 +10,8 @@ import { useRealtimeSocket } from "./hooks/useWebSocket";
 import { useAppBootstrap, useBackgroundRefresh } from "./hooks/useAppBootstrap";
 import ProtectedRoute from "./components/ProtectedRoute";
 import FeatureGuard from "./components/FeatureGuard";
+import ModuleGuard from "./components/guards/ModuleGuard";
+import RoleUserGuard from "./components/guards/RoleUserGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
 import { ErrorTrackerPanel } from "./components/ErrorTracker";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -61,6 +63,8 @@ const AIIntelligencePage = lazy(() => import("./pages/AIIntelligence"));
 const ImportCenter = lazy(() => import("./pages/ImportCenter"));
 const HistoryPage = lazy(() => import("./pages/History"));
 const AdvanceOptionsPage = lazy(() => import("./pages/AdvanceOptions"));
+const SlugSetupPage = lazy(() => import("./pages/SlugSetup"));
+const ChangePasswordPage = lazy(() => import("./pages/ChangePassword"));
 
 // ── Module loading spinner ────────────────────────────────────────────────────
 function ModuleLoadingSpinner() {
@@ -202,304 +206,385 @@ export default function App() {
           </SuperAdminRoute>
         } />
 
+        {/* ── RBAC role user routes ────────────────────────────────────────── */}
+        <Route path="/setup-slug" element={
+          <RoleUserGuard>
+            <SlugSetupPage />
+          </RoleUserGuard>
+        } />
+        <Route path="/change-password" element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        } />
+
         {/* ── Company Dashboard ────────────────────────────────────────────── */}
         <Route path="/" element={
-          <ProtectedRoute>
-            <CompanyLayout><DashboardPage /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout><DashboardPage /></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Property module ──────────────────────────────────────────────── */}
         <Route path="/property" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
-                <PropertyPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="properties"><PropertyPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/property/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
-                <PropertyViewPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="properties"><PropertyViewPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Town Management module ───────────────────────────────────────── */}
         <Route path="/towns" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
-                <TownListPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="properties"><TownListPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/towns/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
-                <TownDetailPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="properties"><TownDetailPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
-        {/* ── CRM module ───────────────────────────────────────────────────── */}        <Route path="/crm" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <CRMPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+        {/* ── CRM module ───────────────────────────────────────────────────── */}
+        <Route path="/crm" element={
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><CRMPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/leads/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <LeadDetail />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><LeadDetail /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/clients/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <ClientDetail />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><ClientDetail /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/deals/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <DealDetail />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><DealDetail /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/deals/:id/installment-plan" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <InstallmentPlanBuilder />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><InstallmentPlanBuilder /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/dealers/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <DealerDetail />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><DealerDetail /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/bookings" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <BookingsPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><BookingsPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/crm/bookings/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
-                <BookingDetailPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="crm"><BookingDetailPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Finance module ───────────────────────────────────────────────── */}
         <Route path="/finance" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="finance_module" fallback={<DisabledModule />}>
-                <ErrorBoundary>
-                  <FinancePage />
-                </ErrorBoundary>
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="finance_module" fallback={<DisabledModule />}>
+                  <ErrorBoundary>
+                    <ModuleGuard module="finance"><FinancePage /></ModuleGuard>
+                  </ErrorBoundary>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Ledger → Finance (unified workspace) ─────────────────────────── */}
         <Route path="/ledger" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
-            <Navigate to="/finance" replace state={{ financeTab: "ledger" }} />
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
+              <Navigate to="/finance" replace state={{ financeTab: "ledger" }} />
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Tenant module ────────────────────────────────────────────────── */}
         <Route path="/tenants" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
-                <TenantPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="tenants"><TenantPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/tenants/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
-                <TenantDetailPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="tenants"><TenantDetailPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/maintenance" element={
-          <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
-                <MaintenancePage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="maintenance"><MaintenancePage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Admin ────────────────────────────────────────────────────────── */}
         <Route path="/admin" element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
-            <CompanyLayout><AdminPage /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><AdminPage /></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/import" element={
           <Navigate to="/reports?tab=import" replace />
         } />
         <Route path="/admin-panel" element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
-            <CompanyLayout><AdminPanel /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><AdminPanel /></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Construction module ──────────────────────────────────────────── */}
         <Route path="/construction" element={
-          <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
-                <ConstructionDashboard />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="construction"><ConstructionDashboard /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/construction/projects" element={
-          <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
-                <ProjectList />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="construction"><ProjectList /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/construction/projects/:id" element={
-          <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
-                <ProjectDetails />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="construction"><ProjectDetails /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Advance Options ──────────────────────────────────────────────── */}
         <Route path="/advance-options" element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
-            <CompanyLayout><AdvanceOptionsPage /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><AdvanceOptionsPage /></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Reminders module ─────────────────────────────────────────────── */}
         <Route path="/reminders" element={
-          <ProtectedRoute>
-            <CompanyLayout>
-              <FeatureGuard feature="reminders_module" fallback={<DisabledModule />}>
-                <RemindersPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <FeatureGuard feature="reminders_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="reminders"><RemindersPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── HR module ────────────────────────────────────────────────────── */}
         <Route path="/hr" element={
-          <ProtectedRoute allowedRoles={["Admin","Manager"]}>
-            <CompanyLayout>
-              <FeatureGuard feature="hr_module" fallback={<DisabledModule />}>
-                <HRPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Manager"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="hr_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="hr"><HRPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Mail module ──────────────────────────────────────────────────── */}
         <Route path="/mail" element={
-          <ProtectedRoute>
-            <CompanyLayout>
-              <FeatureGuard feature="mail_module" fallback={<DisabledModule />}>
-                <MailPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <FeatureGuard feature="mail_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="communication"><MailPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Communication Hub (Email + WhatsApp) ─────────────────────────── */}
         <Route path="/communication" element={
-          <ProtectedRoute>
-            <CompanyLayout>
-              <FeatureGuard feature="mail_module" fallback={<DisabledModule />}>
-                <CommunicationPage />
-              </FeatureGuard>
-            </CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <FeatureGuard feature="mail_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="communication"><CommunicationPage /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Reports Center ───────────────────────────────────────────────── */}
         <Route path="/reports" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-            <CompanyLayout><ReportsCenter /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
+              <CompanyLayout><ModuleGuard module="reports"><ReportsCenter /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/reports/run/:reportKey" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-            <CompanyLayout><ReportRunner /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
+              <CompanyLayout><ModuleGuard module="reports"><ReportRunner /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/reports/installment-plan" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-            <CompanyLayout><InstallmentPlanReport /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
+              <CompanyLayout><ModuleGuard module="reports"><InstallmentPlanReport /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
         <Route path="/reports/booking-form" element={
-          <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-            <CompanyLayout><BookingFormReport /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
+              <CompanyLayout><ModuleGuard module="reports"><BookingFormReport /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── AI Intelligence Center ────────────────────────────────────────── */}
         <Route path="/ai" element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
-            <CompanyLayout><AIIntelligencePage /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><ModuleGuard module="ai"><AIIntelligencePage /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Activity History ────────────────────────────────────────────── */}
         <Route path="/history" element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
-            <CompanyLayout><HistoryPage /></CompanyLayout>
-          </ProtectedRoute>
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><ModuleGuard module="history"><HistoryPage /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
         } />
 
         {/* ── Fallback ─────────────────────────────────────────────────────── */}

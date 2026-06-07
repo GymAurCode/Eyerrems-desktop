@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_permissions, require_any_permission
+from app.core.activity_logger import log_activity
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.default_coa import SYSTEM_ACCOUNT_CODES
@@ -131,6 +132,13 @@ async def create_account(
     db.commit()
     db.refresh(account)
     _log_audit(db, user, "CREATE", "accounts", "Account", str(account.id), f"Created account: {account.code} — {account.name}")
+    log_activity(
+        db=db, user=user, action="create", module="finance",
+        record_type="Account", record_id=str(account.id),
+        record_label=f"Account {account.code} — {account.name}",
+        new_values={k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("finance_updated", {"type": "account_created", "account_id": account.id})
     return account
 
@@ -242,6 +250,13 @@ async def update_account(
     db.commit()
     db.refresh(account)
     _log_audit(db, user, "UPDATE", "accounts", "Account", str(account_id), f"Updated account: {account.code}")
+    log_activity(
+        db=db, user=user, action="update", module="finance",
+        record_type="Account", record_id=str(account_id),
+        record_label=f"Account {account.code}",
+        old_values=old_data, new_values={k: str(v) for k, v in account.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("finance_updated", {"type": "account_updated", "account_id": account.id})
     return account
 
@@ -264,6 +279,13 @@ async def delete_account(
     db.delete(account)
     db.commit()
     _log_audit(db, user, "DELETE", "accounts", "Account", str(account_id), f"Deleted account: {account.code}")
+    log_activity(
+        db=db, user=user, action="delete", module="finance",
+        record_type="Account", record_id=str(account_id),
+        record_label=f"Account {account.code}",
+        old_values={"id": str(account_id)},
+    )
+    db.commit()
     await ws_manager.broadcast("finance_updated", {"type": "account_deleted", "account_id": account_id})
     return {"deleted": True}
 
@@ -301,6 +323,13 @@ async def create_journal(
         db.refresh(journal)
         _log_audit(db, user, "CREATE", "journals", "Journal", str(journal.id),
                    f"Journal: {journal.description}", sum(e.debit for e in journal.entries))
+        log_activity(
+            db=db, user=user, action="create", module="finance",
+            record_type="Journal", record_id=str(journal.id),
+            record_label=f"Journal {journal.id}",
+            new_values={k: str(v) for k, v in journal.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         await ws_manager.broadcast("journal_created", {"journal_id": journal.id})
         return _journal_to_response(db, journal)
     except ValueError as e:
@@ -429,6 +458,13 @@ async def create_invoice(
         db.commit()
         _log_audit(db, user, "CREATE", "invoices", "Invoice", str(invoice.id),
                    f"Created invoice #{invoice.id} for {payload.amount}", payload.amount)
+        log_activity(
+            db=db, user=user, action="create", module="finance",
+            record_type="Invoice", record_id=str(invoice.id),
+            record_label=f"Invoice #{invoice.id}",
+            new_values={k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         await ws_manager.broadcast("invoice_created", {"invoice_id": invoice.id})
         return invoice
     except Exception as e:
@@ -500,11 +536,19 @@ async def update_invoice(
     invoice = query.filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    old_data = {k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')}
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(invoice, field, value)
     db.commit()
     db.refresh(invoice)
     _log_audit(db, user, "UPDATE", "invoices", "Invoice", str(invoice_id), f"Updated invoice #{invoice_id}")
+    log_activity(
+        db=db, user=user, action="update", module="finance",
+        record_type="Invoice", record_id=str(invoice_id),
+        record_label=f"Invoice #{invoice_id}",
+        old_values=old_data, new_values={k: str(v) for k, v in invoice.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return invoice
 
 
@@ -581,6 +625,13 @@ async def create_payment(
         db.commit()
         _log_audit(db, user, "CREATE", "payments", "Payment", str(payment.id),
                    f"Payment of {payload.amount} received", payload.amount)
+        log_activity(
+            db=db, user=user, action="create", module="finance",
+            record_type="Payment", record_id=str(payment.id),
+            record_label=f"Payment {payment.id}",
+            new_values={k: str(v) for k, v in payment.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         await ws_manager.broadcast("payment_processed", {"payment_id": payment.id})
         db.refresh(payment)
         return payment
@@ -765,6 +816,13 @@ async def create_commission(
         db.refresh(commission)
         _log_audit(db, user, "CREATE", "commissions", "Commission", str(commission.id),
                    f"Commission: {dealer.name} {final_amount}", final_amount)
+        log_activity(
+            db=db, user=user, action="create", module="finance",
+            record_type="Commission", record_id=str(commission.id),
+            record_label=f"Commission {commission.id}",
+            new_values={k: str(v) for k, v in commission.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         await ws_manager.broadcast("journal_created", {"type": "commission", "commission_id": commission.id})
         return _commission_to_response(db, commission)
     except HTTPException:
@@ -841,6 +899,13 @@ async def mark_commission_paid(
     db.refresh(commission)
     _log_audit(db, user, "MARK_PAID", "commissions", "Commission", str(commission_id),
                f"Marked commission {commission_id} paid", commission.amount)
+    log_activity(
+        db=db, user=user, action="update", module="finance",
+        record_type="Commission", record_id=str(commission_id),
+        record_label=f"Commission {commission_id}",
+        new_values={"payment_status": "paid"},
+    )
+    db.commit()
     return _commission_to_response(db, commission)
 
 
@@ -892,6 +957,13 @@ async def create_expense(
         db.commit()
         _log_audit(db, user, "CREATE", "expenses", "Expense", str(expense.id),
                    f"Expense: {payload.description}", payload.amount)
+        log_activity(
+            db=db, user=user, action="create", module="finance",
+            record_type="Expense", record_id=str(expense.id),
+            record_label=f"Expense {expense.id}",
+            new_values={k: str(v) for k, v in expense.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         await ws_manager.broadcast("journal_created", {"type": "expense", "expense_id": expense.id})
         db.refresh(expense)
         return ExpenseResponse(

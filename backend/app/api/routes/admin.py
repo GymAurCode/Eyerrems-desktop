@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_permissions
+from app.core.activity_logger import log_activity
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.models.audit import AuditLog
@@ -84,6 +85,13 @@ def create_role(
         new_data={"role_name": role.name, "permission_count": len(role.permissions)},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=admin, action="create", module="admin",
+        record_type="role", record_id=role.id,
+        record_label=f"Role: {role.name}",
+        new_values={k: str(v) for k, v in role.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     db.refresh(role)
     
     return RoleDetailResponse(
@@ -114,6 +122,13 @@ def update_role(
     admin: User = Depends(require_permissions("role.update"))
 ):
     """Update an existing role"""
+    old_role = RBACService.get_role_by_id(db, role_id)
+    old_data = {
+        "name": old_role.name,
+        "description": old_role.description,
+        "permission_ids": [p.id for p in old_role.permissions],
+    }
+
     role = RBACService.update_role(
         db,
         role_id=role_id,
@@ -124,6 +139,12 @@ def update_role(
     
     db.commit()
 
+    new_data = {
+        "name": role.name,
+        "description": role.description,
+        "permission_ids": [p.id for p in role.permissions],
+    }
+
     log_action(
         db=db, module="user", action="UPDATE",
         record_id=str(role.id), record_label=f"Role: {role.name}",
@@ -131,6 +152,13 @@ def update_role(
         new_data={"role_name": role.name, "permission_count": len(role.permissions)},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=admin, action="update", module="admin",
+        record_type="role", record_id=role.id,
+        record_label=f"Role: {role.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     db.refresh(role)
     
     return RoleDetailResponse(
@@ -180,6 +208,13 @@ def delete_role(
         old_data={"role_name": role_name},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=admin, action="delete", module="admin",
+        record_type="role", record_id=role_id,
+        record_label=f"Role: {role_name}",
+        old_values={"name": role_name},
+    )
+    db.commit()
 
 
 @router.get("/roles", response_model=list[RolePermissionResponse])
@@ -222,6 +257,13 @@ def create_permission(
         new_data={"permission_name": permission.name, "module": permission.module},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=admin, action="create", module="admin",
+        record_type="permission", record_id=permission.id,
+        record_label=f"Permission: {permission.name}",
+        new_values={k: str(v) for k, v in permission.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     db.refresh(permission)
     
     return PermissionResponse(
@@ -262,6 +304,13 @@ def delete_permission(
         old_data={"permission_name": perm_name},
         ip_address=request.client.host if request.client else None,
     )
+    log_activity(
+        db=db, user=admin, action="delete", module="admin",
+        record_type="permission", record_id=permission_id,
+        record_label=f"Permission: {perm_name}",
+        old_values={"name": perm_name},
+    )
+    db.commit()
     db.delete(perm)
     db.commit()
 
@@ -286,6 +335,13 @@ def seed_permissions(
             new_data={"count": len(created)},
             ip_address=request.client.host if request.client else None,
         )
+        log_activity(
+            db=db, user=admin, action="create", module="admin",
+            record_type="permission", record_id="seed",
+            record_label="Seeded default permissions",
+            new_values={"count": len(created)},
+        )
+        db.commit()
     
     return {"message": f"Seeded {len(created)} permissions", "count": len(created)}
 
@@ -308,6 +364,13 @@ def seed_roles(
             new_data={"count": len(created), "roles": [r.name for r in created]},
             ip_address=request.client.host if request.client else None,
         )
+        log_activity(
+            db=db, user=admin, action="create", module="admin",
+            record_type="role", record_id="seed",
+            record_label="Seeded default roles",
+            new_values={"count": len(created), "roles": [r.name for r in created]},
+        )
+        db.commit()
     
     return {
         "message": f"Seeded {len(created)} roles",

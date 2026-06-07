@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
 from app.core.audit import log_action
+from app.core.activity_logger import log_activity
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.auth import User
@@ -55,6 +56,12 @@ def create_project(
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=user, action="create", module="construction",
+        record_type="project", record_id=result.id, record_label=f"Project: {result.name}",
+        new_values={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return result
 
 
@@ -107,6 +114,11 @@ def update_project(
         record_id=str(project_id), record_label=f"Project: {project_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="project", record_id=project_id, record_label=f"Project: {project_id}",
+    )
+    db.commit()
     return result
 
 
@@ -121,6 +133,12 @@ def delete_project(
         record_id=str(project_id), record_label=f"Project: {project_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="project", record_id=project_id, record_label=f"Project: {project_id}",
+        old_values={"id": str(project_id)},
+    )
+    db.commit()
     ProjectService.delete(db, project_id)
 
 
@@ -141,6 +159,12 @@ def create_phase(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="construction",
+        record_type="phase", record_id=result.id, record_label=f"Phase: {result.name}",
+        new_values={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return result
 
 
@@ -157,6 +181,11 @@ def update_phase(
         record_id=str(phase_id), record_label=f"Phase: {phase_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="phase", record_id=phase_id, record_label=f"Phase: {phase_id}",
+    )
+    db.commit()
     return result
 
 
@@ -171,6 +200,12 @@ def delete_phase(
         record_id=str(phase_id), record_label=f"Phase: {phase_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="phase", record_id=phase_id, record_label=f"Phase: {phase_id}",
+        old_values={"id": str(phase_id)},
+    )
+    db.commit()
     ProjectService.delete_phase(db, phase_id)
 
 
@@ -190,6 +225,11 @@ def upsert_budget(
         record_id=str(result.project_id), record_label=f"Budget: Project {result.project_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="construction",
+        record_type="budget", record_id=result.project_id, record_label=f"Budget: Project {result.project_id}",
+    )
+    db.commit()
     return result
 
 
@@ -206,6 +246,11 @@ def patch_budget(
         record_id=str(project_id), record_label=f"Budget: Project {project_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="budget", record_id=project_id, record_label=f"Budget: Project {project_id}",
+    )
+    db.commit()
     return result
 
 
@@ -226,6 +271,12 @@ def create_contractor(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="construction",
+        record_type="contractor", record_id=result.id, record_label=f"Contractor: {result.name}",
+        new_values={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return result
 
 
@@ -242,6 +293,11 @@ def update_contractor(
         record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="contractor", record_id=contractor_id, record_label=f"Contractor: {contractor_id}",
+    )
+    db.commit()
     return result
 
 
@@ -256,6 +312,12 @@ def delete_contractor(
         record_id=str(contractor_id), record_label=f"Contractor: {contractor_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="contractor", record_id=contractor_id, record_label=f"Contractor: {contractor_id}",
+        old_values={"id": str(contractor_id)},
+    )
+    db.commit()
     ContractorService.delete(db, contractor_id)
 
 
@@ -271,6 +333,11 @@ def assign_contractor(
         record_id=str(result.id), record_label=f"Contractor Assignment: {result.id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="construction",
+        record_type="contractor_assignment", record_id=result.id, record_label=f"Contractor Assignment: {result.id}",
+    )
+    db.commit()
     return result
 
 
@@ -285,6 +352,12 @@ def remove_assignment(
         record_id=str(assignment_id), record_label=f"Contractor Assignment: {assignment_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="contractor_assignment", record_id=assignment_id, record_label=f"Contractor Assignment: {assignment_id}",
+        old_values={"id": str(assignment_id)},
+    )
+    db.commit()
     ContractorService.remove_assignment(db, assignment_id)
 
 
@@ -305,6 +378,12 @@ def create_procurement(
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=user, action="create", module="construction",
+        record_type="procurement", record_id=result.id, record_label=f"Procurement: {result.id}",
+        new_values={k: str(v) for k, v in result.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return result
 
 
@@ -321,6 +400,11 @@ def update_procurement(
         record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="procurement", record_id=procurement_id, record_label=f"Procurement: {procurement_id}",
+    )
+    db.commit()
     return result
 
 
@@ -337,6 +421,11 @@ def update_procurement_status(
         record_id=str(procurement_id), record_label=f"Procurement status: {procurement_id}",
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=user, action="update", module="construction",
+        record_type="procurement", record_id=procurement_id, record_label=f"Procurement status: {procurement_id}",
+    )
+    db.commit()
     return result
 
 
@@ -351,6 +440,12 @@ def delete_procurement(
         record_id=str(procurement_id), record_label=f"Procurement: {procurement_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="procurement", record_id=procurement_id, record_label=f"Procurement: {procurement_id}",
+        old_values={"id": str(procurement_id)},
+    )
+    db.commit()
     ProcurementService.delete(db, procurement_id)
 
 
@@ -370,6 +465,11 @@ def log_progress(
         record_id=str(result.id), record_label=f"Progress: Project {payload.project_id}",
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=user, action="create", module="construction",
+        record_type="progress", record_id=result.id, record_label=f"Progress: Project {payload.project_id}",
+    )
+    db.commit()
     return result
 
 
@@ -386,6 +486,11 @@ def update_progress(
         record_id=str(progress_id), record_label=f"Progress: {progress_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="construction",
+        record_type="progress", record_id=progress_id, record_label=f"Progress: {progress_id}",
+    )
+    db.commit()
     return result
 
 
@@ -400,6 +505,12 @@ def delete_progress(
         record_id=str(progress_id), record_label=f"Progress: {progress_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="progress", record_id=progress_id, record_label=f"Progress: {progress_id}",
+        old_values={"id": str(progress_id)},
+    )
+    db.commit()
     ExecutionService.delete_progress(db, progress_id)
 
 
@@ -419,6 +530,11 @@ def add_expense(
         record_id=str(result.id), record_label=f"Expense: {result.description}",
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=user, action="create", module="construction",
+        record_type="expense", record_id=result.id, record_label=f"Expense: {result.description}",
+    )
+    db.commit()
     return result
 
 
@@ -476,6 +592,12 @@ async def upload_document(
         changed_by=user.email, changed_by_role=getattr(getattr(user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=user, action="create", module="construction",
+        record_type="document", record_id=doc.id, record_label=f"Document: {doc.name}",
+        new_values={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return doc
 
 
@@ -515,6 +637,12 @@ def delete_document(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="construction",
+        record_type="document", record_id=document_id, record_label=f"Document: {doc.name}",
+        old_values={k: str(v) for k, v in doc.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     db.delete(doc)
     db.commit()
 

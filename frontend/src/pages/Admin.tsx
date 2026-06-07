@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import {
   Users, ScrollText, Shield, CheckCircle, XCircle,
-  Plus, Pencil, Trash2, Key, Save, UserCheck, AlertCircle, Settings, DollarSign
+  Plus, Pencil, Trash2, Key, Save, UserCheck, AlertCircle, Settings, DollarSign, Clock, Activity, Bell
 } from "lucide-react";
 import AppDialog from "../components/ui/AppDialog";
 import { printRecord } from "../components/actions";
@@ -10,6 +10,9 @@ import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/
 import { DataTable } from "../components/data-table";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
+import RolesTabRbac from "../modules/Admin/tabs/RolesTab";
+import UsersTabRbac from "../modules/Admin/tabs/UsersTab";
+import MonitoringTab from "../modules/Admin/tabs/MonitoringTab";
 
 interface Permission { id: number; name: string; module: string; description: string; }
 interface Role { id: number; name: string; description: string; permissions: Permission[]; }
@@ -29,6 +32,9 @@ const TABS = [
   { key: "perms", label: "Permissions", icon: Key },
   { key: "audit", label: "Audit Log", icon: ScrollText },
   { key: "settings", label: "System Settings", icon: Settings },
+  { key: "rbac_roles", label: "RBAC Roles", icon: Shield },
+  { key: "rbac_users", label: "RBAC Users", icon: Users },
+  { key: "monitoring", label: "Monitoring", icon: Activity },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -1036,6 +1042,9 @@ export default function AdminPage() {
       {tab === "perms" && <PermissionsTab permissions={permissions} onReload={reloadAll} />}
       {tab === "audit" && <AuditTab />}
       {tab === "settings" && <SystemSettingsTab />}
+      {tab === "rbac_roles" && <RolesTabRbac />}
+      {tab === "rbac_users" && <UsersTabRbac />}
+      {tab === "monitoring" && <MonitoringTab />}
     </div>
   );
 }

@@ -30,21 +30,28 @@ def create_access_token(
     subject: str,
     company_id: Optional[str] = None,
     is_super_admin: bool = False,
+    extra_payload: Optional[dict] = None,
 ) -> str:
     """
     Create a signed JWT.
 
     Payload:
         sub            – user email
-        role           – "superadmin" | "company_admin"
+        role           – "superadmin" | "company_admin" | "role_user"
         company_id     – company UUID (None for super-admins)
         is_super_admin – bool flag (legacy compat)
         exp            – expiry
+
+    When `extra_payload` is provided, it is merged into the token.
+    This is used by the RBAC system to embed permissions and role metadata.
     """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.jwt_access_token_expire_minutes
     )
-    role = "superadmin" if is_super_admin else "company_admin"
+    if extra_payload:
+        role = extra_payload.get("user_type", "company_admin")
+    else:
+        role = "superadmin" if is_super_admin else "company_admin"
     payload: dict = {
         "sub": subject,
         "role": role,
@@ -52,6 +59,8 @@ def create_access_token(
         "is_super_admin": is_super_admin,
         "exp": expire,
     }
+    if extra_payload:
+        payload.update(extra_payload)
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

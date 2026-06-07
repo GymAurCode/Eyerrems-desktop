@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
 from app.api.deps import get_current_user, require_roles
+from app.core.activity_logger import log_activity
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.tid import next_tid
@@ -68,6 +69,13 @@ def create_department(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="department", record_id=dept.id,
+        record_label=f"Department: {dept.name}",
+        new_values={k: str(v) for k, v in dept.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return dept
 
 
@@ -94,6 +102,13 @@ def update_department(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="department", record_id=dept_id,
+        record_label=f"Department: {dept.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return dept
 
 
@@ -115,6 +130,13 @@ def delete_department(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="hr",
+        record_type="department", record_id=dept_id,
+        record_label=f"Department: {dept.name}",
+        old_values={"id": str(dept_id)},
+    )
+    db.commit()
     dept.is_active = False
     dept.updated_at = datetime.utcnow()
     db.commit()
@@ -153,6 +175,13 @@ def create_position(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="position", record_id=pos.id,
+        record_label=f"Position: {pos.title}",
+        new_values={k: str(v) for k, v in pos.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return pos
 
 
@@ -179,6 +208,13 @@ def update_position(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="position", record_id=pos_id,
+        record_label=f"Position: {pos.title}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return pos
 
 
@@ -215,6 +251,13 @@ def create_branch(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="branch", record_id=branch.id,
+        record_label=f"Branch: {branch.name}",
+        new_values={k: str(v) for k, v in branch.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return branch
 
 @router.put("/branches/{branch_id}", response_model=BranchResponse)
@@ -240,6 +283,13 @@ def update_branch(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="branch", record_id=branch_id,
+        record_label=f"Branch: {branch.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return branch
 
 
@@ -332,6 +382,13 @@ def create_employee(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="employee", record_id=emp.id,
+        record_label=f"Employee: {emp.full_name}",
+        new_values={k: str(v) for k, v in emp.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return emp
 
 
@@ -389,6 +446,13 @@ def update_employee(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="employee", record_id=emp_id,
+        record_label=f"Employee: {emp.full_name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return emp
 
 
@@ -408,6 +472,13 @@ def deactivate_employee(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="hr",
+        record_type="employee", record_id=emp_id,
+        record_label=f"Employee: {emp.full_name}",
+        old_values={"id": str(emp_id)},
+    )
+    db.commit()
     emp.is_active = False
     emp.employment_status = "Inactive"
     emp.updated_at = datetime.utcnow()
@@ -471,6 +542,13 @@ def create_salary_structure(
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             old_data=old_data, new_data={k: str(v) for k, v in existing.__dict__.items() if not k.startswith('_')},
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="salary_structure", record_id=emp_id,
+            record_label=f"Salary: Employee {emp_id}",
+            old_values=old_data, new_values={k: str(v) for k, v in existing.__dict__.items() if not k.startswith('_')},
+        )
+        db.commit()
         return existing
 
     salary = SalaryStructure(
@@ -491,6 +569,13 @@ def create_salary_structure(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="salary_structure", record_id=emp_id,
+        record_label=f"Salary: Employee {emp_id}",
+        new_values={k: str(v) for k, v in salary.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return salary
 
 
@@ -529,6 +614,13 @@ def update_salary_structure(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="salary_structure", record_id=emp_id,
+        record_label=f"Salary: Employee {emp_id}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return salary
 
 
@@ -579,6 +671,13 @@ def mark_attendance(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"employee_id": payload.employee_id, "date": str(payload.attendance_date)},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="attendance", record_id=record.id if record else payload.employee_id,
+        record_label=f"Attendance: Employee {payload.employee_id}",
+        new_values={"employee_id": str(payload.employee_id), "date": str(payload.attendance_date)},
+    )
+    db.commit()
     return record
 
 @router.put("/attendance/{att_id}", response_model=AttendanceResponse)
@@ -607,6 +706,13 @@ def update_attendance(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="attendance", record_id=att_id,
+        record_label=f"Attendance: {att_id}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return record
 
 @router.post("/attendance/{att_id}/approve", response_model=AttendanceResponse)
@@ -621,6 +727,12 @@ def approve_attendance_correction(
         record_id=str(att_id), record_label=f"Attendance approved: {att_id}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="attendance", record_id=att_id,
+        record_label=f"Attendance approved: {att_id}",
+    )
+    db.commit()
     return result
 
 
@@ -676,6 +788,13 @@ def create_leave_type(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in lt.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="leave_type", record_id=lt.id,
+        record_label=f"Leave Type: {lt.name}",
+        new_values={k: str(v) for k, v in lt.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return lt
 
 
@@ -726,6 +845,13 @@ def request_leave(
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             new_data={"employee_id": payload.employee_id, "start": str(payload.start_date), "end": str(payload.end_date)},
         )
+        log_activity(
+            db=db, user=current_user, action="create", module="hr",
+            record_type="leave", record_id=leave.id if leave else "",
+            record_label=f"Leave: Employee {payload.employee_id}",
+            new_values={"employee_id": str(payload.employee_id), "start": str(payload.start_date), "end": str(payload.end_date)},
+        )
+        db.commit()
         return leave
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -761,6 +887,12 @@ def approve_leave(
             record_id=str(leave_id), record_label=f"Leave approved: {leave_id}",
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="leave", record_id=leave_id,
+            record_label=f"Leave approved: {leave_id}",
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -780,6 +912,12 @@ def reject_leave(
             record_id=str(leave_id), record_label=f"Leave rejected: {leave_id}",
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="leave", record_id=leave_id,
+            record_label=f"Leave rejected: {leave_id}",
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -798,6 +936,12 @@ def cancel_leave(
             record_id=str(leave_id), record_label=f"Leave cancelled: {leave_id}",
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="leave", record_id=leave_id,
+            record_label=f"Leave cancelled: {leave_id}",
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -858,6 +1002,13 @@ def calculate_payroll(
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
             new_data={"employee_id": employee_id, "period": payroll_period},
         )
+        log_activity(
+            db=db, user=current_user, action="create", module="hr",
+            record_type="payroll", record_id=result.id,
+            record_label=f"Payroll: Employee {employee_id} ({payroll_period})",
+            new_values={"employee_id": str(employee_id), "period": payroll_period},
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -901,6 +1052,13 @@ def calculate_all_payroll(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={"period": payroll_period, "count": len(results), "department_id": department_id},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="payroll", record_id=f"bulk-{payroll_period}",
+        record_label=f"Payroll bulk: {payroll_period}",
+        new_values={"period": payroll_period, "count": str(len(results)), "department_id": str(department_id)},
+    )
+    db.commit()
     return results
 
 
@@ -929,6 +1087,12 @@ def approve_payroll(
             record_id=str(payroll_id), record_label=f"Payroll approved: {payroll_id}",
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="payroll", record_id=payroll_id,
+            record_label=f"Payroll approved: {payroll_id}",
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -970,6 +1134,12 @@ def mark_payroll_paid(
             record_id=str(payroll_id), record_label=f"Payroll paid: {payroll_id}",
             changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         )
+        log_activity(
+            db=db, user=current_user, action="update", module="hr",
+            record_type="payroll", record_id=payroll_id,
+            record_label=f"Payroll paid: {payroll_id}",
+        )
+        db.commit()
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -1032,6 +1202,13 @@ def create_holiday(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in h.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="holiday", record_id=h.id,
+        record_label=f"Holiday: {h.name}",
+        new_values={k: str(v) for k, v in h.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return h
 
 
@@ -1051,6 +1228,13 @@ def delete_holiday(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
     )
+    log_activity(
+        db=db, user=current_user, action="delete", module="hr",
+        record_type="holiday", record_id=holiday_id,
+        record_label=f"Holiday: {h.name}",
+        old_values={"id": str(holiday_id)},
+    )
+    db.commit()
     h.is_active = False
     h.updated_at = datetime.utcnow()
     db.commit()
@@ -1083,6 +1267,13 @@ def create_allowance_type(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in at.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="allowance_type", record_id=at.id,
+        record_label=f"Allowance Type: {at.name}",
+        new_values={k: str(v) for k, v in at.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return at
 
 
@@ -1111,4 +1302,11 @@ def create_deduction_type(
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in dt.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="deduction_type", record_id=dt.id,
+        record_label=f"Deduction Type: {dt.name}",
+        new_values={k: str(v) for k, v in dt.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return dt

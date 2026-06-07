@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_current_user, require_any_permission
 from app.core.db_compat import date_format, date_diff_days
 from app.core.audit import log_action
+from app.core.activity_logger import log_activity
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.table_query import apply_table_filters
@@ -210,6 +211,14 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db),
     d = LeadOut.model_validate(lead).model_dump()
     d["is_converted"] = False
     d["assigned_dealer_name"] = lead.assigned_dealer.name if lead.assigned_dealer else None
+    log_activity(
+        db=db, user=current_user, action="create", module="crm",
+        record_type="lead", record_id=lead.lead_id,
+        record_label=f"Lead {lead.name}",
+        new_values={k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')},
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
     return d
 
 
@@ -268,6 +277,13 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="crm",
+        record_type="lead", record_id=lead.lead_id,
+        record_label=f"Lead {lead.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     d = LeadOut.model_validate(lead).model_dump()
     d["is_converted"] = lead.client is not None
     d["assigned_dealer_name"] = lead.assigned_dealer.name if lead.assigned_dealer else None
@@ -288,6 +304,12 @@ def delete_lead(lead_id: int, db: Session = Depends(get_db),
         record_id=str(lead_id), record_label=f"Lead: {lead.name}",
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data,
+    )
+    log_activity(
+        db=db, user=current_user, action="delete", module="crm",
+        record_type="lead", record_id=lead.lead_id,
+        record_label=f"Lead {lead.name}",
+        old_values=old_data,
     )
     db.delete(lead)
     db.commit()
@@ -390,6 +412,13 @@ def create_client(payload: ClientCreate, db: Session = Depends(get_db),
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="crm",
+        record_type="client", record_id=client.client_id,
+        record_label=f"Client {client.name}",
+        new_values={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return _client_out(_load_client(db, client.id))
 
 
@@ -418,6 +447,13 @@ def convert_lead_to_client(lead_id: int, payload: ConvertLeadToClient,
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="crm",
+        record_type="client", record_id=client.client_id,
+        record_label=f"Client {client.name} (converted from lead)",
+        new_values={k: str(v) for k, v in client.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return _client_out(_load_client(db, client.id))
 
 
@@ -443,6 +479,13 @@ def update_client(client_id: int, payload: ClientUpdate, db: Session = Depends(g
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="crm",
+        record_type="client", record_id=client.client_id,
+        record_label=f"Client {client.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return _client_out(_load_client(db, client_id))
 
 
@@ -523,6 +566,13 @@ def create_dealer(payload: DealerCreate, db: Session = Depends(get_db),
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="crm",
+        record_type="dealer", record_id=dealer.dealer_id,
+        record_label=f"Dealer {dealer.name}",
+        new_values={k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     return _load_dealer(db, dealer.id)
 
 
@@ -602,6 +652,13 @@ def update_dealer(dealer_id: int, payload: DealerUpdate, db: Session = Depends(g
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="crm",
+        record_type="dealer", record_id=dealer.dealer_id,
+        record_label=f"Dealer {dealer.name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return _load_dealer(db, dealer_id)
 
 
@@ -746,6 +803,13 @@ async def create_deal(payload: DealCreate, db: Session = Depends(get_db),
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         new_data={k: str(v) for k, v in deal.__dict__.items() if not k.startswith('_')},
     )
+    log_activity(
+        db=db, user=current_user, action="create", module="crm",
+        record_type="deal", record_id=deal.deal_id,
+        record_label=f"Deal {deal.deal_title or deal.id}",
+        new_values={k: str(v) for k, v in deal.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
     await ws_manager.broadcast("new_deal", {"deal_id": deal.id})
     await ws_manager.broadcast("dashboard_refresh", {})
     return _deal_out(_load_deal(db, deal.id))
@@ -847,6 +911,13 @@ def update_deal(deal_id: int, payload: DealUpdate, db: Session = Depends(get_db)
         changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
         old_data=old_data, new_data=new_data,
     )
+    log_activity(
+        db=db, user=current_user, action="update", module="crm",
+        record_type="deal", record_id=deal.deal_id,
+        record_label=f"Deal {deal.deal_title or deal.id}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
     return _deal_out(_load_deal(db, deal_id))
 
 
