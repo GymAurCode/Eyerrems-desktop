@@ -81,8 +81,7 @@
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "EyerRems",
-      "disableWebInstaller": true
+      "shortcutName": "EyerRems"
     },
     "portable": {
       "artifactName": "${productName}-portable-${version}.exe"
