@@ -65,6 +65,39 @@ REVISION_CHAIN = [
     ("0032_town_units_upgrade",       "town_units"),                               # new town management
     ("0033_import_module",            "import_batches"),                           # import system
     ("0034_commission_dealer_upgrade", ("commissions", "dealer_id")),              # commission upgrade
+    ("0035_merge_heads",              ("commissions", "dealer_id")),               # merge — no new table
+    ("0036_add_company_lifecycle_fields", ("companies", "email")),                 # column-only
+    ("0037_property_upgrade_fields",  ("properties", "listing_status")),           # column-only
+    ("0038_unit_upgrade_fields",      ("units", "unit_type")),                     # column-only
+    ("0039_lease_upgrade_fields",     ("leases", "property_id")),                  # column-only
+    ("0040_crm_payments",             ("commissions", "dealer_id")),               # column-only
+    ("0041_site_visit_feedback",      "site_visits"),                              # new table
+    ("0042_add_whatsapp_columns",     ("leads", "whatsapp")),                      # column-only
+    ("0043_sync_crm_columns",         ("dealers", "is_active")),                   # column-only
+    ("0044_finance_sync_audit",       ("commissions", "dealer_id")),               # column-only
+    ("0045_add_dealer_monthly_target", ("dealers", "monthly_target")),             # column-only
+    ("0046_add_invoice_type_column",  ("invoices", "invoice_type")),               # column-only
+    ("0047_make_invoice_tenant_property_nullable", ("invoices", "invoice_type")),  # nullable change
+    ("0048_add_expense_missing_columns", ("expenses", "vendor_name")),             # column-only
+    ("0049_add_invoice_missing_columns", ("invoices", "client_id")),               # column-only
+    ("0050_add_payment_missing_columns", ("payments", "payment_type")),            # column-only
+    ("0051_reminder_system",          ("reminders", "id")),                        # column-only
+    ("0052_sync_sales_contacts_schema", ("clients", "cnic")),                      # column-only
+    ("0053_construction_erp_upgrade", ("construction_projects", "project_code")),  # column-only
+    ("0054_add_branch_id_to_holidays", ("holidays", "branch_id")),                 # column-only
+    ("0055_add_shift_template_id_to_employees", ("employees", "shift_template_id")), # column-only
+    ("0056_add_exit_date_to_employees", ("employees", "exit_date")),               # column-only
+    ("0057_add_missing_hr_crm_columns", ("attendances", "shift_template_id")),      # column-only
+    ("0058_fix_gender_specific_column_type", ("leave_types", "gender_specific")),   # column-only
+    ("0059_enhanced_invoice_model",   ("invoices", "invoice_number")),              # column-only
+    ("0060_enhanced_payment_model",   ("payments", "payment_number")),              # column-only
+    ("0061_enhanced_expense_model",   ("expenses", "expense_number")),              # column-only
+    ("0062_add_vendor_model",         "vendors"),                                   # new table
+    ("0063_enhanced_journal_model",   ("journals", "description")),                 # column-only
+    ("0064_add_expense_vendor_fk",    ("vendors", "id")),                           # FK-only
+    ("0065_add_journals_deleted_at",  ("journals", "deleted_at")),                  # column-only
+    ("0066_finance_invoice_payment_separation", ("payments", "party_cnic")),        # column-only
+    ("0067_add_dealer_ledger_lead_id", ("dealer_ledger_entries", "lead_id")),       # column-only
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}
@@ -162,6 +195,18 @@ def make_alembic_cfg(db_url: str) -> AlembicConfig:
     return cfg
 
 
+def widen_alembic_version_column(engine) -> None:
+    """Widen alembic_version.version_num from varchar(32) to varchar(255)
+    so that long revision IDs (e.g. '0036_add_company_lifecycle_fields') fit."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)"))
+            conn.commit()
+            print("[migrate] Widened alembic_version.version_num to VARCHAR(255).")
+    except Exception as e:
+        print(f"[migrate] Could not widen alembic_version column (non-fatal): {e}")
+
+
 def main():
     db_url = get_db_url()
     print("[migrate] Connecting to database...")
@@ -178,6 +223,13 @@ def main():
     has_any_schema = bool(existing_tables - {"alembic_version"})
     print(f"[migrate] Tables in DB: {len(existing_tables)}")
     print(f"[migrate] alembic_version: {current_ver!r}")
+
+    # Widen alembic_version column before any migration
+    engine2 = create_engine(db_url, pool_pre_ping=True)
+    try:
+        widen_alembic_version_column(engine2)
+    finally:
+        engine2.dispose()
 
     cfg = make_alembic_cfg(db_url)
 
