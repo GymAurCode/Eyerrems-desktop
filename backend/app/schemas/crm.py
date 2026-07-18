@@ -622,18 +622,6 @@ class RecentAssignedLead(BaseModel):
     expected_commission: Decimal | None = None
     status: str
 
-class DealerDetailOut(BaseModel):
-    dealer: DealerOut
-    financial_summary: FinancialSummary = Field(default_factory=FinancialSummary)
-    lead_stats: LeadStats = Field(default_factory=LeadStats)
-    lead_cost_summary: LeadCostSummary = Field(default_factory=LeadCostSummary)
-    commission_summary: CommissionSummary = Field(default_factory=CommissionSummary)
-    recent_leads: list[RecentAssignedLead] = []
-    recent_ledger_entries: list[DealerLedgerEntryOut] = []
-    assigned_clients: list[ClientOut] = []
-    active_deals: list[DealOut] = []
-
-
 class DealerLedgerEntryOut(BaseModel):
     id: int
     tid: str
@@ -647,6 +635,18 @@ class DealerLedgerEntryOut(BaseModel):
     commission_rate: Decimal | None = None
     gross_commission: Decimal | None = None
     debit: Decimal
+
+
+class DealerDetailOut(BaseModel):
+    dealer: DealerOut
+    financial_summary: FinancialSummary = Field(default_factory=FinancialSummary)
+    lead_stats: LeadStats = Field(default_factory=LeadStats)
+    lead_cost_summary: LeadCostSummary = Field(default_factory=LeadCostSummary)
+    commission_summary: CommissionSummary = Field(default_factory=CommissionSummary)
+    recent_leads: list[RecentAssignedLead] = []
+    recent_ledger_entries: list[DealerLedgerEntryOut] = []
+    assigned_clients: list[ClientOut] = []
+    active_deals: list[DealOut] = []
     credit: Decimal
     running_balance: Decimal
     status: str
