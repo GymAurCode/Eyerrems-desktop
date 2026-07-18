@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const log = require("electron-log");
 const path = require("path");
@@ -101,6 +101,35 @@ function createWindow() {
   // Show window only once the renderer has painted — eliminates black screen flash
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+  });
+
+  // ── Content Security Policy ─────────────────────────────────────────────────
+  // Set CSP via session headers (takes precedence over <meta> tags).
+  // Electron emits a warning when no CSP is present or when 'unsafe-eval' is
+  // used — omitting 'unsafe-eval' silences it in both dev and production.
+  const csp = [
+    "default-src 'self' data: blob: file: gap:;",
+    "script-src 'self' 'unsafe-inline';",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;",
+    "img-src 'self' data: blob: file:;",
+    "font-src 'self' data: file: https://cdn.jsdelivr.net https://fonts.gstatic.com;",
+    "connect-src 'self' http://localhost:* ws://localhost:* https://cdn.jsdelivr.net;",
+    "media-src 'self' blob:;",
+    "object-src 'none';",
+    "base-uri 'self';",
+  ].join(" ");
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.resourceType === "mainFrame") {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [csp],
+        },
+      });
+    } else {
+      callback({});
+    }
   });
 
   if (isDev) {

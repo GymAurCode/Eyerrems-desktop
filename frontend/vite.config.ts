@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
         "/settings": proxyConfig(proxyTarget),
         "/admin": proxyConfig(proxyTarget),
         "/activity": proxyConfig(proxyTarget),
+        "/superadmin": proxyConfig(proxyTarget),
         "/construction": proxyConfig(proxyTarget),
         "/hr": proxyConfig(proxyTarget),
         "/reminders": { ...proxyConfig(proxyTarget), ws: true },

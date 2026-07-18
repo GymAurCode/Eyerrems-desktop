@@ -55,14 +55,21 @@ ADD COLUMN IF NOT EXISTS slug TEXT;
 
 
 def ensure_master_schema(db: Session) -> None:
-    """Create master schema and companies table if they don't exist."""
-    db.execute(text("SET lock_timeout = '5s'"))
-    db.execute(text(CREATE_MASTER_SCHEMA_SQL))
-    db.execute(text(CREATE_COMPANIES_TABLE_SQL))
-    db.execute(text(ALTER_ADD_PERMISSIONS_SQL))
-    db.execute(text(ALTER_ADD_SLUG_SQL))
-    db.commit()
-    log.info("[Master] Master schema and companies table ensured.")
+    """Create master schema and companies table if they don't exist.
+    Compatible with both PostgreSQL (schema-based) and SQLite (no schema support)."""
+    try:
+        db.execute(text("SET lock_timeout = '5s'"))
+    except Exception:
+        pass  # SQLite does not support SET lock_timeout
+    try:
+        db.execute(text(CREATE_MASTER_SCHEMA_SQL))
+        db.execute(text(CREATE_COMPANIES_TABLE_SQL))
+        db.execute(text(ALTER_ADD_PERMISSIONS_SQL))
+        db.execute(text(ALTER_ADD_SLUG_SQL))
+        db.commit()
+        log.info("[Master] Master schema and companies table ensured.")
+    except Exception as e:
+        log.warning(f"[Master] Schema setup skipped (expected on SQLite): {e}")
 
 
 def provision_company_schema(
@@ -83,19 +90,28 @@ def provision_company_schema(
     db.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
     db.commit()
 
-    # 2. Provision ALL tables using SQLAlchemy metadata
-    #    Create a separate engine with search_path pointing to the new schema
-    #    so Base.metadata.create_all creates tables inside it.
+    # 2. Provision ALL tables using SQLAlchemy metadata.
+    #    Use *checkfirst=False* because SQLAlchemy's inspector caches
+    #    default_schema_name = 'public' at engine-init time (from the
+    #    default search_path).  With checkfirst=True it would find
+    #    e.g. public.roles and skip creating company_xxx.roles.
+    #    Since the schema name is always a fresh UUID, no tables exist
+    #    yet inside it, so creating unconditionally is safe.
     #    Lazy import to avoid circular import (database -> tenant -> master_db).
     from app.core.database import Base
     tenant_engine = create_engine(
         settings.database_url_fixed,
-        connect_args={"options": f"-csearch_path={schema_name},public"},
         pool_pre_ping=True,
     )
-    Base.metadata.create_all(bind=tenant_engine)
-    # Ensure attachment columns match the current model
-    sync_attachments_table(tenant_engine)
+    with tenant_engine.connect() as conn:
+        conn.execute(text(f"SET search_path TO {schema_name},public"))
+        conn.execute(text("SET lock_timeout = '5s'"))
+        Base.metadata.create_all(bind=conn, checkfirst=False)
+        # The Company model does not define master_id, but create_company
+        # inserts it.  Add the column here so the INSERT succeeds.
+        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)"))
+        sync_attachments_table(connection=conn)
+        conn.commit()
     tenant_engine.dispose()
 
     log.info(f"[Master] Schema '{schema_name}' provisioned successfully.")
@@ -140,13 +156,22 @@ CREATE INDEX IF NOT EXISTS idx_attachments_module_record ON attachments(module, 
 """
 
 
-def sync_attachments_table(engine) -> None:
-    """Migrate existing attachments table columns (rename, add, convert)."""
+def sync_attachments_table(engine=None, connection=None) -> None:
+    """Migrate existing attachments table columns (rename, add, convert).
+    
+    Accept either an *engine* (to create a new connection) or an existing
+    *connection* (reused so the caller controls the search_path).
+    """
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SET lock_timeout = '5s'"))
-            conn.execute(text(SYNC_ATTACHMENTS_SQL))
-            conn.commit()
+        if connection is not None:
+            connection.execute(text("SET lock_timeout = '5s'"))
+            connection.execute(text(SYNC_ATTACHMENTS_SQL))
+            connection.commit()
+        else:
+            with engine.connect() as conn:
+                conn.execute(text("SET lock_timeout = '5s'"))
+                conn.execute(text(SYNC_ATTACHMENTS_SQL))
+                conn.commit()
         log.info("[Master] Attachments table synced.")
     except Exception as e:
         log.warning(f"[Master] Attachments sync skipped: {e}")

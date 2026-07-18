@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -165,23 +166,24 @@ def on_startup():
 
     # ── Seed superadmin user in public schema ───────────────────────────────
     try:
-        sa_engine = create_engine(settings.database_url_fixed, pool_pre_ping=True)
-        sa_session = sessionmaker(autocommit=False, autoflush=False, bind=sa_engine)()
+        from app.core.tenant_manager import tenant_manager as _tm
+        from app.core.security import hash_password
+        sa_session = _tm.get_master_session()
         try:
-            from app.core.security import hash_password
             existing = sa_session.execute(
                 text("SELECT id FROM users WHERE email = :email AND is_super_admin = TRUE"),
                 {"email": settings.superadmin_email},
             ).fetchone()
             if not existing:
                 pw_hash = hash_password(settings.superadmin_password)
+                now = datetime.now(timezone.utc)
                 sa_session.execute(
                     text("""
                         INSERT INTO users (email, full_name, hashed_password, is_super_admin,
                                            status, is_approved, is_active, approval_status, created_at)
-                        VALUES (:email, :name, :pw, TRUE, 'active', TRUE, TRUE, 'approved', NOW())
+                        VALUES (:email, :name, :pw, TRUE, 'active', TRUE, TRUE, 'approved', :now)
                     """),
-                    {"email": settings.superadmin_email, "name": "Super Admin", "pw": pw_hash},
+                    {"email": settings.superadmin_email, "name": "Super Admin", "pw": pw_hash, "now": now},
                 )
                 sa_session.commit()
                 print("[REMS] Superadmin user seeded.")

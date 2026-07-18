@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' data: blob: file: gap:;
+        script-src 'self' 'unsafe-inline';
+        style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
+        img-src 'self' data: blob: file:;
+        font-src 'self' data: file: https://cdn.jsdelivr.net https://fonts.gstatic.com;
+        connect-src 'self' http://localhost:* ws://localhost:* https://cdn.jsdelivr.net;
+        media-src 'self' blob:;
+        object-src 'none';
+        base-uri 'self';
+      "
+    />
     <title>EyerRems — Real Estate Management System</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
   </head>

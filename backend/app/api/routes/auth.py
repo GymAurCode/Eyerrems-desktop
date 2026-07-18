@@ -242,38 +242,62 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             company_name=None,
         )
 
-    # ── 2. Check company admin in master.companies ────────────────────────
+    # ── 2. Check company admin in master.companies (PostgreSQL) or users table (SQLite) ─
+    company_uuid = None
+    company_name = None
+    company_slug = None
+
     master_db = get_master_session()
     try:
-        ensure_master_schema(master_db)
-        company = master_db.execute(
-            text("""
-                SELECT id, name, admin_email, admin_password_hash, status, expiry_date, schema_name
-                FROM master.companies
-                WHERE admin_email = :email
-            """),
-            {"email": payload.email},
-        ).fetchone()
+        try:
+            ensure_master_schema(master_db)
+            row = master_db.execute(
+                text("""
+                    SELECT id, name, admin_email, admin_password_hash, status, expiry_date, schema_name
+                    FROM master.companies
+                    WHERE admin_email = :email
+                """),
+                {"email": payload.email},
+            ).fetchone()
+        except Exception:
+            row = None
+
+        if row:
+            if not verify_password(payload.password, row[3]):
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            if row[4] == "suspended":
+                raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
+            if row[5] and row[5] < datetime.now(timezone.utc):
+                raise HTTPException(status_code=403, detail="License expired. Contact your administrator.")
+            company_uuid = str(row[0])
+            company_name = row[1]
+            schema_name = row[6] or ""
+            company_slug = schema_name.replace("company_", "") if schema_name else ""
+        else:
+            # ── SQLite fallback: query User + Company ORM models ────────────
+            user = db.query(User).filter(
+                User.email == payload.email,
+                User.is_super_admin == False,
+            ).first()
+            if not user or not verify_password(payload.password, user.hashed_password):
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+
+            company = master_db.query(Company).filter(
+                Company.id == user.company_id
+            ).first()
+            if not company:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            if company.status == "suspended" or not user.is_active:
+                raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
+
+            company_uuid = str(company.id)
+            company_name = company.name
+            company_slug = company.slug
     finally:
         master_db.close()
 
-    if not company:
+    if not company_uuid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    if not verify_password(payload.password, company[3]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    if company[4] == "suspended":
-        raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
-
-    if company[5] and company[5] < datetime.now(timezone.utc):
-        raise HTTPException(status_code=403, detail="License expired. Contact your administrator.")
-
-    company_uuid = str(company[0])
-
-    # Derive company slug from schema_name for tenant DB resolution
-    schema_name = company[6] or ""
-    company_slug = schema_name.replace("company_", "") if schema_name else ""
 
     token = create_access_token(
         subject=payload.email,
@@ -286,7 +310,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         access_token=token,
         role="company_admin",
         company_id=company_uuid,
-        company_name=company[1],
+        company_name=company_name,
     )
 
 
