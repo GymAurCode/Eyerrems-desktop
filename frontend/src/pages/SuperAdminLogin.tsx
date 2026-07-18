@@ -31,34 +31,36 @@ export default function SuperAdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base text-primary px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-base/80 p-8 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10" style={{ background: "#020d0d", color: "#c0efef" }}>
+      <div className="w-full max-w-md rounded-3xl border border-white/10 p-8 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl" style={{ background: "rgba(13,32,32,0.8)" }}>
         <div className="mb-8 text-center">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Super Admin</p>
           <h1 className="mt-3 text-3xl font-semibold text-white">Super Admin Login</h1>
-          <p className="mt-2 text-sm text-muted">Access the master tenant admin console.</p>
+          <p className="mt-2 text-sm" style={{ color: "#3a7070" }}>Access the master tenant admin console.</p>
         </div>
 
         <form onSubmit={submit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-secondary">Email</label>
+            <label className="block text-sm font-medium" style={{ color: "#5a9999" }}>Email <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-theme bg-surface px-4 py-3 text-white outline-none transition focus:border-cyan-500"
+              className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-cyan-500"
+              style={{ background: "#0f2828", borderColor: "rgba(0,128,128,0.22)", color: "#c0efef" }}
               placeholder="admin@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-secondary">Password</label>
+            <label className="block text-sm font-medium" style={{ color: "#5a9999" }}>Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-theme bg-surface px-4 py-3 text-white outline-none transition focus:border-cyan-500"
+              className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-cyan-500"
+              style={{ background: "#0f2828", borderColor: "rgba(0,128,128,0.22)", color: "#c0efef" }}
               placeholder="Enter your password"
               required
             />

@@ -3,6 +3,8 @@ import {
   X, AlertCircle, CheckCircle2, Building2, User,
   ChevronDown, Search, Calendar, DollarSign, FileText,
 } from "lucide-react";
+import ConfirmDialog from "../../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../../store/notifications";
 import AppDialog from "../../../components/ui/AppDialog";
 import AttachmentsButton from "../../../components/attachments/AttachmentsButton";
 import { bookingApi, BookingCreatePayload } from "../../../lib/bookingApi";
@@ -21,7 +23,7 @@ function Field({
   return (
     <div className="flex flex-col gap-1">
       <label className="text-[10px] font-bold uppercase tracking-widest text-muted">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        {label}{required && <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1, marginLeft: "2px" }} aria-hidden="true">*</span>}
       </label>
       {children}
       {error && <p className="text-[10px] text-red-400">{error}</p>}
@@ -236,6 +238,8 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [loadingUnits, setLoadingUnits] = useState(false);
   const [checkingAvail, setCheckingAvail] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // Load initial data
   useEffect(() => {
@@ -282,6 +286,18 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
     const prop = properties.find(p => p.id === propertyId);
     if (prop?.sale_price) setPropPrice(String(prop.sale_price));
   }, [propertyId, unitId, properties]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      pushToast({ title: "Deleted", message: `${type} has been deleted`, type: "success" });
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to delete", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   const checkAllUnits = async (unitIds: number[]) => {
     setCheckingAvail(true);
@@ -331,6 +347,7 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
         notes:         notes || undefined,
       };
       const booking = await bookingApi.create(payload);
+      pushToast({ title: "Booking Created", message: "Booking has been created successfully", type: "success" });
       syncApi.bookingToken({
         booking_id: booking.id,
         amount: Number(bookingAmt),
@@ -626,6 +643,16 @@ export default function BookingCreateModal({ onClose, onCreated, prefillClientId
             />
           </div>
         </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete this ${deleteTarget?.type}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AppDialog>
   );
 }

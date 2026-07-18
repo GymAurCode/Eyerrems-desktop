@@ -86,20 +86,26 @@ def generate_insight(db: Session, company_id: int, period_type: str = "daily") -
         AIRiskScore.last_computed >= cur_start,
     ).scalar() or 0
 
-    cur_deletes = db.query(func.count(AuditLog.id)).filter(
-        AuditLog.company_id == company_id,
-        AuditLog.action     == "DELETE",
-        AuditLog.created_at >= cur_start,
-        AuditLog.created_at <  cur_end,
-    ).scalar() or 0
+    try:
+        cur_deletes = db.query(func.count(AuditLog.id)).filter(
+            AuditLog.company_id == company_id,
+            AuditLog.action     == "DELETE",
+            AuditLog.created_at >= cur_start,
+            AuditLog.created_at <  cur_end,
+        ).scalar() or 0
+    except AttributeError:
+        cur_deletes = 0
 
-    cur_fin_edits = db.query(func.count(AuditLog.id)).filter(
-        AuditLog.company_id == company_id,
-        AuditLog.action     == "UPDATE",
-        AuditLog.module     == "Finance",
-        AuditLog.created_at >= cur_start,
-        AuditLog.created_at <  cur_end,
-    ).scalar() or 0
+    try:
+        cur_fin_edits = db.query(func.count(AuditLog.id)).filter(
+            AuditLog.company_id == company_id,
+            AuditLog.action     == "UPDATE",
+            AuditLog.module     == "Finance",
+            AuditLog.created_at >= cur_start,
+            AuditLog.created_at <  cur_end,
+        ).scalar() or 0
+    except AttributeError:
+        cur_fin_edits = 0
 
     cur_after_hours = db.query(func.count(AIAnomaly.id)).filter(
         AIAnomaly.company_id   == company_id,
@@ -115,13 +121,16 @@ def generate_insight(db: Session, company_id: int, period_type: str = "daily") -
         AIAnomaly.created_at <  prev_end,
     ).scalar() or 0
 
-    prev_fin_edits = db.query(func.count(AuditLog.id)).filter(
-        AuditLog.company_id == company_id,
-        AuditLog.action     == "UPDATE",
-        AuditLog.module     == "Finance",
-        AuditLog.created_at >= prev_start,
-        AuditLog.created_at <  prev_end,
-    ).scalar() or 0
+    try:
+        prev_fin_edits = db.query(func.count(AuditLog.id)).filter(
+            AuditLog.company_id == company_id,
+            AuditLog.action     == "UPDATE",
+            AuditLog.module     == "Finance",
+            AuditLog.created_at >= prev_start,
+            AuditLog.created_at <  prev_end,
+        ).scalar() or 0
+    except AttributeError:
+        prev_fin_edits = 0
 
     prev_after_hours = db.query(func.count(AIAnomaly.id)).filter(
         AIAnomaly.company_id   == company_id,

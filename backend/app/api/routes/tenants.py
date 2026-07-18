@@ -308,16 +308,26 @@ def create_tenant_wizard(
     prop = db.query(Property).filter(Property.id == payload.lease.property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
+    unit = None
     if payload.lease.unit_id:
         unit = db.query(Unit).filter(Unit.id == payload.lease.unit_id).first()
         if not unit:
             raise HTTPException(status_code=404, detail="Unit not found")
+        if unit.status in ("occupied", "rented"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Unit {unit.unit_number} is already occupied by another tenant.",
+            )
     tenant = Tenant(tenant_id=next_tid(db, Tenant, "TEN"), **payload.tenant.model_dump())
     db.add(tenant)
     db.flush()
     lease = TenantLease(tenant_id=tenant.id, **payload.lease.model_dump())
     db.add(lease)
     db.flush()
+    if payload.lease.unit_id:
+        unit.current_tenant_name = tenant.name
+        unit.lease_end_date = lease.lease_end
+        unit.status = "occupied"
     _generate_rent_records(db, lease)
     db.commit()
     db.refresh(tenant)
@@ -842,6 +852,17 @@ def delete_tenant(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    active_leases = db.query(TenantLease).filter(
+        TenantLease.tenant_id == tenant_id,
+        TenantLease.status == "active",
+    ).all()
+    for lease in active_leases:
+        if lease.unit_id:
+            unit = db.query(Unit).filter(Unit.id == lease.unit_id).first()
+            if unit:
+                unit.current_tenant_name = None
+                unit.lease_end_date = None
+                unit.status = "available"
     old_data = {k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')}
     log_action(
         db=db, module="tenant", action="DELETE",
@@ -895,6 +916,12 @@ def end_lease(
     old_data = {k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')}
     lease.status    = "ended"
     lease.lease_end = date.today()
+    if lease.unit_id:
+        unit = db.query(Unit).filter(Unit.id == lease.unit_id).first()
+        if unit:
+            unit.current_tenant_name = None
+            unit.lease_end_date = None
+            unit.status = "available"
     db.commit()
     db.refresh(lease)
     new_data = {k: str(v) for k, v in lease.__dict__.items() if not k.startswith('_')}

@@ -14,6 +14,17 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payloadBase64 = token.split(".")[1];
+    if (!payloadBase64) return true;
+    const payload = JSON.parse(atob(payloadBase64));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 /**
  * ProtectedRoute - Renders children only if user is authenticated and authorized
  * 
@@ -43,6 +54,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Not authenticated
   if (!token) return <Navigate to="/login" replace />;
+
+  // Token exists but expired — clear and redirect
+  if (isTokenExpired(token)) {
+    useAuthStore.getState().logout();
+    return <Navigate to="/login" replace />;
+  }
 
   // Token exists but user not yet loaded → show loading spinner
   if (!user) {

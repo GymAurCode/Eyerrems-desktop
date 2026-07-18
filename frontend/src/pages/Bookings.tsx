@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  BookOpen, Plus, Clock, CheckCircle, XCircle, AlertCircle,
+  BookOpen, Clock, CheckCircle, XCircle, AlertCircle,
   TrendingUp, X, ChevronDown, RefreshCw, Calendar,
 } from "lucide-react";
 import { bookingApi, BookingListItem, BookingStats } from "../lib/bookingApi";
 import { formatCurrency } from "../lib/currency";
 import { DataTable } from "../components/data-table";
-import { RowActions, ActionsCell, printRecord } from "../components/actions";
+import { RowActions, printRecord } from "../components/actions";
+import StatCard from "../components/ui/StatCard";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -39,29 +40,6 @@ function StatusBadge({ status, isExpired }: { status: string; isExpired?: boolea
     >
       {STATUS_LABEL[key] ?? key}
     </span>
-  );
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-function StatCard({
-  label, value, icon: Icon, color,
-}: {
-  label: string; value: string; icon: React.ElementType; color: string;
-}) {
-  return (
-    <div
-      className="card-dark flex items-center gap-4 px-4 py-3"
-      style={{ border: "1px solid var(--border)" }}
-    >
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={16} className="text-white" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] text-muted uppercase tracking-wider">{label}</p>
-        <p className="text-base font-semibold text-primary truncate">{value}</p>
-      </div>
-    </div>
   );
 }
 
@@ -170,7 +148,7 @@ function StatusModal({
           ) : (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted uppercase tracking-wider font-semibold">New Status</label>
+                <label className="text-xs text-muted uppercase tracking-wider font-semibold">New Status <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                 <div className="relative">
                   <select
                     className="select-dark w-full px-3 py-2.5 text-sm appearance-none pr-8"
@@ -188,7 +166,7 @@ function StatusModal({
 
               {status === "cancelled" && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted uppercase tracking-wider font-semibold">Cancellation Reason</label>
+                  <label className="text-xs text-muted uppercase tracking-wider font-semibold">Cancellation Reason <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                   <input
                     className="input-dark w-full px-3 py-2.5 text-sm"
                     value={reason}
@@ -381,7 +359,7 @@ export default function BookingsPage() {
         bookingApi.list(params),
         bookingApi.stats(),
       ]);
-      setBookings(bRes && Array.isArray(bRes.items) ? bRes.items : (Array.isArray(bRes) ? bRes : []));
+      setBookings(Array.isArray(bRes) ? bRes : []);
       setStats(sRes ?? null);
     } catch {
       setBookings([]);
@@ -439,10 +417,10 @@ export default function BookingsPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Bookings"  value={String(stats.total_bookings)}                    icon={BookOpen}    color="bg-blue-500" />
-          <StatCard label="Confirmed"       value={String(stats.confirmed_bookings)}                icon={CheckCircle} color="bg-green-500" />
-          <StatCard label="Expiring Soon"   value={String(stats.expiring_soon)}                     icon={Clock}       color="bg-yellow-500" />
-          <StatCard label="Booking Value"   value={formatCurrency(stats.total_booking_amount)}      icon={TrendingUp}  color="bg-purple-500" />
+          <StatCard label="Total Bookings"  value={String(stats.total_bookings)}               icon={BookOpen}    iconBg="rgba(59,130,246,0.15)" iconColor="#3b82f6" />
+          <StatCard label="Confirmed"       value={String(stats.confirmed_bookings)}           icon={CheckCircle} iconBg="rgba(34,197,94,0.15)" iconColor="#22c55e" />
+          <StatCard label="Expiring Soon"   value={String(stats.expiring_soon)}                icon={Clock}       iconBg="rgba(234,179,8,0.15)" iconColor="#eab308" />
+          <StatCard label="Booking Value"   value={formatCurrency(stats.total_booking_amount)} icon={TrendingUp}  iconBg="rgba(168,85,247,0.15)" iconColor="#a855f7" />
         </div>
       )}
 

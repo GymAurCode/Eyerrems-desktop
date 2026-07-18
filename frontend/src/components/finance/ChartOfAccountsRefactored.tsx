@@ -10,6 +10,7 @@ import { formatCurrency } from "../../lib/currency";
 import { accountsApi, type AccountTreeNode, type AccountUpdate } from "../../lib/financeApi";
 import { AccountDialog, ConfirmDeleteDialog } from "./AccountDialogs";
 import AccountDetailPanel, { type AccountPanelView } from "./AccountDetailPanel";
+import { useNotifStore } from "../../store/notifications";
 
 // Type colors for account types
 const TYPE_COLOR: Record<string, [string, string]> = {
@@ -49,6 +50,7 @@ export interface ChartOfAccountsProps {
 export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfAccountsProps) {
   // State
   const [accounts, setAccounts] = useState<AccountTreeNode[]>([]);
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<AccountTreeNode | null>(null);
@@ -254,8 +256,10 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
     try {
       if (dlg === "create") {
         await accountsApi.create({ ...data, parent_id: dlgParent?.id ?? null });
+        pushToast({ title: "Account Created", message: `Account "${data.name}" created successfully`, type: "success" });
       } else if (dlg === "edit" && selected) {
         await accountsApi.update(selected.id, data);
+        pushToast({ title: "Account Updated", message: `Account "${data.name}" updated successfully`, type: "success" });
       }
       setDlg(null);
       setDlgParent(null);
@@ -269,6 +273,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
     if (!selected) return;
     try {
       await accountsApi.delete(selected.id);
+      pushToast({ title: "Account Deleted", message: `Account "${selected.name}" deleted successfully`, type: "success" });
       setSelected(null);
       setDlg(null);
       await loadAccounts();
@@ -282,6 +287,7 @@ export default function ChartOfAccountsRefactored({ readOnly = false }: ChartOfA
     try {
       const patch: AccountUpdate = { is_active: !node.is_active };
       await accountsApi.update(node.id, patch);
+      pushToast({ title: "Account Updated", message: `Account "${node.name}" ${patch.is_active ? "activated" : "deactivated"}`, type: "success" });
       await loadAccounts();
       setSelected(null);
     } catch (e: any) {

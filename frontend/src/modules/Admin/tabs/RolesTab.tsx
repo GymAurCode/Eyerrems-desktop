@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../lib/api";
 import AppDialog from "../../../components/ui/AppDialog";
+import { useNotifStore } from "../../../store/notifications";
 import ToggleSwitch from "../../../components/ui/ToggleSwitch";
 import {
   Shield, Plus, Pencil, Trash2, Key, Save, AlertCircle, Users,
@@ -90,6 +91,7 @@ function buildEmptyPermissions(): Record<string, Record<string, boolean>> {
 export default function RolesTab() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   type DialogState = "none" | "create" | "edit" | "perms" | "delete";
   const [dialog, setDialog] = useState<DialogState>("none");
@@ -114,7 +116,7 @@ export default function RolesTab() {
     setLoading(true);
     try {
       const { data } = await api.get<Role[]>("/api/rbac/roles");
-      setRoles(data);
+      setRoles(Array.isArray(data) ? data : []);
     } catch { setRoles([]); }
     finally { setLoading(false); }
   }, []);
@@ -474,9 +476,10 @@ export default function RolesTab() {
     if (!activeRole) return;
     try {
       await api.delete(`/api/rbac/roles/${activeRole.id}`);
+      pushToast({ title: "Success", message: `Role "${activeRole.name}" deleted`, type: "success" });
       await loadRoles(); closeAll();
     } catch (e: any) {
-      alert(e?.response?.data?.detail ?? "Cannot delete — role may be assigned to users");
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Cannot delete — role may be assigned to users", type: "error" });
     }
   };
 
@@ -496,7 +499,7 @@ export default function RolesTab() {
         </div>
       ) : (
         <div className="space-y-2">
-          {roles.map((role) => {
+          {(Array.isArray(roles) ? roles : []).map((role) => {
             const enabledModules = getEnabledModulesForRole(role);
             return (
               <div
@@ -571,7 +574,7 @@ export default function RolesTab() {
         <AppDialog isOpen title="New Role" onClose={closeAll} size="lg">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Role Name <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Role Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input autoFocus className="input-dark w-full px-4 py-2.5 text-sm" placeholder="e.g. HR Manager" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void createRole(); }} />
             </div>
             <div>
@@ -612,7 +615,7 @@ export default function RolesTab() {
         <AppDialog isOpen title={`Edit — ${activeRole.name}`} onClose={closeAll} size="md">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Role Name <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Role Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input autoFocus className="input-dark w-full px-4 py-2.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void updateRole(); }} />
             </div>
             <div>

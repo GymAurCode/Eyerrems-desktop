@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 
@@ -7,15 +7,18 @@ import { useAuthStore } from "./store/auth";
 import { useUIStore } from "./store/ui";
 import { useCurrencyStore } from "./store/currency";
 import { useRealtimeSocket } from "./hooks/useWebSocket";
+import { useReminderWebSocket } from "./hooks/useReminderWebSocket";
 import { useAppBootstrap, useBackgroundRefresh } from "./hooks/useAppBootstrap";
 import ProtectedRoute from "./components/ProtectedRoute";
 import FeatureGuard from "./components/FeatureGuard";
 import ModuleGuard from "./components/guards/ModuleGuard";
 import RoleUserGuard from "./components/guards/RoleUserGuard";
 import ToastContainer from "./components/notifications/ToastContainer";
+import { useNotifStore } from "./store/notifications";
 import { ErrorTrackerPanel } from "./components/ErrorTracker";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import UpdateNotification from "./components/UpdateNotification";
+import NotificationCenter from "./components/reminders/NotificationCenter";
 
 // ── Module theming ────────────────────────────────────────────────────────────
 import { useModuleColor } from "./contexts/ModuleColorContext";
@@ -47,6 +50,7 @@ const MaintenancePage = lazy(() => import("./pages/Maintenance"));
 const ConstructionDashboard = lazy(() => import("./modules/construction/ConstructionDashboard"));
 const ProjectList = lazy(() => import("./modules/construction/ProjectList"));
 const ProjectDetails = lazy(() => import("./modules/construction/ProjectDetails"));
+const ProjectView = lazy(() => import("./modules/construction/ProjectView"));
 const RemindersPage = lazy(() => import("./pages/Reminders"));
 const HRPage = lazy(() => import("./pages/HR"));
 const MailPage = lazy(() => import("./pages/Mail"));
@@ -62,6 +66,9 @@ const BookingFormReport = lazy(() => import("./pages/reports/BookingFormReport")
 const AIIntelligencePage = lazy(() => import("./pages/AIIntelligence"));
 const ImportCenter = lazy(() => import("./pages/ImportCenter"));
 const HistoryPage = lazy(() => import("./pages/History"));
+const RecentActivityPage = lazy(() => import("./pages/RecentActivity"));
+const SpreadsheetWorkspace = lazy(() => import("./spreadsheet/SpreadsheetWorkspace"));
+const ProductSpreadsheetPage = lazy(() => import("./pages/ProductSpreadsheetPage"));
 const AdvanceOptionsPage = lazy(() => import("./pages/AdvanceOptions"));
 const SlugSetupPage = lazy(() => import("./pages/SlugSetup"));
 const ChangePasswordPage = lazy(() => import("./pages/ChangePassword"));
@@ -82,11 +89,16 @@ function ModuleLoadingSpinner() {
 const PAGE_TITLES: Record<string, string> = {
   "/":             "Dashboard",
   "/property":     "Properties",
+  "/tenants":      "Tenants",
+  "/leases":       "Leases",
+  "/payments":     "Payments",
+  "/maintenance":  "Maintenance",
+  "/reports":      "Reports",
+  "/team":         "Team",
+  "/settings":     "Settings",
   "/towns":        "Town Management",
   "/crm":          "Clients",
   "/finance":      "Finance",
-  "/tenants":      "Tenants",
-  "/maintenance":  "Maintenance",
   "/admin":        "Administration",
   "/import":       "Bulk Import",
   "/admin-panel":  "Admin Panel - RBAC",
@@ -96,9 +108,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/mail":         "Mail",
   "/communication": "Communication",
   "/ledger":       "Ledger Management",
-  "/reports":      "Reports",
   "/ai":           "AI Intelligence",
   "/history":      "Activity History",
+  "/activity":     "Recent Activity",
+  "/spreadsheet":   "Spreadsheet",
+  "/products/spreadsheet": "Product Spreadsheet",
   "/advance-options": "Advance Options",
 };
 
@@ -124,7 +138,7 @@ function CompanyLayout({ children }: { children: React.ReactNode }) {
   }
   return (
     <div
-      className="app-shell flex h-screen overflow-hidden bg-base"
+      className="app-shell flex h-screen overflow-hidden bg-base gap-4"
       data-theme={theme}
       style={{
         '--module-primary': moduleColor.primary,
@@ -135,7 +149,13 @@ function CompanyLayout({ children }: { children: React.ReactNode }) {
       } as React.CSSProperties}
     >
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 my-4 mr-4 rounded-xl overflow-hidden"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--bg-surface)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        }}
+      >
         <Topbar title={title} />
         <main className="flex-1 overflow-y-auto bg-base">{children}</main>
       </div>
@@ -173,24 +193,40 @@ export default function App() {
   const companyId = useAuthStore((s) => s.companyId);
   const loadCurrency = useCurrencyStore((s) => s.loadCurrency);
 
+  const [bootstrapped, setBootstrapped] = useState(false);
+
   useRealtimeSocket(token);
-  useAppBootstrap();
-  useBackgroundRefresh();
+  const reminderWs = useReminderWebSocket();
+  useAppBootstrap(token, bootstrapped);
+  useBackgroundRefresh(token);
 
   useEffect(() => {
     if (token) {
-      // Use bootstrap on initial load — hydrates user + stats + activity in one call.
-      // Falls back to fetchMe if bootstrap fails (e.g. super-admin without stats access).
-      bootstrap().catch(() => fetchMe().catch(() => undefined));
+      bootstrap()
+        .then(() => setBootstrapped(true))
+        .catch(() => fetchMe().then(() => setBootstrapped(true)).catch(() => undefined));
+    } else {
+      setBootstrapped(false);
     }
   }, [token, bootstrap, fetchMe]);
 
-  // Load currency setting after authentication
   useEffect(() => {
     if (token && companyId !== null) {
       loadCurrency().catch(() => undefined);
     }
   }, [token, companyId, loadCurrency]);
+
+  const pushToast = useNotifStore((s) => s.pushToast);
+  useEffect(() => {
+    if (reminderWs.missedCount > 0) {
+      pushToast({
+        title: "Missed Reminders",
+        message: `You have ${reminderWs.missedCount} missed reminder(s)`,
+        priority: "high",
+      });
+      reminderWs.setMissedCount(0);
+    }
+  }, [reminderWs.missedCount, pushToast, reminderWs]);
 
   return (
     <>
@@ -360,7 +396,6 @@ export default function App() {
             </ProtectedRoute>
           </RoleUserGuard>
         } />
-
         {/* ── Finance module ───────────────────────────────────────────────── */}
         <Route path="/finance" element={
           <RoleUserGuard>
@@ -462,6 +497,17 @@ export default function App() {
             </ProtectedRoute>
           </RoleUserGuard>
         } />
+        <Route path="/construction/projects/:id/view" element={
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+              <CompanyLayout>
+                <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
+                  <ModuleGuard module="construction"><ProjectView /></ModuleGuard>
+                </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
         <Route path="/construction/projects/:id" element={
           <RoleUserGuard>
             <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
@@ -469,6 +515,38 @@ export default function App() {
                 <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="construction"><ProjectDetails /></ModuleGuard>
                 </FeatureGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+
+        {/* ── Spreadsheet ──────────────────────────────────────────────────── */}
+        <Route path="/spreadsheet" element={
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff"]}>
+              <div className="app-shell flex h-screen overflow-hidden bg-base gap-4"
+                data-theme={useUIStore.getState().theme}
+                style={{ '--module-primary': '#008080', '--module-light': 'rgba(0,128,128,0.1)', '--module-medium': '#006666', '--module-dark': '#004040', '--module-text': '#008080' } as React.CSSProperties}
+              >
+                <Sidebar />
+                <div className="flex-1 flex flex-col min-w-0 my-0 mr-0 overflow-hidden p-0"
+                  style={{ background: "var(--bg-surface)" }}
+                >
+                  <main className="flex-1 overflow-hidden p-0">
+                    <SpreadsheetWorkspace />
+                  </main>
+                </div>
+              </div>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+
+        {/* ── Product Spreadsheet ──────────────────────────────────────────── */}
+        <Route path="/products/spreadsheet" element={
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin","Staff"]}>
+              <CompanyLayout>
+                <ProductSpreadsheetPage />
               </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -583,11 +661,26 @@ export default function App() {
           </RoleUserGuard>
         } />
 
+        {/* ── Recent Activity ──────────────────────────────────────────────── */}
+        <Route path="/activity" element={
+          <RoleUserGuard>
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <CompanyLayout><RecentActivityPage /></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+
         {/* ── Fallback ─────────────────────────────────────────────────────── */}
         <Route path="*" element={<Navigate to={token ? "/" : "/login"} replace />} />
       </Routes>
       </Suspense>
       <ToastContainer />
+      <NotificationCenter
+        notifications={reminderWs.notifications}
+        onDismiss={reminderWs.dismiss}
+        onDismissAll={reminderWs.dismissAll}
+        connected={reminderWs.connected}
+      />
       <UpdateNotification />
       <ErrorTrackerPanel />
     </>

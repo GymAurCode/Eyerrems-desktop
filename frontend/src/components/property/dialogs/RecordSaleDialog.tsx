@@ -289,7 +289,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Buyer *</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Buyer <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <select className="dialog-select w-full px-3 py-2.5 text-sm" value={buyerId}
                 onChange={(e) => setBuyerId(e.target.value ? Number(e.target.value) : "")} required>
                 <option value="">— Select buyer —</option>
@@ -297,7 +297,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Seller *</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>Seller <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <select className="dialog-select w-full px-3 py-2.5 text-sm" value={sellerId}
                 onChange={(e) => setSellerId(e.target.value ? Number(e.target.value) : "")} required>
                 <option value="">— Select seller —</option>
@@ -311,7 +311,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 p-4 rounded-xl"
             style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
             <div>
-              <label className="block text-xs text-muted mb-1">Agreed Sale Price (Rs) *</label>
+              <label className="block text-xs text-muted mb-1">Agreed Sale Price (Rs) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="dialog-input w-full px-3 py-2.5 text-sm" type="number" value={price}
                 onChange={(e) => setPrice(e.target.value)} required min="1" />
             </div>
@@ -479,7 +479,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
         <FormSection title="Legal & Registration">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
             <div>
-              <label className="block text-xs text-muted mb-1">Agreement Date *</label>
+              <label className="block text-xs text-muted mb-1">Agreement Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="dialog-input w-full px-3 py-2.5 text-sm" type="date" value={agreementDate}
                 onChange={(e) => setAgreementDate(e.target.value)} required />
             </div>
@@ -504,7 +504,7 @@ export default function RecordSaleDialog({ isOpen, onClose, onSaved, properties,
             </div>
             {saleStage === "cancelled" && (
               <div className="md:col-span-2">
-                <label className="block text-xs text-muted mb-1">Cancellation Reason *</label>
+                <label className="block text-xs text-muted mb-1">Cancellation Reason <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                 <input className="dialog-input w-full px-3 py-2.5 text-sm" value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)} placeholder="Reason for cancellation" required />
               </div>

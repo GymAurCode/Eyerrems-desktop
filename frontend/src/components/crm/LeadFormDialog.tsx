@@ -21,6 +21,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [preferredTown, setPreferredTown] = useState("");
+  const [preferredProject, setPreferredProject] = useState("");
   const [investorType, setInvestorType] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("new");
@@ -33,7 +34,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   const reset = () => {
     setName(""); setPhone(""); setEmail(""); setSource("");
     setBudgetMin(""); setBudgetMax(""); setPreferredTown("");
-    setInvestorType(""); setNotes(""); setStatus("new");
+    setInvestorType(""); setNotes(""); setStatus("new"); setPreferredProject("");
     setDealerId(null); setFiles([]); setErr(""); setSaving(false);
   };
 
@@ -50,6 +51,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
         budget_min: budgetMin ? Number(budgetMin) : null,
         budget_max: budgetMax ? Number(budgetMax) : null,
         preferred_town: preferredTown.trim() || null,
+        preferred_project: preferredProject.trim() || null,
         investor_type: investorType || null,
         notes: notes.trim() || null,
         status,
@@ -149,6 +151,12 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
               <input className="dialog-input w-full" value={preferredTown}
                 onChange={(e) => setPreferredTown(e.target.value)} placeholder="e.g. DHA, Bahria Town" />
             </FormField>
+            <FormField label="Project">
+              <input className="dialog-input w-full" value={preferredProject}
+                onChange={(e) => setPreferredProject(e.target.value)} placeholder="Project name (if any)" />
+            </FormField>
+          </FormRow>
+          <FormRow cols={2}>
             <FormField label="Investor / End-User">
               <select className="dialog-select w-full" value={investorType}
                 onChange={(e) => setInvestorType(e.target.value)}>
@@ -157,6 +165,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
                 <option value="end_user">End-User</option>
               </select>
             </FormField>
+            <FormField label="&nbsp;" />
           </FormRow>
         </FormSection>
 

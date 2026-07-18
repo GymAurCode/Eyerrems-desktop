@@ -4,15 +4,19 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, TrendingUp, AlertCircle, Clock,
   X, ChevronRight, ChevronLeft, CheckCircle, Bell, DollarSign,
-  Eye, Printer
+  Eye, Printer, Trash2
 } from "lucide-react";
 import { printRecord } from "../components/actions";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
 import { tenantApi, Tenant, TenantDashboard, TenantAlert, WizardPayload } from "../lib/tenantApi";
 import { propApi, Property, Unit, FloorWithUnits } from "../lib/propertyApi";
 import { formatCurrency } from "../lib/currency";
+import { formatCNIC } from "../lib/cnic";
 import { SmartTable } from "../components/data-table";
 import { api } from "../lib/api";
+import StatCard from "../components/ui/StatCard";
+import ConfirmDialog from "../components/actions/ConfirmDialog";
+import { useNotifStore } from "../store/notifications";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -29,23 +33,6 @@ function StatusBadge({ status }: { status: string }) {
       style={{ background: `${sc}18`, color: sc }}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
-  );
-}
-
-function StatCard({ label, value, icon: Icon, color }: {
-  label: string; value: string; icon: React.ElementType; color: string;
-}) {
-  return (
-    <div className="card-dark flex items-center gap-4 px-4 py-3"
-      style={{ border: "1px solid var(--border)" }}>
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={16} className="text-white" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] text-muted uppercase tracking-wider">{label}</p>
-        <p className="text-base font-semibold text-primary truncate">{value}</p>
-      </div>
-    </div>
   );
 }
 
@@ -102,9 +89,10 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [step, setStep]        = useState(0);
   const [form, setForm]        = useState<WizardState>(INIT);
   const [properties, setProps] = useState<Property[]>([]);
-  const [units, setUnits]      = useState<Unit[]>([]);
+  const [floors, setFloors]    = useState<FloorWithUnits[]>([]);
   const [error, setError]      = useState("");
   const [saving, setSaving]    = useState(false);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     propApi.getProperties().then(res => {
@@ -112,14 +100,20 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
       setProps(Array.isArray(data) ? data : []);
     });
   }, []);
+  const OCCUPIED_STATUSES = ["occupied", "rented"];
+
   useEffect(() => {
-    if (!form.property_id) { setUnits([]); return; }
+    if (!form.property_id) { setFloors([]); return; }
     propApi.getProperty(Number(form.property_id)).then(res => {
       const data = res && 'data' in res ? (res as any).data : res;
       if (data?.floors) {
-        setUnits(data.floors.flatMap((f: FloorWithUnits) => f.units));
+        const filtered = data.floors.map((f: FloorWithUnits) => ({
+          ...f,
+          units: f.units.filter((u: any) => !OCCUPIED_STATUSES.includes(u.status)),
+        }));
+        setFloors(filtered);
       } else {
-        setUnits([]);
+        setFloors([]);
       }
     });
   }, [form.property_id]);
@@ -155,6 +149,7 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
         },
       };
       await tenantApi.create(payload);
+      pushToast({ title: "Tenant created", message: "Tenant has been created successfully", type: "success" });
       onCreated();
     } catch (e: any) {
       const detail = e?.response?.data?.detail;
@@ -238,7 +233,7 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 </Field>
                 <Field label="CNIC">
                   <input className="input-dark w-full px-3 py-2.5 text-sm" value={form.cnic}
-                    onChange={e => set("cnic", e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+                    onChange={e => set("cnic", formatCNIC(e.target.value))} placeholder="XXXXX-XXXXXXX-X" />
                 </Field>
               </div>
               <Field label="Family Size">
@@ -267,7 +262,19 @@ function TenantWizard({ onClose, onCreated }: { onClose: () => void; onCreated: 
                     <select className="select-dark w-full px-3 py-2.5 text-sm" value={form.unit_id}
                       onChange={e => { set("unit_id", e.target.value); set("is_full_property", !e.target.value); }}>
                       <option value="">Full Property</option>
-                      {units.map(u => <option key={u.id} value={u.id}>Unit {u.unit_number}</option>)}
+                      {floors.length === 0 ? (
+                        <option value="" disabled>No vacant units available</option>
+                      ) : (
+                        floors.map(f => (
+                          <optgroup key={f.id} label={`Floor ${f.floor_number}`}>
+                            {f.units.map((u: any) => (
+                              <option key={u.id} value={u.id}>
+                                Unit {u.unit_number}{u.status && u.status !== "available" ? ` (${u.status})` : ""}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))
+                      )}
                     </select>
                   </Field>
                   <div className="text-xs px-3 py-2 rounded-lg font-medium"
@@ -384,13 +391,16 @@ export default function TenantPage() {
   const [showWizard, setWizard]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [total, setTotal]         = useState(0);
+  const [deleting, setDeleting]   = useState<number | null>(null);
   const paramsRef = useRef<any>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
   const fetchTenants = async (params: any) => {
     paramsRef.current = params;
     setLoading(true);
     try {
-      const res = await api.get<Tenant[]>("/tenants", {
+      const res = await api.get<Tenant[]>("/tenants/", {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
@@ -406,7 +416,7 @@ export default function TenantPage() {
       const totalCount = Number(res.headers["x-total-count"] || res.headers["X-Total-Count"] || (Array.isArray(data) ? data.length : 0));
       setTotal(totalCount);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch tenants:", err);
       setTenants([]);
       setTotal(0);
     } finally {
@@ -418,13 +428,15 @@ export default function TenantPage() {
     try {
       const d = await tenantApi.dashboard();
       setDashboard(d ?? null);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load tenant dashboard:", err);
       setDashboard(null);
     }
     try {
       const a = await tenantApi.alerts();
       setAlerts(Array.isArray(a) ? a : []);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load tenant alerts:", err);
       setAlerts([]);
     }
   };
@@ -432,6 +444,26 @@ export default function TenantPage() {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  const handleDelete = (id: number) => {
+    setDeleteTarget({ item: id, type: "tenant" });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.item as number;
+    setDeleting(id);
+    try {
+      await tenantApi.remove(id);
+      pushToast({ title: "Tenant deleted", message: "Tenant has been deleted successfully", type: "success" });
+      refreshTable();
+    } catch {
+      alert("Failed to delete tenant");
+    } finally {
+      setDeleting(null);
+      setDeleteTarget(null);
+    }
+  };
 
   const refreshTable = () => {
     loadDashboard();
@@ -506,6 +538,13 @@ export default function TenantPage() {
         { label: "Status", value: row.is_active ? "Active" : "Ended" },
         { label: "Joined", value: new Date(row.created_at).toLocaleDateString() },
       ])
+    },
+    {
+      key: "delete",
+      label: deleting ? "Deleting..." : "Delete",
+      icon: Trash2,
+      variant: "danger",
+      onClick: (row: Tenant) => handleDelete(row.id)
     }
   ];
 
@@ -522,11 +561,11 @@ export default function TenantPage() {
       {/* Stats */}
       {dashboard && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard label="Active Tenants"  value={String(dashboard.active_tenants)}               icon={Users}       color="bg-blue-500" />
-          <StatCard label="Rent Collected"  value={formatCurrency(dashboard.total_rent_collected)} icon={TrendingUp}  color="bg-green-500" />
-          <StatCard label="Pending"         value={formatCurrency(dashboard.total_pending)}         icon={Clock}       color="bg-yellow-500" />
-          <StatCard label="Overdue"         value={formatCurrency(dashboard.total_overdue)}         icon={AlertCircle} color="bg-red-500" />
-          <StatCard label="Net Profit"      value={formatCurrency(dashboard.net_profit)}            icon={DollarSign}  color="bg-purple-500" />
+          <StatCard label="Active Tenants"  value={String(dashboard.active_tenants)}            icon={Users}       iconBg="rgba(59,130,246,0.15)" iconColor="#3b82f6" />
+          <StatCard label="Rent Collected"  value={formatCurrency(dashboard.total_rent_collected)} icon={TrendingUp} iconBg="rgba(34,197,94,0.15)" iconColor="#22c55e" />
+          <StatCard label="Pending"         value={formatCurrency(dashboard.total_pending)}         icon={Clock}      iconBg="rgba(234,179,8,0.15)" iconColor="#eab308" />
+          <StatCard label="Overdue"         value={formatCurrency(dashboard.total_overdue)}         icon={AlertCircle} iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" />
+          <StatCard label="Net Profit"      value={formatCurrency(dashboard.net_profit)}            icon={DollarSign} iconBg="rgba(168,85,247,0.15)" iconColor="#a855f7" />
         </div>
       )}
 
@@ -588,6 +627,16 @@ export default function TenantPage() {
       {showWizard && (
         <TenantWizard onClose={() => setWizard(false)} onCreated={() => { setWizard(false); refreshTable(); }} />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Tenant"
+        message="Are you sure you want to delete this tenant? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

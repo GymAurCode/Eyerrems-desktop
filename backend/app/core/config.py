@@ -48,7 +48,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in val.split(",") if o.strip()]
 
     # ── Super Admin credentials ──────────────────────────────────────────────
-    superadmin_email: str = "superadmin@rems.local"
+    superadmin_email: str = "superadmin@system.local"
     superadmin_password: str = "SuperAdmin@123"
 
     # ── Cloudinary (external file storage) ───────────────────────────────────

@@ -81,7 +81,7 @@ def _enrich_plot(plot: Plot) -> dict:
 # TOWNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/", response_model=list[TownOut])
+@router.get("", response_model=list[TownOut])
 def list_towns(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_VIEW)),
@@ -96,7 +96,7 @@ def list_towns(
     return [_enrich_town(t) for t in towns]
 
 
-@router.post("/", response_model=TownOut)
+@router.post("", response_model=TownOut)
 def create_town(
     payload: TownCreate,
     db: Session = Depends(get_db),
@@ -1123,6 +1123,43 @@ def get_finance_summary(
     uq = _unit_query(db, company_id)
     if town_id:
         uq = uq.filter(TownUnit.town_id == town_id)
+    outstanding = sum(
+        (u.remaining_balance or Decimal("0"))
+        for u in uq.all()
+        if u.status not in ("sold", "inactive")
+    )
+
+    return TownFinanceSummary(
+        total_revenue       = _sum("booking") + _sum("installment") + _sum("sale") + _sum("rent"),
+        booking_revenue     = _sum("booking"),
+        installment_revenue = _sum("installment"),
+        sale_revenue        = _sum("sale"),
+        rental_revenue      = _sum("rent"),
+        total_refunds       = _sum("refund"),
+        outstanding_balance = outstanding,
+        transaction_count   = len(txns),
+    )
+
+
+@router.get("/{town_id}/finance", response_model=TownFinanceSummary)
+def get_town_finance(
+    town_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission(*PERM_VIEW)),
+):
+    """Return aggregated financial summary for a specific town (path-based)."""
+    company_id = _get_company_id(current_user)
+
+    town = _town_query(db, company_id).filter(Town.id == town_id).first()
+    if not town:
+        raise HTTPException(404, "Town not found")
+
+    txns = _txn_query(db, company_id).filter(TownTransaction.town_id == town_id).all()
+
+    def _sum(type_: str) -> Decimal:
+        return sum((t.amount for t in txns if t.transaction_type == type_), Decimal("0"))
+
+    uq = _unit_query(db, company_id).filter(TownUnit.town_id == town_id)
     outstanding = sum(
         (u.remaining_balance or Decimal("0"))
         for u in uq.all()

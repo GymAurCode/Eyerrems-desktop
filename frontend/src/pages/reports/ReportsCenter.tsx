@@ -324,28 +324,25 @@ export default function ReportsCenter() {
         {/* ── Tabs header ─────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between border-b pb-1" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-6">
-            <button
-              onClick={() => setSearchParams({ tab: "reports" })}
-              className={`pb-3 text-sm font-bold relative transition-colors ${
-                activeTab === "reports" ? "text-primary" : "text-muted hover:text-primary"
-              }`}
-            >
-              Reports Center
-              {activeTab === "reports" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-              )}
-            </button>
-            <button
-              onClick={() => setSearchParams({ tab: "import" })}
-              className={`pb-3 text-sm font-bold relative transition-colors ${
-                activeTab === "import" ? "text-primary" : "text-muted hover:text-primary"
-              }`}
-            >
-              Bulk Import Center
-              {activeTab === "import" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-              )}
-            </button>
+            {(["reports", "import"] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              const activeColor = "var(--tab-active-color)";
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setSearchParams({ tab })}
+                  className={`pb-3 text-sm font-bold relative transition-colors ${
+                    isActive ? "text-primary" : "text-muted hover:text-primary"
+                  }`}
+                  style={isActive ? { color: activeColor } : {}}
+                >
+                  {tab === "reports" ? "Reports Center" : "Bulk Import Center"}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: activeColor }} />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-2">

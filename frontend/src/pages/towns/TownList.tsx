@@ -8,6 +8,8 @@ import type { TableColumn, TableAction } from "../../components/data-table/types
 import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 import { townApi, Town } from "../../lib/townApi";
+import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 
 // ── Status / count badge ──────────────────────────────────────────────────────
 
@@ -35,6 +37,7 @@ function TownFormModal({
   const [description, setDescription] = useState("");
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // Sync form when modal opens
   useEffect(() => {
@@ -58,8 +61,10 @@ function TownFormModal({
       };
       if (initial?.id) {
         await townApi.updateTown(initial.id, payload);
+        pushToast({ title: "Town updated", message: `"${name.trim()}" has been updated.`, type: "success" });
       } else {
         await townApi.createTown(payload);
+        pushToast({ title: "Town created", message: `"${name.trim()}" has been created.`, type: "success" });
       }
       onSaved();
       onClose();
@@ -139,12 +144,14 @@ function DeleteModal({
   onDeleted: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const handleDelete = async () => {
     if (!town) return;
     setDeleting(true);
     try {
       await townApi.deleteTown(town.id);
+      pushToast({ title: "Town deleted", message: `"${town.name}" has been deleted.`, type: "success" });
       onDeleted();
       onClose();
     } finally {
@@ -196,6 +203,8 @@ export default function TownList() {
   const [editTown, setEditTown]   = useState<Town | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTown, setDeleteTown] = useState<Town | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -221,13 +230,19 @@ export default function TownList() {
   const openEdit   = (t: Town) => { setEditTown(t); setFormOpen(true); };
   const openDelete = (t: Town) => { setDeleteTown(t); setDeleteOpen(true); };
 
-  const handleDeleteTown = async (town: Town) => {
+  const handleDeleteTown = (town: Town) => {
+    setDeleteTarget({ item: town });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await townApi.deleteTown(town.id);
-      await load(); // Reload the list
-    } catch (error) {
-      console.error("[TownList] Failed to delete town", error);
-      throw error; // Re-throw so RowActions can handle the error state
+      await townApi.deleteTown(deleteTarget.item.id);
+      pushToast({ title: "Town deleted", message: `"${deleteTarget.item.name}" has been deleted.`, type: "success" });
+      setDeleteTarget(null);
+      await load();
+    } catch {
+      setDeleteTarget(null);
     }
   };
 
@@ -307,6 +322,15 @@ export default function TownList() {
         onClose={() => setDeleteOpen(false)}
         town={deleteTown}
         onDeleted={load}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Town"
+        message={`Permanently delete "${deleteTarget?.item?.name}" and all its blocks and plots? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

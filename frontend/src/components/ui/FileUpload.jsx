@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import {
   Paperclip,
   Upload,
@@ -9,7 +9,6 @@ import {
   FileText,
   Image,
   FileSpreadsheet,
-  X,
   Cloud,
 } from "lucide-react";
 import { fileService } from "../../services/fileService";
@@ -37,7 +36,7 @@ function formatDate(dateStr) {
   });
 }
 
-export default function FileUpload({
+const FileUpload = forwardRef(function FileUpload({
   module,
   recordType,
   recordId,
@@ -46,7 +45,10 @@ export default function FileUpload({
   disabled = false,
   compact = false,
   onUploadComplete = null,
-}) {
+}, ref) {
+  const noRecordId = !recordId || String(recordId).trim() === "";
+  const isEffectivelyDisabled = disabled;
+
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -58,9 +60,15 @@ export default function FileUpload({
   );
   const [confirmDelete, setConfirmDelete] = useState(null);
   const fileInputRef = useRef(null);
+  const pendingQueueRef = useRef([]);
+
+  useImperativeHandle(ref, () => ({
+    getPendingFiles: () => pendingQueueRef.current,
+    clearPending: () => { pendingQueueRef.current = []; },
+  }), []);
 
   const fetchFiles = useCallback(async () => {
-    if (!recordId) {
+    if (noRecordId) {
       setLoading(false);
       return;
     }
@@ -68,12 +76,13 @@ export default function FileUpload({
       setLoading(true);
       const data = await fileService.getFiles(module, recordType, recordId);
       setFiles(data.files || []);
-    } catch {
+    } catch (err) {
+      console.error("[FileUpload] Failed to fetch files:", err);
       setFiles([]);
     } finally {
       setLoading(false);
     }
-  }, [module, recordType, recordId]);
+  }, [module, recordType, recordId, noRecordId]);
 
   useEffect(() => {
     fetchFiles();
@@ -82,7 +91,7 @@ export default function FileUpload({
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled) setDragOver(true);
+    if (!isEffectivelyDisabled) setDragOver(true);
   };
 
   const handleDragLeave = (e) => {
@@ -95,16 +104,17 @@ export default function FileUpload({
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
-    if (disabled) return;
+    if (isEffectivelyDisabled) return;
     const droppedFiles = Array.from(e.dataTransfer.files);
     handleFiles(droppedFiles);
   };
 
   const handleFilePick = () => {
-    if (!disabled) fileInputRef.current?.click();
+    if (!isEffectivelyDisabled) fileInputRef.current?.click();
   };
 
   const handleInputChange = (e) => {
+    if (isEffectivelyDisabled) return;
     if (e.target.files) {
       handleFiles(Array.from(e.target.files));
       e.target.value = "";
@@ -118,6 +128,25 @@ export default function FileUpload({
     for (const file of toUpload) {
       const tempId = `pending-${Date.now()}-${Math.random()}`;
 
+      if (noRecordId) {
+        pendingQueueRef.current.push({ file, documentType: selectedDocType });
+        setFiles((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+            _originalFile: file,
+            _pending: true,
+            _queued: true,
+            _progress: 0,
+            _error: null,
+          },
+        ]);
+        continue;
+      }
+
       setFiles((prev) => [
         ...prev,
         {
@@ -125,6 +154,7 @@ export default function FileUpload({
           file_name: file.name,
           file_type: file.type,
           file_size: file.size,
+          _originalFile: file,
           _pending: true,
           _progress: 0,
           _error: null,
@@ -135,10 +165,10 @@ export default function FileUpload({
 
       try {
         await fileService.uploadFile({
-          file,
-          module,
-          recordType,
-          recordId,
+          file: file,
+          module: module,
+          recordType: recordType,
+          recordId: recordId,
           documentType: selectedDocType,
           onProgress: (pct) => {
             setUploadProgress((prev) => ({ ...prev, [tempId]: pct }));
@@ -188,10 +218,10 @@ export default function FileUpload({
 
     try {
       await fileService.uploadFile({
-        file,
-        module,
-        recordType,
-        recordId,
+        file: file,
+        module: module,
+        recordType: recordType,
+        recordId: recordId,
         documentType: selectedDocType,
         onProgress: (pct) => {
           setFiles((prev) =>
@@ -216,7 +246,19 @@ export default function FileUpload({
     }
   };
 
-  const nonPendingFiles = files.filter((f) => !f._pending);
+  const removeQueued = (fileId) => {
+    const idx = files.findIndex((f) => f.id === fileId);
+    if (idx !== -1) {
+      const removed = files[idx];
+      pendingQueueRef.current = pendingQueueRef.current.filter(
+        (entry) => entry.file !== removed._originalFile
+      );
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    }
+  };
+
+  const nonPendingFiles = files.filter((f) => !f._pending && !f._queued);
+  const queuedFiles = files.filter((f) => f._queued);
 
   const uploadArea = (
     <div
@@ -228,7 +270,7 @@ export default function FileUpload({
         dragOver
           ? "border-blue-500 bg-blue-500/5"
           : "border-[var(--border,#E2E8F0)] bg-[var(--bg-surface2,#F8FAFC)]"
-      } ${disabled ? "opacity-50 cursor-not-allowed" : "hover:border-blue-400/50"}`}
+      } ${isEffectivelyDisabled ? "opacity-50 cursor-not-allowed" : "hover:border-blue-400/50"}`}
     >
       <input
         ref={fileInputRef}
@@ -237,15 +279,15 @@ export default function FileUpload({
         multiple
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
         onChange={handleInputChange}
-        disabled={disabled}
+        disabled={isEffectivelyDisabled}
       />
       <div className="flex flex-col items-center justify-center py-6 px-4">
         <Cloud size={32} className="mb-2 text-[var(--text-muted,#6b7280)]" />
         <p className="text-sm font-medium text-[var(--text-primary,#e0e0e0)]">
-          Drop files here or click to browse
+          {noRecordId ? "Select files to attach after saving" : "Drop files here or click to browse"}
         </p>
         <p className="text-xs text-[var(--text-muted,#6b7280)] mt-1">
-          PDF, Images, Word, Excel — max 10MB per file
+          {noRecordId ? "Files will upload after this record is saved" : "PDF, Images, Word, Excel — max 10MB per file"}
         </p>
       </div>
     </div>
@@ -255,7 +297,7 @@ export default function FileUpload({
     <button
       type="button"
       onClick={handleFilePick}
-      disabled={disabled}
+      disabled={isEffectivelyDisabled}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 hover:bg-[var(--bg-surface-hover,#2a2a3a)]"
       style={{
         border: "1px solid var(--border, #3a3a4e)",
@@ -263,7 +305,7 @@ export default function FileUpload({
       }}
     >
       <Paperclip size={14} />
-      Attach Files
+      {noRecordId ? "Queue Files" : "Attach Files"}
       <input
         ref={fileInputRef}
         type="file"
@@ -271,7 +313,7 @@ export default function FileUpload({
         multiple
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
         onChange={handleInputChange}
-        disabled={disabled}
+        disabled={isEffectivelyDisabled}
       />
     </button>
   );
@@ -281,6 +323,7 @@ export default function FileUpload({
       {files.map((file) => {
         const isPending = file._pending;
         const isError = file._error;
+        const isQueued = file._queued;
         const progress = file._progress || 0;
         const iconConfig = getFileIconConfig(file.file_type);
         const IconComponent = iconConfig.icon;
@@ -293,6 +336,8 @@ export default function FileUpload({
                 ? "bg-blue-500/5"
                 : isError
                 ? "bg-red-500/5"
+                : isQueued
+                ? "bg-amber-500/5"
                 : "bg-[var(--bg-tertiary,#232333)] hover:bg-[var(--bg-hover,#2a2a3a)]"
             }`}
           >
@@ -307,7 +352,13 @@ export default function FileUpload({
                 <p className="text-sm text-[var(--text-primary,#e0e0e0)] truncate" title={file.file_name}>
                   {file.file_name}
                 </p>
-                {file.document_type && !isPending && (
+                {isQueued && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0"
+                    style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)" }}>
+                    Queued
+                  </span>
+                )}
+                {file.document_type && !isPending && !isQueued && (
                   <span
                     className="text-[10px] px-1.5 py-0.5 rounded shrink-0"
                     style={{
@@ -322,15 +373,18 @@ export default function FileUpload({
               </div>
               <div className="flex items-center gap-2 text-xs text-[var(--text-muted,#6b7280)]">
                 <span>{fileService.formatFileSize(file.file_size)}</span>
-                {file.uploaded_at && !isPending && (
+                {file.uploaded_at && !isPending && !isQueued && (
                   <>
                     <span>·</span>
                     <span>{formatDate(file.uploaded_at)}</span>
                   </>
                 )}
+                {isQueued && !isPending && (
+                  <span style={{ color: "#f59e0b" }}>Will upload after save</span>
+                )}
               </div>
 
-              {isPending && (
+              {isPending && !isQueued && (
                 <div className="mt-1.5 w-full h-1 bg-[var(--bg-surface-hover,#2a2a3a)] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-500 rounded-full transition-all duration-300"
@@ -345,7 +399,7 @@ export default function FileUpload({
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              {isPending ? (
+              {isPending && !isQueued ? (
                 <Loader2 size={14} className="animate-spin text-blue-400" />
               ) : isError ? (
                 <button
@@ -358,21 +412,23 @@ export default function FileUpload({
                 </button>
               ) : (
                 <>
-                  <a
-                    href={file.cloudinary_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 rounded text-[var(--text-muted,#6b7280)] hover:text-blue-400 hover:bg-[var(--bg-hover,#2a2a3a)] transition-colors"
-                    title="Open file"
-                  >
-                    <ExternalLink size={14} />
-                  </a>
-                  {!disabled && (
+                  {!isQueued && file.cloudinary_url && (
+                    <a
+                      href={file.cloudinary_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded text-[var(--text-muted,#6b7280)] hover:text-blue-400 hover:bg-[var(--bg-hover,#2a2a3a)] transition-colors"
+                      title="Open file"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                  )}
+                  {!isEffectivelyDisabled && (
                     <button
                       type="button"
-                      onClick={() => setConfirmDelete(file)}
+                      onClick={() => isQueued ? removeQueued(file.id) : setConfirmDelete(file)}
                       className="p-1.5 rounded text-[var(--text-muted,#6b7280)] hover:text-red-400 hover:bg-[var(--bg-hover,#2a2a3a)] transition-colors"
-                      title="Delete"
+                      title={isQueued ? "Remove" : "Delete"}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -424,10 +480,15 @@ export default function FileUpload({
           )}
         </div>
 
-        {compact && !disabled && compactUploadBtn}
+        {compact && !isEffectivelyDisabled && compactUploadBtn}
+        {noRecordId && queuedFiles.length > 0 && !compact && (
+          <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+            {queuedFiles.length} queued
+          </span>
+        )}
       </div>
 
-      {documentTypes && documentTypes.length > 0 && !disabled && (
+      {documentTypes && documentTypes.length > 0 && !isEffectivelyDisabled && (
         <div className="flex items-center gap-2">
           <label className="text-xs text-[var(--text-secondary,#9ca3af)] shrink-0">
             Document Type:
@@ -452,7 +513,14 @@ export default function FileUpload({
         </div>
       )}
 
-      {!compact && !disabled && uploadArea}
+      {!compact && !isEffectivelyDisabled && uploadArea}
+
+      {queuedFiles.length > 0 && (
+        <div className="px-3 py-2 rounded-lg text-xs text-center"
+          style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)", color: "var(--text-muted)" }}>
+          {queuedFiles.length} file{queuedFiles.length > 1 ? "s" : ""} queued — will upload after saving
+        </div>
+      )}
 
       {loadingSkeleton}
 
@@ -504,4 +572,6 @@ export default function FileUpload({
       )}
     </div>
   );
-}
+});
+
+export default FileUpload;

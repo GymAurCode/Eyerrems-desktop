@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _CNIC_RE  = re.compile(r"^\d{5}-\d{7}-\d$")
@@ -28,10 +28,12 @@ class LeadCreate(BaseModel):
     preferred_town: str | None = None
     preferred_property_type: str | None = None
     unit_preference: str | None = None
+    preferred_project: str | None = None
     source: str | None = None
     campaign: str | None = None
     referral: str | None = None
     assigned_dealer_id: int | None = None
+    lead_cost: Decimal | None = None
     investor_type: str | None = None
     notes: str | None = None
     status: str = "new"
@@ -42,6 +44,13 @@ class LeadCreate(BaseModel):
         if v and not _EMAIL_RE.match(v):
             raise ValueError("Invalid email format")
         return v
+
+
+LEAD_STATUS_ORDER = [
+    "new", "contacted", "qualified", "follow_up",
+    "site_visit", "quotation", "negotiation",
+    "deal_won", "converted", "lost",
+]
 
 
 class LeadUpdate(BaseModel):
@@ -60,10 +69,12 @@ class LeadUpdate(BaseModel):
     preferred_town: str | None = None
     preferred_property_type: str | None = None
     unit_preference: str | None = None
+    preferred_project: str | None = None
     source: str | None = None
     campaign: str | None = None
     referral: str | None = None
     assigned_dealer_id: int | None = None
+    lead_cost: Decimal | None = None
     investor_type: str | None = None
     notes: str | None = None
     status: str | None = None
@@ -73,6 +84,13 @@ class LeadUpdate(BaseModel):
     def validate_email(cls, v: str | None) -> str | None:
         if v and not _EMAIL_RE.match(v):
             raise ValueError("Invalid email format")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def validate_stage(cls, v: str | None) -> str | None:
+        if v and v not in LEAD_STATUS_ORDER:
+            raise ValueError(f"Invalid status. Must be one of: {', '.join(LEAD_STATUS_ORDER)}")
         return v
 
 
@@ -94,10 +112,12 @@ class LeadOut(BaseModel):
     preferred_town: str | None
     preferred_property_type: str | None
     unit_preference: str | None
+    preferred_project: str | None
     source: str | None
     campaign: str | None
     referral: str | None
     assigned_dealer_id: int | None
+    lead_cost: Decimal | None = None
     investor_type: str | None = None
     notes: str | None
     status: str
@@ -171,7 +191,7 @@ class ConvertLeadToClient(BaseModel):
     name: str
     phone: str
     email: str | None = None
-    cnic: str | None = None
+    cnic: str  # Required at conversion — KYC mandatory
     status: str = "active"
     company_name: str | None = None
     address: str | None = None
@@ -200,10 +220,12 @@ class ConvertLeadToClient(BaseModel):
 
     @field_validator("cnic")
     @classmethod
-    def validate_cnic(cls, v: str | None) -> str | None:
-        if v and not _CNIC_RE.match(v):
+    def validate_cnic(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("CNIC is required for client conversion")
+        if not _CNIC_RE.match(v):
             raise ValueError("CNIC must be in format XXXXX-XXXXXXX-X")
-        return v
+        return v.strip()
 
     @field_validator("next_of_kin_cnic")
     @classmethod
@@ -303,6 +325,7 @@ class DealerCreate(BaseModel):
     commission_type: str = "percentage"
     commission_rate: Decimal | None = None
     monthly_target: Decimal | None = None
+    cost_per_lead: Decimal | None = None
     cnic: str | None = None
     address: str | None = None
     notes: str | None = None
@@ -345,6 +368,7 @@ class DealerUpdate(BaseModel):
     commission_type: str | None = None
     commission_rate: Decimal | None = None
     monthly_target: Decimal | None = None
+    cost_per_lead: Decimal | None = None
     cnic: str | None = None
     address: str | None = None
     notes: str | None = None
@@ -386,18 +410,13 @@ class DealerOut(BaseModel):
     commission_type: str
     commission_rate: Decimal | None
     monthly_target: Decimal | None = None
+    cost_per_lead: Decimal | None = None
     cnic: str | None
     address: str | None
     notes: str | None
     is_active: bool = True
     created_at: datetime
     attachments: list[DealerAttachmentOut] = []
-
-
-class DealerAttachmentOut(BaseModel):
-
-    class Config:
-        from_attributes = True
 
 
 # ── InstallmentType ───────────────────────────────────────────────────────────
@@ -447,16 +466,21 @@ class DealCreate(BaseModel):
     @field_validator("client_role")
     @classmethod
     def validate_role(cls, v: str | None) -> str | None:
-        if v and v not in {"Buyer", "Seller", "Investor"}:
+        if v and v.lower() not in {"buyer", "seller", "investor"}:
             raise ValueError("client_role must be Buyer, Seller, or Investor")
         return v
 
     @field_validator("status")
     @classmethod
     def validate_status(cls, v: str) -> str:
-        allowed = {"pending", "active", "closed", "cancelled"}
+        allowed = {
+            "pending", "active", "booked", "reserved",
+            "under_verification", "agreement_signed", "installment_running",
+            "completed", "registered", "closed",
+            "cancelled", "expired", "on_hold",
+        }
         if v.lower() not in allowed:
-            raise ValueError(f"status must be one of: {', '.join(allowed)}")
+            raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
         return v.lower()
 
 
@@ -476,6 +500,21 @@ class DealUpdate(BaseModel):
     due_date: date | None = None
     description: str | None = None
     notes: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        allowed = {
+            "pending", "active", "booked", "reserved",
+            "under_verification", "agreement_signed", "installment_running",
+            "completed", "registered", "closed",
+            "cancelled", "expired", "on_hold",
+        }
+        if v.lower() not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
+        return v.lower()
 
 
 class DealAttachmentOut(BaseModel):
@@ -527,13 +566,114 @@ class DealLedgerOut(BaseModel):
     surcharges_penalties: Decimal = Decimal(0)
 
 
+class LeadStats(BaseModel):
+    total_assigned: int = 0
+    new: int = 0
+    contacted: int = 0
+    follow_up: int = 0
+    negotiation: int = 0
+    site_visit: int = 0
+    booked: int = 0
+    won: int = 0
+    lost: int = 0
+    cancelled: int = 0
+    expired: int = 0
+    conversion_rate: float = 0.0
+    win_rate: float = 0.0
+    lost_rate: float = 0.0
+
+class LeadCostSummary(BaseModel):
+    cost_per_lead: Decimal = Decimal(0)
+    total_charged_leads: int = 0
+    total_lead_cost: Decimal = Decimal(0)
+    avg_cost_per_won_lead: Decimal = Decimal(0)
+    avg_cost_per_closed_deal: Decimal = Decimal(0)
+    cost_recovery_pct: float = 0.0
+
+class CommissionSummary(BaseModel):
+    total_deals_closed: int = 0
+    total_commission: Decimal = Decimal(0)
+    avg_commission: Decimal = Decimal(0)
+    highest_commission: Decimal = Decimal(0)
+    lowest_commission: Decimal = Decimal(0)
+    commission_this_month: Decimal = Decimal(0)
+    commission_last_month: Decimal = Decimal(0)
+
+class FinancialSummary(BaseModel):
+    total_commission_earned: Decimal = Decimal(0)
+    total_lead_cost: Decimal = Decimal(0)
+    net_balance: Decimal = Decimal(0)
+    amount_payable_to_dealer: Decimal = Decimal(0)
+    amount_receivable_from_dealer: Decimal = Decimal(0)
+    payments_received: Decimal = Decimal(0)
+    pending_balance: Decimal = Decimal(0)
+    current_month_commission: Decimal = Decimal(0)
+    current_month_lead_cost: Decimal = Decimal(0)
+
+class RecentAssignedLead(BaseModel):
+    id: int
+    lead_id: str
+    name: str
+    phone: str | None = None
+    property_name: str | None = None
+    assigned_date: datetime | None = None
+    current_stage: str
+    lead_cost: Decimal | None = None
+    expected_commission: Decimal | None = None
+    status: str
+
 class DealerDetailOut(BaseModel):
     dealer: DealerOut
-    total_sales_value: Decimal = Decimal(0)
-    total_commission_earned: Decimal = Decimal(0)
-    pending_commission_payout: Decimal = Decimal(0)
+    financial_summary: FinancialSummary = Field(default_factory=FinancialSummary)
+    lead_stats: LeadStats = Field(default_factory=LeadStats)
+    lead_cost_summary: LeadCostSummary = Field(default_factory=LeadCostSummary)
+    commission_summary: CommissionSummary = Field(default_factory=CommissionSummary)
+    recent_leads: list[RecentAssignedLead] = []
+    recent_ledger_entries: list[DealerLedgerEntryOut] = []
     assigned_clients: list[ClientOut] = []
     active_deals: list[DealOut] = []
+
+
+class DealerLedgerEntryOut(BaseModel):
+    id: int
+    tid: str
+    dealer_id: int
+    deal_id: int | None = None
+    lead_id: int | None = None
+    entry_date: datetime
+    description: str
+    reference_no: str | None = None
+    entry_type: str
+    commission_rate: Decimal | None = None
+    gross_commission: Decimal | None = None
+    debit: Decimal
+    credit: Decimal
+    running_balance: Decimal
+    status: str
+    notes: str | None = None
+    created_at: datetime
+    lead_name: str | None = None
+    dealer_name: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class DealerLedgerCreate(BaseModel):
+    dealer_id: int
+    entry_type: str = "adjustment"
+    description: str
+    amount: Decimal
+    notes: str | None = None
+
+
+class DealerPaymentCreate(BaseModel):
+    """Payout to a dealer (reduces running balance)."""
+    dealer_id: int
+    amount: Decimal
+    payment_method: str = "bank"
+    reference_no: str | None = None
+    notes: str | None = None
 
 
 # ── InstallmentPlan ───────────────────────────────────────────────────────────
@@ -549,7 +689,7 @@ class InstallmentRuleCreate(BaseModel):
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: str) -> str:
+    def validate(cls, v: str) -> str:
         allowed = {"monthly", "quarterly", "yearly", "custom"}
         if v not in allowed:
             raise ValueError(f"type must be one of: {', '.join(allowed)}")
@@ -677,7 +817,7 @@ class CommunicationCreate(BaseModel):
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: str) -> str:
+    def validate(cls, v: str) -> str:
         allowed = {"call", "sms", "email", "meeting"}
         if v.lower() not in allowed:
             raise ValueError(f"type must be one of: {', '.join(allowed)}")
@@ -728,7 +868,7 @@ class ActivityCreate(BaseModel):
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: str) -> str:
+    def validate(cls, v: str) -> str:
         allowed = {"call", "whatsapp", "followup", "note", "email"}
         if v.lower() not in allowed:
             raise ValueError(f"type must be one of: {', '.join(allowed)}")
@@ -770,7 +910,7 @@ class FollowUpCreate(BaseModel):
 
     @field_validator("fu_type")
     @classmethod
-    def validate_type(cls, v: str) -> str:
+    def validate(cls, v: str) -> str:
         allowed = {"call", "whatsapp", "sms", "meeting", "email"}
         if v.lower() not in allowed:
             raise ValueError(f"fu_type must be one of: {', '.join(allowed)}")
@@ -976,6 +1116,11 @@ class CrmDashboardStats(BaseModel):
     total_followups_pending: int = 0
     total_visits_scheduled: int = 0
     avg_lead_age: float = 0.0
+    # Property / Unit stats
+    total_units: int = 0
+    available_units: int = 0
+    booked_units: int = 0
+    completed_units: int = 0
 
 
 class LeadSourceDistribution(BaseModel):
@@ -1104,4 +1249,190 @@ class PaginatedPayments(BaseModel):
     total: int
     limit: int | None = None
     offset: int | None = None
+
+
+# ── Client Pipeline Entities ───────────────────────────────────────────────────
+
+
+# ── Contract ───────────────────────────────────────────────────────────────────
+
+class ContractCreate(BaseModel):
+    booking_id: int
+    client_id: int
+    deal_id: int | None = None
+    agreement_doc_url: str | None = None
+    signed_date: datetime | None = None
+    effective_date: datetime | None = None
+    expiry_date: datetime | None = None
+    total_amount: Decimal
+    down_payment_amount: Decimal = Decimal("0")
+    installment_count: int | None = None
+    installment_freq: str | None = None
+    terms_text: str | None = None
+    notes: str | None = None
+    signed_by: str | None = None
+    witness: str | None = None
+
+
+class ContractUpdate(BaseModel):
+    status: str | None = None
+    agreement_doc_url: str | None = None
+    signed_date: datetime | None = None
+    effective_date: datetime | None = None
+    signed_by: str | None = None
+    witness: str | None = None
+    notes: str | None = None
+
+
+class ContractOut(BaseModel):
+    id: int
+    contract_id: str
+    booking_id: int
+    client_id: int
+    deal_id: int | None = None
+    agreement_doc_url: str | None = None
+    signed_date: datetime | None = None
+    effective_date: datetime | None = None
+    expiry_date: datetime | None = None
+    total_amount: Decimal
+    down_payment_amount: Decimal
+    installment_count: int | None = None
+    installment_freq: str | None = None
+    status: str
+    terms_text: str | None = None
+    notes: str | None = None
+    signed_by: str | None = None
+    witness: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Receipt Voucher ────────────────────────────────────────────────────────────
+
+class ReceiptVoucherOut(BaseModel):
+    id: int
+    voucher_no: str
+    voucher_type: str
+    client_id: int | None = None
+    booking_id: int | None = None
+    installment_id: int | None = None
+    deal_id: int | None = None
+    journal_id: int | None = None
+    amount: Decimal
+    payment_mode: str
+    payment_date: datetime
+    reference_no: str | None = None
+    description: str | None = None
+    receipt_type: str
+    posted_to_ledger: bool
+    posted_to_subsidiary: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReceiptVoucherCreate(BaseModel):
+    amount: Decimal
+    payment_mode: str = "cash"
+    payment_date: datetime | None = None
+    reference_no: str | None = None
+    description: str | None = None
+    receipt_type: str = "installment"
+
+
+# ── Transfer ───────────────────────────────────────────────────────────────────
+
+class TransferCreate(BaseModel):
+    booking_id: int
+    from_client_id: int
+    to_client_id: int
+    transfer_fee: Decimal = Decimal("0")
+    transfer_date: datetime | None = None
+    reason: str | None = None
+
+
+class TransferOut(BaseModel):
+    id: int
+    transfer_id: str
+    booking_id: int
+    from_client_id: int
+    to_client_id: int
+    transfer_fee: Decimal
+    transfer_date: datetime
+    reason: str | None = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Handover ───────────────────────────────────────────────────────────────────
+
+class HandoverCreate(BaseModel):
+    booking_id: int
+    client_id: int
+    unit_id: int | None = None
+    possession_date: datetime
+    snag_list_notes: str | None = None
+    handover_notes: str | None = None
+    doc_url: str | None = None
+
+
+class HandoverOut(BaseModel):
+    id: int
+    handover_id: str
+    booking_id: int
+    client_id: int
+    unit_id: int | None = None
+    possession_date: datetime
+    snag_list_status: str
+    snag_list_notes: str | None = None
+    handover_notes: str | None = None
+    doc_url: str | None = None
+    status: str
+    completed_at: datetime | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── After-Sales Ticket ─────────────────────────────────────────────────────────
+
+class AfterSalesTicketCreate(BaseModel):
+    client_id: int
+    unit_id: int | None = None
+    booking_id: int | None = None
+    ticket_type: str
+    description: str
+    priority: str = "medium"
+    chargeable: bool = False
+    charge_amount: Decimal | None = None
+    assigned_to_id: int | None = None
+
+
+class AfterSalesTicketOut(BaseModel):
+    id: int
+    ticket_id: str
+    client_id: int
+    unit_id: int | None = None
+    booking_id: int | None = None
+    ticket_type: str
+    description: str
+    priority: str
+    status: str
+    chargeable: bool
+    charge_amount: Decimal | None = None
+    assigned_to_id: int | None = None
+    resolved_at: datetime | None = None
+    resolution_notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 

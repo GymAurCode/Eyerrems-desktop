@@ -1,160 +1,115 @@
-"""
-Reminder Scheduler — APScheduler-based background engine.
-
-Runs every minute, finds reminders whose next_fire_at <= now,
-creates Notification rows, broadcasts via WebSocket, then
-advances next_fire_at for recurring reminders.
-"""
-from __future__ import annotations
-
+import asyncio
 import logging
-from datetime import datetime, timedelta
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.websocket_manager import ws_manager
-from app.models.reminders import (
-    Notification, NotificationLog, Reminder, ReminderAssignment,
-)
+from app.models.reminders import NotificationLog
+from app.services.reminder_service import get_due_reminders, mark_missed, mark_notification_sent
 
-log = logging.getLogger("reminder_scheduler")
+log = logging.getLogger("reminder-scheduler")
 
-_scheduler: AsyncIOScheduler | None = None
-
-
-def _advance_next_fire(reminder: Reminder) -> None:
-    """Compute and set next_fire_at for recurring reminders."""
-    base = reminder.due_time
-    rec  = reminder.recurrence
-    if rec == "none":
-        reminder.status = "completed"
-        reminder.next_fire_at = None
-        return
-    now = datetime.utcnow()
-    if rec == "daily":
-        delta = timedelta(days=1)
-    elif rec == "weekly":
-        delta = timedelta(weeks=1)
-    elif rec == "monthly":
-        # Approximate — add 30 days
-        delta = timedelta(days=30)
-    else:
-        # custom cron — not advanced automatically here; handled by APScheduler cron job
-        reminder.next_fire_at = None
-        return
-
-    nxt = base
-    while nxt <= now:
-        nxt += delta
-    reminder.next_fire_at = nxt
+_scheduler: BackgroundScheduler | None = None
+_main_loop: asyncio.AbstractEventLoop | None = None
 
 
-async def _fire_reminders() -> None:
-    """Core tick: find due reminders, emit notifications."""
+def _fire_reminders_job() -> None:
     db: Session = SessionLocal()
     try:
-        now = datetime.utcnow()
-        due = (
-            db.query(Reminder)
-            .filter(
-                Reminder.status.in_(["pending", "snoozed"]),
-                Reminder.next_fire_at <= now,
-            )
-            .all()
-        )
-
+        due = get_due_reminders(db)
         for reminder in due:
-            # Skip snoozed reminders that haven't expired yet
-            if reminder.status == "snoozed" and reminder.snoozed_until and reminder.snoozed_until > now:
-                continue
+            log.info("[SCHED] Firing reminder id=%s title='%s' user_id=%s", reminder.id, reminder.title, reminder.user_id)
+            db.add(NotificationLog(
+                reminder_id=reminder.id,
+                status="delivered",
+            ))
+            mark_notification_sent(db, reminder.id)
+            payload = {
+                "type": "reminder_due",
+                "reminder": {
+                    "id": reminder.id,
+                    "user_id": reminder.user_id,
+                    "title": reminder.title,
+                    "description": reminder.description,
+                    "category": reminder.category,
+                    "remind_at": reminder.remind_at.isoformat() if reminder.remind_at else None,
+                    "priority": reminder.priority,
+                    "repeat": reminder.repeat,
+                    "status": reminder.status,
+                    "reminder_before": reminder.reminder_before,
+                    "notification_sent": reminder.notification_sent,
+                    "snoozed_until": reminder.snoozed_until.isoformat() if reminder.snoozed_until else None,
+                    "completed_at": reminder.completed_at.isoformat() if reminder.completed_at else None,
+                    "template_id": reminder.template_id,
+                    "created_at": reminder.created_at.isoformat() if reminder.created_at else None,
+                    "updated_at": reminder.updated_at.isoformat() if reminder.updated_at else None,
+                },
+            }
+            try:
+                if _main_loop and _main_loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        ws_manager.send_to_user(reminder.user_id, payload),
+                        _main_loop,
+                    )
+                else:
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(ws_manager.send_to_user(reminder.user_id, payload))
+                    loop.close()
+            except Exception as exc:
+                log.exception("[SCHED] WS send failed for reminder %s: %s", reminder.id, exc)
 
-            # Collect target users: creator + assigned
-            user_ids: set[int] = {reminder.created_by}
-            for a in db.query(ReminderAssignment).filter(
-                ReminderAssignment.reminder_id == reminder.id
-            ).all():
-                user_ids.add(a.user_id)
-
-            for uid in user_ids:
-                notif = Notification(
-                    user_id=uid,
-                    reminder_id=reminder.id,
-                    title=reminder.title,
-                    message=reminder.description or reminder.title,
-                    channel="in_app",
-                    notif_type=_priority_to_type(reminder.priority),
-                    module_name=reminder.module_name,
-                    record_id=reminder.record_id,
-                )
-                db.add(notif)
-                db.flush()
-
-                log_entry = NotificationLog(
-                    notification_id=notif.id,
-                    reminder_id=reminder.id,
-                    user_id=uid,
-                    triggered_at=now,
-                    delivered_at=now,
-                    status="delivered",
-                )
-                db.add(log_entry)
-
-            # Advance or complete
-            _advance_next_fire(reminder)
-            if reminder.status == "snoozed":
-                reminder.status = "pending"
-
-        db.commit()
-
-        # Broadcast via WebSocket after commit
-        for reminder in due:
-            await ws_manager.broadcast("reminder_fired", {
-                "reminder_id": reminder.id,
-                "title": reminder.title,
-                "priority": reminder.priority,
-                "module_name": reminder.module_name,
-                "record_id": reminder.record_id,
-            })
-
+        missed = mark_missed(db)
+        if missed:
+            log.info("[SCHED] Marked %s reminders as missed", missed)
     except Exception as exc:
-        log.exception("Scheduler tick error: %s", exc)
+        log.exception("[SCHED] Scheduler tick error: %s", exc)
         db.rollback()
     finally:
         db.close()
 
 
-def _priority_to_type(priority: str) -> str:
-    return {"urgent": "error", "high": "warning", "medium": "info", "low": "info"}.get(priority, "info")
-
-
-def get_scheduler() -> AsyncIOScheduler:
-    global _scheduler
-    if _scheduler is None:
-        _scheduler = AsyncIOScheduler()
-        _scheduler.add_job(
-            _fire_reminders,
-            trigger="interval",
-            seconds=60,
-            id="reminder_tick",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
+def start_scheduler(main_loop: asyncio.AbstractEventLoop | None = None) -> BackgroundScheduler:
+    global _scheduler, _main_loop
+    if main_loop:
+        _main_loop = main_loop
+    if _scheduler and _scheduler.running:
+        log.warning("[SCHED] Scheduler already running")
+        return _scheduler
+    if _main_loop is None:
+        try:
+            _main_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            _main_loop = asyncio.new_event_loop()
+    _scheduler = BackgroundScheduler(timezone="UTC")
+    _scheduler.add_job(
+        _fire_reminders_job,
+        trigger="interval",
+        seconds=15,
+        id="reminder_check",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.start()
+    log.info("[SCHED] Reminder scheduler started (interval=15s)")
     return _scheduler
-
-
-def start_scheduler() -> None:
-    sched = get_scheduler()
-    if not sched.running:
-        sched.start()
-        log.info("Reminder scheduler started.")
 
 
 def stop_scheduler() -> None:
     global _scheduler
     if _scheduler and _scheduler.running:
         _scheduler.shutdown(wait=False)
-        log.info("Reminder scheduler stopped.")
+        log.info("[SCHED] Reminder scheduler stopped")
+
+
+def get_scheduler() -> BackgroundScheduler | None:
+    global _scheduler
+    return _scheduler
+
+
+def get_scheduler_status() -> dict:
+    global _scheduler, _main_loop
+    running = _scheduler is not None and _scheduler.running
+    loop_alive = _main_loop is not None and _main_loop.is_running()
+    return {"running": running, "loop_alive": loop_alive}

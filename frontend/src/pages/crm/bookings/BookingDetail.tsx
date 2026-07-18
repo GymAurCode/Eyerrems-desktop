@@ -321,7 +321,7 @@ function QuickStatusUpdate({
       )}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-muted">New Status</label>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-muted">New Status <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <select
             className="select-dark w-full px-3 py-2 text-sm"
             value={status}
@@ -345,7 +345,7 @@ function QuickStatusUpdate({
       </div>
       {status === "cancelled" && (
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Cancellation Reason</label>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Cancellation Reason <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <input
             className="input-dark w-full px-3 py-2 text-sm"
             placeholder="Reason for cancellation…"

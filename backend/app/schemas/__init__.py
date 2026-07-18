@@ -30,12 +30,14 @@ from app.schemas.finance import (
     CommissionCreate, CommissionResponse,
     ExpenseCreate, ExpenseResponse,
     InvoiceCreate, InvoiceResponse, InvoiceUpdate,
-    JournalCreate, JournalResponse,
+    JournalCreate, JournalUpdate, JournalSubmit, JournalApprove, JournalReverse, JournalReject,
+    JournalResponse, JournalListResponse, JournalEntryResponse,
     LedgerEntryResponse,
     PaymentCreate, PaymentResponse,
     ProfitLossResponse, ProfitLossRow,
     TrialBalanceResponse, TrialBalanceRow,
     GeneralLedgerResponse,
+    VendorCreate, VendorUpdate, VendorResponse,
 )
 from app.schemas.finance_operations import (
     RevenueCreate, ExpenseOpCreate, RefundCreate,
@@ -73,9 +75,7 @@ from app.schemas.reminders import (
     ReminderCreate, ReminderOut, ReminderUpdate,
     TemplateCreate as ReminderTemplateCreate,
     TemplateOut as ReminderTemplateOut,
-    TemplateUpdate as ReminderTemplateUpdate,
-    NotificationOut, NotificationLogOut,
-    ReminderSettingsUpdate, ReminderSettingsOut,
+    NotificationLogOut,
 )
 from app.schemas.hr import (
     DepartmentCreate, DepartmentResponse, DepartmentTree, DepartmentUpdate,

@@ -15,6 +15,8 @@ import RecordHistory from "../components/RecordHistory";
 import { useLookup } from "../hooks/useLookup";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
+import ConfirmDialog from "../components/actions/ConfirmDialog";
+import { useNotifStore } from "../store/notifications";
 
 // ── Payment Dialog ────────────────────────────────────────────────────────────
 
@@ -99,12 +101,12 @@ function PaymentDialog({ tenantId, records, onClose, onSaved }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted uppercase tracking-wider font-semibold">Amount (PKR) *</label>
+              <label className="text-xs text-muted uppercase tracking-wider font-semibold">Amount (PKR)<span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input type="number" className="input-dark w-full px-3 py-2.5 text-sm" value={form.amount}
                 onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 25000" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted uppercase tracking-wider font-semibold">Date *</label>
+              <label className="text-xs text-muted uppercase tracking-wider font-semibold">Date<span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input type="date" className="input-dark w-full px-3 py-2.5 text-sm" value={form.payment_date}
                 onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} />
             </div>
@@ -208,12 +210,12 @@ function RentIncreaseDialog({ tenantId, lease, onClose, onSaved }: {
             Current rent: <strong>PKR {Number(lease.rent_amount).toLocaleString()}</strong>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted uppercase tracking-wider font-semibold">New Rent Amount (PKR) *</label>
+            <label className="text-xs text-muted uppercase tracking-wider font-semibold">New Rent Amount (PKR)<span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input type="number" className="input-dark w-full px-3 py-2.5 text-sm" value={form.new_amount}
               onChange={e => setForm(p => ({ ...p, new_amount: e.target.value }))} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted uppercase tracking-wider font-semibold">Effective From *</label>
+            <label className="text-xs text-muted uppercase tracking-wider font-semibold">Effective From<span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input type="date" className="input-dark w-full px-3 py-2.5 text-sm" value={form.effective_from}
               onChange={e => setForm(p => ({ ...p, effective_from: e.target.value }))} />
           </div>
@@ -254,6 +256,8 @@ export default function TenantDetailPage() {
   const [showPayment, setPayment]   = useState(false);
   const [showIncrease, setIncrease] = useState(false);
   const [activeTab, setTab]         = useState<"rent" | "payments" | "leases" | "history">("rent");
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -263,6 +267,21 @@ export default function TenantDetailPage() {
   };
 
   useEffect(() => { load(); }, [id]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      if (deleteTarget.type === "endLease") {
+        await tenantApi.endLease(tenant!.id, activeLease!.id);
+        pushToast({ title: "Lease ended", message: "The lease has been ended successfully", type: "success" });
+        load();
+      }
+    } catch (e: any) {
+      console.error("Failed:", e);
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   if (loading) return (
     <div className="p-12 flex items-center justify-center">
@@ -396,7 +415,7 @@ export default function TenantDetailPage() {
             </div>
             {activeLease?.status === "active" && (
               <button type="button"
-                onClick={async () => { if (!confirm("End this lease?")) return; await tenantApi.endLease(tenant.id, activeLease.id); load(); }}
+                onClick={() => setDeleteTarget({ item: activeLease.id, type: "endLease" })}
                 className="mt-4 text-xs py-2 px-4 rounded-xl transition-colors"
                 style={{ border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
                 onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)")}
@@ -496,6 +515,16 @@ export default function TenantDetailPage() {
         <RentIncreaseDialog tenantId={tenant.id} lease={activeLease}
           onClose={() => setIncrease(false)} onSaved={() => { setIncrease(false); load(); }} />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="End Lease"
+        message="Are you sure you want to end this lease? This action cannot be undone."
+        confirmLabel="End Lease"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

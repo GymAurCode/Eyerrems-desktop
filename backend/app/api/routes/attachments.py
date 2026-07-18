@@ -129,6 +129,54 @@ def upload_attachment(
         raise HTTPException(status_code=500, detail=f"Failed to upload attachment: {raw_err}")
 
 
+def get_download_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """Resolve user from Authorization header or ?token= query param."""
+    token = None
+    auth = request.headers.get("Authorization")
+    if auth and auth.startswith("Bearer "):
+        token = auth[7:]
+    if not token:
+        token = request.query_params.get("token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    email: str = payload.get("sub", "")
+    from app.api.deps import _load_user
+    user = _load_user(db, email)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+    return user
+
+
+@router.get("/{attachment_id}/download")
+def download_attachment(
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_download_user),
+):
+    att = db.query(Attachment).filter(Attachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    content_type = att.file_type or "application/octet-stream"
+    filename = att.document_name or "download"
+    is_inline = content_type.startswith("image/") or content_type == "application/pdf"
+    disposition = "inline" if is_inline else f'attachment; filename="{filename}"'
+
+    return StreamingResponse(
+        iter([att.file_data]),
+        media_type=content_type,
+        headers={"Content-Disposition": disposition},
+    )
+
+
 @router.get("/{module}/{record_id}")
 def list_attachments(
     module: str,
@@ -234,54 +282,6 @@ def list_attachments(
     except Exception:
         db.rollback()
         return {"total": 0, "page": 1, "per_page": per_page, "total_pages": 0, "data": []}
-
-
-def get_download_user(
-    request: Request,
-    db: Session = Depends(get_db),
-) -> User:
-    """Resolve user from Authorization header or ?token= query param."""
-    token = None
-    auth = request.headers.get("Authorization")
-    if auth and auth.startswith("Bearer "):
-        token = auth[7:]
-    if not token:
-        token = request.query_params.get("token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    email: str = payload.get("sub", "")
-    from app.api.deps import _load_user
-    user = _load_user(db, email)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account is disabled")
-    return user
-
-
-@router.get("/{attachment_id}/download")
-def download_attachment(
-    attachment_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_download_user),
-):
-    att = db.query(Attachment).filter(Attachment.id == attachment_id).first()
-    if not att:
-        raise HTTPException(status_code=404, detail="Attachment not found")
-
-    content_type = att.file_type or "application/octet-stream"
-    filename = att.document_name or "download"
-    is_inline = content_type.startswith("image/") or content_type == "application/pdf"
-    disposition = "inline" if is_inline else f'attachment; filename="{filename}"'
-
-    return StreamingResponse(
-        iter([att.file_data]),
-        media_type=content_type,
-        headers={"Content-Disposition": disposition},
-    )
 
 
 @router.patch("/{attachment_id}")

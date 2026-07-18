@@ -4,6 +4,8 @@ import { api } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { Building2, LayoutDashboard, Plus, LogOut, AlertTriangle, Shield, ChevronDown, ChevronRight, Save, CheckCircle, XCircle, Eye, Edit2 } from "lucide-react";
 import { DataTable } from "../components/data-table";
+import { ConfirmDialog } from "../components/actions";
+import { useNotifStore } from "../store/notifications";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -207,6 +209,8 @@ function CompaniesPage() {
   const [error, setError] = useState("");
   const [extendModal, setExtendModal] = useState<{ id: string; name: string } | null>(null);
   const [slugModal, setSlugModal] = useState<{ id: string; name: string; slug: string | null } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => { fetchCompanies(); }, []);
 
@@ -232,8 +236,20 @@ function CompaniesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this company and all its data? This cannot be undone.")) return;
-    try { await api.delete(`/superadmin/companies/${id}`); fetchCompanies(); } catch {}
+    setDeleteTarget(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/superadmin/companies/${deleteTarget}`);
+      pushToast({ title: "Success", message: "Company deleted", type: "success" });
+      fetchCompanies();
+    } catch {
+      pushToast({ title: "Error", message: "Failed to delete company", type: "error" });
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const handleExtend = async (id: string, days: number) => {
@@ -326,6 +342,16 @@ function CompaniesPage() {
           onClose={() => setSlugModal(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Company"
+        message="Delete this company and all its data? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -436,7 +462,7 @@ function CreateCompanyPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Company Name *</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Company Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
@@ -447,11 +473,11 @@ function CreateCompanyPage() {
           <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>Role users enter this slug to connect to your company. Auto-generated if left blank.</p>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Email *</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Email <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Password *</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Admin Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
@@ -459,7 +485,7 @@ function CreateCompanyPage() {
           <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Expiry *</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Expiry <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <select value={form.expiry_option} onChange={(e) => setForm({ ...form, expiry_option: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border text-sm" style={{ background: "var(--surface-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
             {EXPIRY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>

@@ -55,7 +55,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       a silent black screen. HashRouter uses the URL hash (#/login, #/dashboard)
       which works correctly in both file:// and http:// environments.
     */}
-    <HashRouter>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <QueryClientProvider client={queryClient}>
         <ModuleColorProvider>
           <App />

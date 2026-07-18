@@ -7,6 +7,45 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ==================== SHIFT TEMPLATE SCHEMAS ====================
+
+class ShiftTemplateBase(BaseModel):
+    shift_name: str = Field(..., max_length=255)
+    start_time: str = Field(..., max_length=10)
+    end_time: str = Field(..., max_length=10)
+    break_duration: int = 60
+    grace_period_minutes: int = 10
+    half_day_threshold_hours: Decimal = Field(4.0, ge=0)
+    full_day_required_hours: Decimal = Field(8.0, ge=0)
+    weekly_off_days: Optional[str] = Field(None, max_length=50)
+    is_flexible: bool = False
+    is_active: bool = True
+
+
+class ShiftTemplateCreate(ShiftTemplateBase):
+    pass
+
+
+class ShiftTemplateUpdate(BaseModel):
+    shift_name: Optional[str] = Field(None, max_length=255)
+    start_time: Optional[str] = Field(None, max_length=10)
+    end_time: Optional[str] = Field(None, max_length=10)
+    break_duration: Optional[int] = None
+    grace_period_minutes: Optional[int] = None
+    half_day_threshold_hours: Optional[Decimal] = Field(None, ge=0)
+    full_day_required_hours: Optional[Decimal] = Field(None, ge=0)
+    weekly_off_days: Optional[str] = Field(None, max_length=50)
+    is_flexible: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class ShiftTemplateResponse(ShiftTemplateBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ==================== DEPARTMENT SCHEMAS ====================
 
 class DepartmentBase(BaseModel):
@@ -89,6 +128,8 @@ class BranchBase(BaseModel):
     country: Optional[str] = Field(None, max_length=100)
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[str] = Field(None, max_length=255)
+    contact_person: Optional[str] = Field(None, max_length=200)
+    timezone: Optional[str] = Field(None, max_length=50)
     is_active: bool = True
 
 
@@ -105,6 +146,8 @@ class BranchUpdate(BaseModel):
     country: Optional[str] = Field(None, max_length=100)
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[str] = Field(None, max_length=255)
+    contact_person: Optional[str] = Field(None, max_length=200)
+    timezone: Optional[str] = Field(None, max_length=50)
     is_active: Optional[bool] = None
 
 
@@ -150,6 +193,7 @@ class EmployeeBase(BaseModel):
     department_id: Optional[int] = None
     position_id: Optional[int] = None
     branch_id: Optional[int] = None
+    shift_template_id: Optional[int] = None
     manager_id: Optional[int] = None
     
     joining_date: date
@@ -159,6 +203,7 @@ class EmployeeBase(BaseModel):
     resignation_date: Optional[date] = None
     termination_date: Optional[date] = None
     termination_reason: Optional[str] = None
+    exit_date: Optional[date] = None
     
     # System fields
     user_id: Optional[int] = None
@@ -202,6 +247,7 @@ class EmployeeUpdate(BaseModel):
     department_id: Optional[int] = None
     position_id: Optional[int] = None
     branch_id: Optional[int] = None
+    shift_template_id: Optional[int] = None
     manager_id: Optional[int] = None
     
     joining_date: Optional[date] = None
@@ -211,6 +257,7 @@ class EmployeeUpdate(BaseModel):
     resignation_date: Optional[date] = None
     termination_date: Optional[date] = None
     termination_reason: Optional[str] = None
+    exit_date: Optional[date] = None
     
     # System fields
     user_id: Optional[int] = None
@@ -350,6 +397,7 @@ class DeductionTypeResponse(DeductionTypeBase):
 
 class AttendanceBase(BaseModel):
     employee_id: int
+    shift_template_id: Optional[int] = None
     attendance_date: date
     
     # Check-in/out times
@@ -424,8 +472,11 @@ class LeaveTypeBase(BaseModel):
     days_per_year: int = 0
     is_paid: bool = True
     requires_approval: bool = True
+    requires_document: bool = False
     carry_forward: bool = False
     max_carry_forward: Optional[int] = None
+    gender_specific: Optional[str] = Field(None, max_length=20)
+    applicable_after_probation: bool = True
     is_active: bool = True
 
 
@@ -629,6 +680,7 @@ class LeaveBalanceResponse(LeaveBalanceBase):
 class HolidayBase(BaseModel):
     name: str = Field(..., max_length=255)
     holiday_date: date
+    branch_id: Optional[int] = None
     description: Optional[str] = None
     is_recurring: bool = True
     is_active: bool = True

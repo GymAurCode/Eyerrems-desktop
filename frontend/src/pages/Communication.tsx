@@ -34,14 +34,13 @@ const TABS: {
   id:          CommTab;
   label:       string;
   icon:        React.ElementType;
-  color:       string;   // active accent
-  tint:        string;   // active background tint
+  color:       string;   // inactive icon color
   badgeColor:  string;   // notification badge bg
 }[] = [
-  { id: "email",    label: "Email",    icon: Mail,          color: "#3b82f6", tint: "rgba(59,130,246,0.10)",  badgeColor: "#3b82f6" },
-  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "#25D366", tint: "rgba(37,211,102,0.10)",  badgeColor: "#25D366" },
-  { id: "calls",    label: "Calls",    icon: Phone,         color: "#ef4444", tint: "rgba(239,68,68,0.10)",   badgeColor: "#ef4444" },
-  { id: "chat",     label: "Chat",     icon: MessageSquare, color: "#8b5cf6", tint: "rgba(139,92,246,0.10)",  badgeColor: "#8b5cf6" },
+  { id: "email",    label: "Email",    icon: Mail,          color: "#3b82f6", badgeColor: "#64748b" },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "#25D366", badgeColor: "#64748b" },
+  { id: "calls",    label: "Calls",    icon: Phone,         color: "#ef4444", badgeColor: "#64748b" },
+  { id: "chat",     label: "Chat",     icon: MessageSquare, color: "#8b5cf6", badgeColor: "#64748b" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -164,9 +163,12 @@ function WhatsAppConfigPanel({ onClose }: { onClose: () => void }) {
           { key: "apiSecret",     label: "API Secret (optional)",  placeholder: "API secret if required",            type: "password", secure: true  },
           { key: "phoneNumberId", label: "Phone Number ID / Sender ID", placeholder: "e.g. 1234567890",             type: "text",     secure: false },
           { key: "webhookUrl",    label: "Webhook URL (display only)", placeholder: "https://your-domain.com/webhook", type: "text",  secure: false },
-        ].map(({ key, label, placeholder, type, secure }) => (
+        ].map(({ key, label, placeholder, type, secure }) => {
+          const labelText = label.replace(/ \*$/, "");
+          const isReq = label.endsWith(" *");
+          return (
           <div key={key} className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-muted uppercase tracking-wider">{label}</label>
+            <label className="text-xs font-semibold text-muted uppercase tracking-wider">{labelText}{isReq && <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>}</label>
             <div className="relative">
               <input
                 type={secure && !showKey ? "password" : "text"}
@@ -184,7 +186,8 @@ function WhatsAppConfigPanel({ onClose }: { onClose: () => void }) {
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         <div className="px-3 py-2.5 rounded-xl text-[10px] text-muted"
           style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
@@ -751,9 +754,12 @@ function CallConfigPanel({ onClose }: { onClose: () => void }) {
           { key: "apiSecret",    label: "API Secret (optional)",   placeholder: "API secret if required",         type: "password", secure: true  },
           { key: "callerId",     label: "Caller ID / Number",      placeholder: "e.g. +1 555 000 0000",           type: "text",     secure: false },
           { key: "webhookUrl",   label: "Webhook URL (display only)", placeholder: "https://your-domain.com/calls/webhook", type: "text", secure: false },
-        ].map(({ key, label, placeholder, type, secure }) => (
+        ].map(({ key, label, placeholder, type, secure }) => {
+          const labelText = label.replace(/ \*$/, "");
+          const isReq = label.endsWith(" *");
+          return (
           <div key={key} className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-muted uppercase tracking-wider">{label}</label>
+            <label className="text-xs font-semibold text-muted uppercase tracking-wider">{labelText}{isReq && <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>}</label>
             <div className="relative">
               <input
                 type={secure && !showKey ? "password" : "text"}
@@ -771,7 +777,8 @@ function CallConfigPanel({ onClose }: { onClose: () => void }) {
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         <div className="px-3 py-2.5 rounded-xl text-[10px] text-muted"
           style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
@@ -1458,31 +1465,33 @@ export default function CommunicationPage() {
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-3 shrink-0"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface, var(--bg-base))" }}>
-        {TABS.map(({ id, label, icon: Icon, color, tint, badgeColor }) => {
+        {TABS.map(({ id, label, icon: Icon, color, badgeColor }) => {
           const active = tab === id;
           const badge =
             id === "whatsapp" ? waUnread :
             id === "calls"    ? missedCalls :
             id === "chat"     ? chatUnread : 0;
 
+          const activeColor = "var(--tab-active-color)";
+
           return (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 whitespace-nowrap my-1.5"
+              className="relative flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium transition-all duration-150 whitespace-nowrap my-1.5"
               style={{
-                background:  active ? tint : "transparent",
-                color:       active ? color : "#9ca3af",
-                fontWeight:  active ? 700 : 500,
-                border:      active ? `1px solid ${color}30` : "1px solid transparent",
+                color: active ? activeColor : "#9ca3af",
+                fontWeight: active ? 700 : 500,
               }}
             >
-              {/* Icon — full color when active, muted when not */}
               <Icon
                 size={14}
-                style={{ color: active ? color : "#9ca3af", transition: "color 0.15s" }}
+                style={{ color: active ? activeColor : "#9ca3af", transition: "color 0.15s" }}
               />
               {label}
+              {active && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: activeColor, borderRadius: "2px" }} />
+              )}
               {badge > 0 && (
                 <span
                   className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white"

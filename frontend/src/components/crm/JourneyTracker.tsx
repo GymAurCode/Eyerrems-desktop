@@ -4,7 +4,7 @@ const LEAD_JOURNEY = [
   { key: "new", label: "New", color: "#3b82f6" },
   { key: "contacted", label: "Contacted", color: "#8b5cf6" },
   { key: "interested", label: "Interested", color: "#f59e0b" },
-  { key: "site_visit_scheduled", label: "Site Visit", color: "#6366f1" },
+  { key: "site_visit", label: "Site Visit", color: "#6366f1" },
   { key: "negotiation", label: "Negotiation", color: "#ec4899" },
   { key: "converted", label: "Converted", color: "#10b981" },
 ];

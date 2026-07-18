@@ -37,35 +37,63 @@ export type Reminder = {
   assigned_users: { id: number; full_name: string; email: string }[];
 };
 
-type Toast = {
+export type ToastType = "success" | "error" | "warning" | "info";
+
+export type Toast = {
   id: string;
   title: string;
   message: string;
-  priority: string;
+  type: ToastType;
+  priority?: string;
   reminder_id?: number;
+  duration: number;
+  createdAt: number;
 };
+
+type PausedState = Record<string, number>;
 
 type NotifState = {
   notifications: Notification[];
   unreadCount: number;
   toasts: Toast[];
   soundEnabled: boolean;
+  paused: PausedState;
 
   fetchNotifications: () => Promise<void>;
   fetchUnreadCount: () => Promise<void>;
   markRead: (id: number) => Promise<void>;
   markAllRead: () => Promise<void>;
   deleteNotification: (id: number) => Promise<void>;
-  pushToast: (toast: Omit<Toast, "id">) => void;
+  pushToast: (toast: { title: string; message: string; type?: ToastType; priority?: string; reminder_id?: number }) => void;
   dismissToast: (id: string) => void;
+  pauseToast: (id: string) => void;
+  resumeToast: (id: string) => void;
   setSoundEnabled: (v: boolean) => void;
 };
+
+const TYPE_DURATIONS: Record<ToastType, number> = {
+  success: 3000,
+  info: 3000,
+  warning: 4000,
+  error: 5000,
+};
+
+function mapPriorityToType(priority?: string): ToastType {
+  switch (priority) {
+    case "urgent": return "error";
+    case "high": return "warning";
+    case "medium": return "info";
+    case "low": return "success";
+    default: return "info";
+  }
+}
 
 export const useNotifStore = create<NotifState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
   toasts: [],
   soundEnabled: true,
+  paused: {},
 
   fetchNotifications: async () => {
     try {
@@ -81,7 +109,6 @@ export const useNotifStore = create<NotifState>((set, get) => ({
       const { data } = await api.get<{ count: number }>("/reminders/notifications/unread-count");
       set({ unreadCount: data?.count ?? 0 });
     } catch {
-      // backend unavailable, keep existing count
     }
   },
 
@@ -111,14 +138,53 @@ export const useNotifStore = create<NotifState>((set, get) => ({
   },
 
   pushToast: (toast) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    set((s) => ({ toasts: [...s.toasts, { ...toast, id }] }));
-    // Auto-dismiss after 8s
-    setTimeout(() => get().dismissToast(id), 8000);
+    const state = get();
+    const toastType = (toast as any).type as ToastType | undefined;
+    const type: ToastType = toastType || mapPriorityToType(toast.priority);
+    const duration = TYPE_DURATIONS[type];
+
+    const dup = state.toasts.find(
+      (t) => t.title === toast.title && t.message === toast.message && t.type === type
+    );
+    if (dup) return;
+
+    const createdAt = Date.now();
+    const id = `${createdAt}-${Math.random().toString(36).slice(2, 8)}`;
+
+    set((s) => ({
+      toasts: [{ ...toast, id, type, duration, createdAt }, ...s.toasts.slice(0, 19)],
+    }));
+
+    setTimeout(() => {
+      const current = get();
+      if (current.paused[id]) return;
+      get().dismissToast(id);
+    }, duration + 300);
   },
 
   dismissToast: (id) => {
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+    set((s) => {
+      const { [id]: _, ...rest } = s.paused;
+      return { toasts: s.toasts.filter((t) => t.id !== id), paused: rest };
+    });
+  },
+
+  pauseToast: (id) => {
+    set((s) => ({ paused: { ...s.paused, [id]: Date.now() } }));
+  },
+
+  resumeToast: (id) => {
+    set((s) => {
+      const { [id]: _, ...rest } = s.paused;
+      return { paused: rest };
+    });
+    const toast = get().toasts.find((t) => t.id === id);
+    if (!toast) return;
+    const elapsed = Date.now() - (get().paused[id] || toast.createdAt);
+    const remaining = Math.max(toast.duration - elapsed, 500);
+    setTimeout(() => {
+      if (!get().paused[id]) get().dismissToast(id);
+    }, remaining);
   },
 
   setSoundEnabled: (v) => set({ soundEnabled: v }),

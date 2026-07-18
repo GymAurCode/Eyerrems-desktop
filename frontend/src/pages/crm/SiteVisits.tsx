@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, MapPin, Building2, MessageSquareText } from "lucide-react";
+import { Plus, MapPin, Building2, MessageSquareText, Phone, MessageCircle, MessageSquare, CheckCircle2, XCircle } from "lucide-react";
 import DataTable from '../../components/data-table/DataTable';
 import { crmApi, SiteVisit } from "../../lib/crmApi";
+import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 
@@ -29,6 +31,8 @@ export default function SiteVisits() {
 
   // Create form state
   const [form, setForm] = useState({ lead_id: 0, property_id: 0, dealer_id: 0, date: "", time: "", remarks: "" });
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // Completion feedback state
   const [completingId, setCompletingId] = useState<number | null>(null);
@@ -55,6 +59,22 @@ export default function SiteVisits() {
 
   useEffect(() => { void fetch(); }, [page, filter]);
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      if (type === "site_visit") {
+        await crmApi.updateSiteVisit(item.id, { sv_status: "cancelled" });
+        pushToast({ title: "Site Visit Cancelled", message: "Site visit has been cancelled", type: "success" });
+        void fetch();
+      }
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to cancel", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const openModal = async () => {
     try {
       const [lRes, pRes, dRes] = await Promise.all([
@@ -73,6 +93,7 @@ export default function SiteVisits() {
   const updateStatus = async (id: number, status: string, feedback?: string) => {
     try {
       await crmApi.updateSiteVisit(id, { sv_status: status, feedback: feedback || undefined });
+      pushToast({ title: "Status Updated", message: `Site visit marked as ${status.replace(/_/g, " ")}`, type: "success" });
       void fetch();
     } catch { }
   };
@@ -100,6 +121,7 @@ export default function SiteVisits() {
       });
       setModal(false);
       setForm({ lead_id: 0, property_id: 0, dealer_id: 0, date: "", time: "", remarks: "" });
+      pushToast({ title: "Site Visit Created", message: "Site visit has been created", type: "success" });
       void fetch();
     } catch (e: any) { setErr(e?.response?.data?.detail ?? "Failed to create"); }
     finally { setSaving(false); }
@@ -150,19 +172,64 @@ export default function SiteVisits() {
               <MessageSquareText size={10} /> View
             </button>
           ) : <span className="text-[10px] text-muted">—</span> },
-          { key: 'action', label: 'Actions', align: 'right', width: 140, render: (_value: any, row: any) => row.sv_status === "scheduled" ? (
-            <div className="flex gap-1 justify-end">
-              <button onClick={() => { setCompletingId(row.id); setCompletingRef(row.visit_id); setFeedbackText(""); }}
-                className="text-[10px] px-2 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>
-                Complete
-              </button>
-              <button onClick={() => updateStatus(row.id, "cancelled")}
-                className="text-[10px] px-2 py-1 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
-                Cancel
-              </button>
-            </div>
-          ) : null },
+          { key: 'action', label: 'Actions', align: 'right', width: 180, render: (_value: any, row: any) => {
+            const phone = row.lead_phone;
+            const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+            return (
+              <div className="flex gap-1 justify-end">
+                {phone && (
+                  <>
+                    <button onClick={() => window.location.href = `tel:${phone}`}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
+                      title="Call">
+                      <Phone size={12} />
+                    </button>
+                    <button onClick={() => window.open(`https://wa.me/${cleanPhone}`, "_blank")}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(37,211,102,0.1)", color: "#25d366" }}
+                      title="WhatsApp">
+                      <MessageCircle size={12} />
+                    </button>
+                    <button onClick={() => window.location.href = `sms:${phone}`}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(139,92,246,0.1)", color: "#8b5cf6" }}
+                      title="SMS">
+                      <MessageSquare size={12} />
+                    </button>
+                  </>
+                )}
+                {row.sv_status === "scheduled" && (
+                  <>
+                    <button onClick={() => { setCompletingId(row.id); setCompletingRef(row.visit_id); setFeedbackText(""); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}
+                      title="Complete">
+                      <CheckCircle2 size={12} />
+                    </button>
+                    <button onClick={() => setDeleteTarget({ item: row, type: "site_visit" })}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
+                      title="Cancel">
+                      <XCircle size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          }},
         ]}
+      />
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Cancel Site Visit"
+        message="Are you sure you want to cancel this site visit?"
+        confirmLabel="Cancel Visit"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       {/* ── Create Modal ── */}

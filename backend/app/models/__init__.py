@@ -5,7 +5,7 @@ from app.models.crm import (
     Client, ClientAttachment, Communication, Deal, DealAttachment,
     Dealer, DealerAttachment, Installment, InstallmentPayment, InstallmentPlan, InstallmentType, Lead,
 )
-from app.models.finance import Account, AuditLog, Commission, Expense, Invoice, Journal, JournalEntry, Payment, SyncLog
+from app.models.finance import Account, AuditLog, Commission, Expense, Invoice, Journal, JournalEntry, Payment, SyncLog, Vendor
 from app.models.finance_operations import FinanceOperation
 from app.models.property import (
     Amenity, Buyer, Floor, Lease, Location,
@@ -23,11 +23,10 @@ from app.models.construction import (
     DailyProgress, ConstructionExpense, ConstructionDocument,
 )
 from app.models.reminders import (
-    Reminder, ReminderAssignment, ReminderTemplate,
-    Notification, NotificationLog, ReminderSettings,
+    Reminder, ReminderTemplate, NotificationLog,
 )
 from app.models.hr import (
-    Department, Position, Branch, Employee, SalaryStructure,
+    Department, Position, Branch, ShiftTemplate, Employee, SalaryStructure,
     AllowanceType, DeductionType, Attendance, LeaveType, Leave,
     Payroll, LeaveBalance, Holiday
 )
@@ -35,11 +34,13 @@ from app.models.mail import EmailAccount, EmailThread, Email, EmailAttachment
 from app.models.town import Town, Block, Plot, TownUnit, TownTransaction
 from app.models.ledger import ClientLedgerEntry, DealerLedgerEntry, PropertyLedgerEntry
 from app.models.booking import Booking, BookingLog, BookingAttachment
+from app.models.client_pipeline import Contract, ReceiptVoucher, Transfer, Handover, AfterSalesTicket
 from app.models.reports import ReportTemplate, SavedReport, ReportSchedule, ReportLog
 from app.models.ai_intelligence import (
     AIAnomaly, AIRiskScore, AIAlert, AIDuplicateMatch, AIQuery, AIInsight,
 )
 from app.models.import_batch import ImportBatch, ImportRowLog
+from app.models.spreadsheet_audit import SpreadsheetAuditLog  # noqa: F401
 from app.models.attachment import Attachment  # noqa: F401
 from app.models.lookup import LookupValue  # noqa: F401
 from app.models.rbac import (

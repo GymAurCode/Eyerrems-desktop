@@ -109,19 +109,19 @@ export default function SignupPage() {
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Full Name</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Full Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark login-input w-full px-4 py-3 text-sm" type="text"
                 placeholder="John Doe" value={fullName}
                 onChange={(e) => setFullName(e.target.value)} required />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Email address</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Email address <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark login-input w-full px-4 py-3 text-sm" type="email"
                 placeholder="you@company.com" value={email}
                 onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Password</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <div className="relative">
                 <input className="input-dark login-input w-full px-4 py-3 text-sm pr-11"
                   type={showPass ? "text" : "password"} placeholder="Min. 8 characters"
@@ -134,7 +134,7 @@ export default function SignupPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Confirm Password</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "#94a3b8" }}>Confirm Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark login-input w-full px-4 py-3 text-sm"
                 type={showPass ? "text" : "password"} placeholder="Repeat password"
                 value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
@@ -151,7 +151,7 @@ export default function SignupPage() {
             Already have an account?{" "}
             <Link to="/login" className="text-blue-400 hover:text-blue-300 font-medium">Sign in</Link>
           </p>
-          <p className="mt-6 text-center text-[11px]" style={{ color: "#334155" }}>
+          <p className="mt-6 text-center text-sm" style={{ color: "#334155" }}>
             Powered by <span className="text-blue-500 font-medium">Eyercall</span>
           </p>
         </div>

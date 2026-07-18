@@ -301,8 +301,8 @@ def seed_lookup_values(db_session, *, missing_categories_only: bool = False) -> 
             continue
         is_default = row[4] if len(row) > 4 else False
         sql = text("""
-            INSERT INTO lookup_values (category, label, value, sort_order, is_default)
-            VALUES (:cat, :label, :val, :ord, :def)
+            INSERT INTO lookup_values (category, label, value, sort_order, is_default, is_active)
+            VALUES (:cat, :label, :val, :ord, :def, TRUE)
             ON CONFLICT (category, value) DO NOTHING
         """)
         result = db_session.execute(sql, {

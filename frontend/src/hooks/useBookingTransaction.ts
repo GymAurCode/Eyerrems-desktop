@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { bookingApi, BookingCreatePayload, BookingDetail } from "../lib/bookingApi";
 import { attachmentApi } from "../lib/attachmentApi";
+import { useNotifStore } from "../store/notifications";
 
 export type TransactionStep =
   | "idle"
@@ -28,6 +29,7 @@ interface TransactionState {
 }
 
 export function useBookingTransaction() {
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [state, setState] = useState<TransactionState>({
     step: "idle",
     error: null,
@@ -56,6 +58,7 @@ export function useBookingTransaction() {
         // 2. Create booking
         setState((s) => ({ ...s, step: "creating" }));
         const booking = await bookingApi.create(payload);
+        pushToast({ title: "Success", message: "Booking created", type: "success" });
 
         // 3. Upload attachments if any
         if (attachments && attachments.length > 0) {

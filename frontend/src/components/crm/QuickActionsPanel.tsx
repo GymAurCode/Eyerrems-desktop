@@ -16,7 +16,6 @@ import {
   RefreshCw, Clock,
 } from "lucide-react";
 import { Activity, ActivityType, crmApi } from "../../lib/crmApi";
-import ActivityTimeline from "./ActivityTimeline";
 import FollowUpModal from "./FollowUpModal";
 import AddNoteModal from "./AddNoteModal";
 
@@ -53,17 +52,17 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center gap-2 px-4 py-4 rounded-2xl transition-all hover:scale-[1.03] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-      style={{ background: bg, border: `1px solid ${color}30`, minWidth: 90 }}
+      className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.03] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ background: bg, border: `1px solid ${color}30`, minWidth: 70 }}
       title={disabled ? "No contact info available" : label}
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        className="w-8 h-8 rounded-lg flex items-center justify-center"
         style={{ background: `${color}20` }}
       >
-        <Icon size={18} style={{ color }} />
+        <Icon size={15} style={{ color }} />
       </div>
-      <span className="text-xs font-semibold" style={{ color }}>{label}</span>
+      <span className="text-[10px] font-semibold" style={{ color }}>{label}</span>
     </button>
   );
 }
@@ -170,6 +169,18 @@ export default function QuickActionsPanel({
   };
 
   const handleFollowUpSubmit = async (dateTime: string, note: string) => {
+    const [date, timeRaw] = dateTime.split("T");
+    const time = timeRaw ? timeRaw.substring(0, 5) : undefined;
+    if (entityType === "lead") {
+      await crmApi.createFollowUp({
+        lead_id: entityId,
+        date,
+        time,
+        fu_type: "meeting",
+        fu_status: "pending",
+        notes: note || undefined,
+      });
+    }
     await crmApi.createActivity({
       entity_type: entityType,
       entity_id: entityId,
@@ -204,7 +215,7 @@ export default function QuickActionsPanel({
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
           style={{ color: "var(--text-muted)" }}>Quick Actions</p>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           <ActionButton
             icon={Phone}
             label="Call"
@@ -268,19 +279,6 @@ export default function QuickActionsPanel({
           <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
-      </div>
-
-      {/* ── Activity Timeline ── */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
-          style={{ color: "var(--text-muted)" }}>Activity Timeline</p>
-        {loading ? (
-          <p className="text-xs py-6 text-center" style={{ color: "var(--text-muted)" }}>
-            Loading activities…
-          </p>
-        ) : (
-          <ActivityTimeline activities={activities} onRefresh={load} />
-        )}
       </div>
 
       {/* ── Modals ── */}

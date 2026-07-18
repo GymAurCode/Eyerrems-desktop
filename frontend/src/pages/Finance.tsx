@@ -4,25 +4,27 @@ import {
   BarChart3, BookOpen, DollarSign, TrendingUp, Zap, CreditCard,
   Banknote, Receipt, FileText, Plus, RefreshCw, ArrowUpRight,
   ArrowDownRight, Wallet, Activity, Layers, Eye, Printer, Edit2, Trash2,
-  ChevronRight, ChevronDown, Search, X, Download, Filter, Check, AlertTriangle,
+  ChevronRight, ChevronDown, X, Download, Filter, Check, AlertTriangle,
   Loader2, Building2, Users, Target, PiggyBank, Landmark, Calendar,
-  Settings, Shield, Upload, Percent, Hash, Paperclip
+  Settings, Shield, Upload, Percent, Hash
 } from "lucide-react";
 import { formatCurrency } from "../lib/currency";
 import { api } from "../lib/api";
-import { AppTable, DataTable, removeEmptyParams } from "../components/data-table";
+import { AppTable, removeEmptyParams } from "../components/data-table";
 import {
   accountsApi, journalsApi, invoicesApi, paymentsApi,
   commissionsApi, expensesApi, bankCashApi,
   dashboardApi, syncApi, ledgerApi, auditApi,
   type Account, type Invoice, type Payment, type Commission,
-  type Expense, type Journal, type JournalEntry,
+  type Expense, type Journal,
   type TrialBalance, type ProfitLoss, type DashboardResponse,
   type AccountTreeNode, type SyncStatus,
 } from "../lib/financeApi";
 import { crmApi } from "../lib/crmApi";
-import { fileService } from "../services/fileService";
+import { useNotifStore } from "../store/notifications";
+
 import { useDataStore } from "../store/useDataStore";
+import ConfirmDialog from "../components/actions/ConfirmDialog";
 import ChartOfAccounts from "../components/finance/ChartOfAccountsSimple";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import UnifiedLedgersTab from "../components/finance/UnifiedLedgersTab";
@@ -34,6 +36,13 @@ import FileUpload from "../components/ui/FileUpload";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
 import AppDialog from "../components/ui/AppDialog";
+import InvoicesTab from "../components/finance/InvoicesTab";
+import MakePaymentDialog from "../components/finance/MakePaymentDialog";
+import { CreateInvoiceDialog } from "../components/finance/FinanceDialogs";
+import PaymentHistory from "../components/finance/PaymentHistory";
+import AddExpenseDialog from "../components/finance/CreateExpenseDialog";
+import CreateJournalDialog from "../components/finance/CreateJournalDialog";
+import JournalsTab from "../components/finance/JournalsTab";
 
 type Tab = "dashboard" | "accounts" | "journals" | "invoices" | "payments"
        | "bank" | "cash" | "commissions" | "expenses" | "ledger" | "reports" | "operations";
@@ -104,7 +113,7 @@ function FormField({ label, children, required }: { label: string; children: Rea
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-        {label} {required && <span className="text-red-400">*</span>}
+        {label} {required && <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>}
       </label>
       {children}
     </div>
@@ -193,7 +202,7 @@ export default function FinancePage() {
             )}
             {tab === "journals" && <JournalsTab accounts={accounts} />}
             {tab === "invoices" && <InvoicesTab accounts={accounts} onRefresh={load} />}
-            {tab === "payments" && <PaymentsTab accounts={accounts} />}
+            {tab === "payments" && <PaymentHistory onRecordPayment={() => setDlg("payment")} />}
             {tab === "bank" && <BankCashTab instrument="bank" accounts={accounts} setDlg={setDlg} />}
             {tab === "cash" && <BankCashTab instrument="cash" accounts={accounts} setDlg={setDlg} />}
             {tab === "commissions" && <CommissionsTab accounts={accounts} onRefresh={load} />}
@@ -222,20 +231,23 @@ function OperationsTabWrapper() {
 // ── Dialogs Manager ──────────────────────────────────────────────────────────
 
 function AppDialogs({ dlg, setDlg, accounts, onRefresh }: any) {
+  const pushToast = useNotifStore((s) => s.pushToast);
   return (
     <>
-      <CreateAccountDialog isOpen={dlg === "account"} onClose={() => setDlg(null)} onSubmit={async (d) => { await accountsApi.create(d); await onRefresh(); }} />
-      <CreateInvoiceDialog isOpen={dlg === "invoice"} onClose={() => setDlg(null)} onSubmit={async (d) => { const inv = await invoicesApi.create(d); await onRefresh(); return inv.id; }} accounts={accounts} />
-      <MakePaymentDialog isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))} onClose={() => setDlg(null)} onSubmit={async (d) => { const p = await paymentsApi.create(d); await onRefresh(); return p.id; }} accounts={accounts} preselectedInvoiceId={dlg?.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined} />
-      <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { const e = await expensesApi.create(d); await onRefresh(); return e.id; }} accounts={accounts} />
+      <CreateAccountDialog isOpen={dlg === "account"} onClose={() => setDlg(null)} onSubmit={async (d) => { await accountsApi.create(d); pushToast({ title: "Account Created", message: `Account "${d.name}" created successfully`, type: "success" }); await onRefresh(); }} />
+      <CreateInvoiceDialog isOpen={dlg === "invoice"} onClose={() => setDlg(null)} onSubmit={async (d: any) => { const inv = await invoicesApi.create({ ...d, line_items: [{ description: d.description || "Invoice", amount: d.amount }], invoice_date: new Date().toISOString() }); pushToast({ title: "Invoice Created", message: `Invoice #${inv.id} created successfully`, type: "success" }); await onRefresh(); return inv.id; }} />
+      <MakePaymentDialog isOpen={dlg === "payment" || (typeof dlg === "string" && dlg.startsWith("pay:"))} onClose={() => setDlg(null)} onSubmit={async (d: any) => { const p = await paymentsApi.create(d); pushToast({ title: "Payment Recorded", message: `Payment #${p.id} recorded successfully`, type: "success" }); await onRefresh(); return p.id; }} preselectedInvoiceId={typeof dlg === "string" && dlg.startsWith("pay:") ? Number(dlg.split(":")[1]) : undefined} accounts={accounts} />
+      <AddExpenseDialog isOpen={dlg === "expense"} onClose={() => setDlg(null)} onSubmit={async (d) => { const e = await expensesApi.create(d); pushToast({ title: "Expense Added", message: `Expense #${e.id} added successfully`, type: "success" }); await onRefresh(); return e.id; }} accounts={accounts} />
       <CommissionWorkflow isOpen={dlg === "commission"} onClose={() => setDlg(null)} onSuccess={onRefresh} />
-      <ManualJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { const j = await journalsApi.create(d); await onRefresh(); return j.id; }} accounts={accounts} />
+      <CreateJournalDialog isOpen={dlg === "journal"} onClose={() => setDlg(null)} onSubmit={async (d) => { const j = await journalsApi.create(d); pushToast({ title: "Journal Posted", message: `Journal #${j.id} posted successfully`, type: "success" }); await onRefresh(); return j.id; }} accounts={accounts} />
       <BankCashDialog isOpen={["bank_payment","bank_receipt","cash_payment","cash_receipt"].includes(dlg ?? "")} type={dlg as any} onClose={() => setDlg(null)} onSubmit={async (d) => {
         let result: any;
-        if (dlg === "bank_payment") result = await bankCashApi.bankPayment(d);
-        if (dlg === "bank_receipt") result = await bankCashApi.bankReceipt(d);
-        if (dlg === "cash_payment") result = await bankCashApi.cashPayment(d);
-        if (dlg === "cash_receipt") result = await bankCashApi.cashReceipt(d);
+        let txnLabel = "";
+        if (dlg === "bank_payment") { result = await bankCashApi.bankPayment(d); txnLabel = "Bank Payment"; }
+        if (dlg === "bank_receipt") { result = await bankCashApi.bankReceipt(d); txnLabel = "Bank Receipt"; }
+        if (dlg === "cash_payment") { result = await bankCashApi.cashPayment(d); txnLabel = "Cash Payment"; }
+        if (dlg === "cash_receipt") { result = await bankCashApi.cashReceipt(d); txnLabel = "Cash Receipt"; }
+        pushToast({ title: `${txnLabel} Recorded`, message: `${txnLabel} recorded successfully`, type: "success" });
         await onRefresh();
         return result?.id;
       }} accounts={accounts} />
@@ -255,55 +267,54 @@ function DashboardTab() {
   const [bankCashPos, setBankCashPos] = useState<any[]>([]);
   const [recentJournals, setRecentJournals] = useState<Journal[]>([]);
   const [trialBalance, setTrialBalance] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const [d, m, cf, is, bcp, j, tb] = await Promise.allSettled([
-          dashboardApi.get(),
-          dashboardApi.monthlyIncomeExpense(6),
-          dashboardApi.cashFlow(30),
-          dashboardApi.invoiceStatus(),
-          dashboardApi.bankCashPositions(),
-          journalsApi.list({ limit: 10 }),
-          journalsApi.trialBalance(),
-        ]);
-        if (cancelled) return;
-        if (d.status === "fulfilled") setDashboard(d.value);
-        if (m.status === "fulfilled") setMonthlyData(m.value);
-        if (cf.status === "fulfilled") setCashFlow(cf.value);
-        if (is.status === "fulfilled") setInvoiceStatus(is.value);
-        if (bcp.status === "fulfilled") setBankCashPos(bcp.value);
-        if (j.status === "fulfilled") setRecentJournals(j.value);
-        if (tb.status === "fulfilled") setTrialBalance(tb.value);
-      } catch (e) { console.error(e); }
-      finally { if (!cancelled) setLoading(false); }
-    }
-    load();
+    const inc = () => { if (!cancelled) setLoaded(v => v + 1); };
+    Promise.allSettled([
+      dashboardApi.get().then(v => { if (!cancelled) setDashboard(v); inc(); }),
+      dashboardApi.monthlyIncomeExpense(6).then(v => { if (!cancelled) setMonthlyData(v); inc(); }),
+      dashboardApi.cashFlow(30).then(v => { if (!cancelled) setCashFlow(v); inc(); }),
+      dashboardApi.invoiceStatus().then(v => { if (!cancelled) setInvoiceStatus(v); inc(); }),
+      dashboardApi.bankCashPositions().then(v => { if (!cancelled) setBankCashPos(v); inc(); }),
+      journalsApi.list({ limit: 10 }).then(v => { if (!cancelled) setRecentJournals(v.data ?? v); inc(); }),
+      journalsApi.trialBalance().then(v => { if (!cancelled) setTrialBalance(v); inc(); }),
+    ]).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  if (loading) return <LoadingSpinner />;
-
-  const kpiCards = dashboard ? [
+  const kpiCards = useMemo(() => dashboard ? [
     { ...dashboard.bank_balance, icon: CreditCard, color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
     { ...dashboard.cash_balance, icon: Banknote, color: "#10b981", bg: "rgba(16,185,129,0.12)" },
     { ...dashboard.total_income, icon: TrendingUp, color: "#10b981", bg: "rgba(16,185,129,0.12)" },
     { ...dashboard.total_expenses, icon: Receipt, color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
     { ...dashboard.net_profit, icon: PiggyBank, color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
-    { ...dashboard.pending_receivables, icon: Wallet, color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+    { ...dashboard.pending_receivables, icon: Wallet, color: "#f59e0b", bg: "rgba(255,158,11,0.12)" },
     { ...dashboard.overdue_invoices, icon: AlertTriangle, color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
     { ...dashboard.commission_payable, icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  ] : [];
+  ] : [], [dashboard]);
+
+  const isLoading = loaded < 7;
+
+  const chartMax = useMemo(() => {
+    if (monthlyData.length === 0) return 1;
+    return Math.max(...monthlyData.map((x: any) => Math.max(Number(x.income), Number(x.expense))), 1);
+  }, [monthlyData]);
+
+  const cashFlowRange = useMemo(() => {
+    if (cashFlow.length === 0) return { min: 0, max: 0, range: 1 };
+    const vals = cashFlow.map((x: any) => Number(x.balance));
+    const mn = Math.min(...vals);
+    const mx = Math.max(...vals);
+    return { min: mn, max: mx, range: mx - mn || 1 };
+  }, [cashFlow]);
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
         {kpiCards.map((kpi, i) => (
-          <div key={i} className="stat-card p-3 glow-blue-hover">
+          <div key={i} className="stat-card p-3" style={{ borderColor: kpi.color + "33" }}>
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: kpi.bg }}>
                 <kpi.icon size={13} style={{ color: kpi.color }} />
@@ -327,13 +338,12 @@ function DashboardTab() {
         <div className="detail-container">
           <div className="detail-section">
             <p className="detail-section-title">Income vs Expenses (Last 6 Months)</p>
-            {monthlyData.length === 0 ? (
-              <EmptyState title="No data" icon={BarChart3} />
-            ) : (
-              <div className="space-y-2 mt-3">
-                {monthlyData.map((m: any, i: number) => {
-                  const maxVal = Math.max(...monthlyData.map((x: any) => Math.max(Number(x.income), Number(x.expense))), 1);
-                  return (
+            <LoadingBoundary loading={isLoading} height={200}>
+              {monthlyData.length === 0 ? (
+                <EmptyState title="No data" icon={BarChart3} />
+              ) : (
+                <div className="space-y-2 mt-3">
+                  {monthlyData.map((m: any, i: number) => (
                     <div key={i} className="space-y-1">
                       <div className="flex justify-between text-[10px]" style={{ color: "var(--text-muted)" }}>
                         <span>{m.month}</span>
@@ -341,53 +351,51 @@ function DashboardTab() {
                       </div>
                       <div className="flex gap-0.5 h-5">
                         <div className="flex-1 rounded-sm" style={{ background: "rgba(16,185,129,0.15)", overflow: "hidden" }}>
-                          <div className="h-full rounded-sm transition-all" style={{ width: `${(Number(m.income) / maxVal) * 100}%`, background: "#10b981" }} />
+                          <div className="h-full rounded-sm transition-all" style={{ width: `${(Number(m.income) / chartMax) * 100}%`, background: "#10b981" }} />
                         </div>
                         <div className="flex-1 rounded-sm" style={{ background: "rgba(239,68,68,0.15)", overflow: "hidden" }}>
-                          <div className="h-full rounded-sm transition-all" style={{ width: `${(Number(m.expense) / maxVal) * 100}%`, background: "#ef4444" }} />
+                          <div className="h-full rounded-sm transition-all" style={{ width: `${(Number(m.expense) / chartMax) * 100}%`, background: "#ef4444" }} />
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </LoadingBoundary>
           </div>
         </div>
 
         <div className="detail-container">
           <div className="detail-section">
             <p className="detail-section-title">Cash Flow (Last 30 Days)</p>
-            {cashFlow.length === 0 ? (
-              <EmptyState title="No data" icon={TrendingUp} />
-            ) : (
-              <div className="mt-3">
-                <div className="flex items-end gap-0.5 h-20">
-                  {cashFlow.map((p: any, i: number) => {
-                    const vals = cashFlow.map((x: any) => Number(x.balance));
-                    const min = Math.min(...vals);
-                    const max = Math.max(...vals);
-                    const range = max - min || 1;
-                    const h = ((Number(p.balance) - min) / range) * 100;
-                    return (
-                      <div key={i} className="flex-1 relative group">
-                        <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-[8px] px-1 py-0.5 rounded whitespace-nowrap z-10">
-                          {p.date}: {formatCurrency(Number(p.balance))}
+            <LoadingBoundary loading={isLoading} height={200}>
+              {cashFlow.length === 0 ? (
+                <EmptyState title="No data" icon={TrendingUp} />
+              ) : (
+                <div className="mt-3">
+                  <div className="flex items-end gap-0.5 h-20">
+                    {cashFlow.map((p: any, i: number) => {
+                      const h = ((Number(p.balance) - cashFlowRange.min) / cashFlowRange.range) * 100;
+                      return (
+                        <div key={i} className="flex-1 relative group">
+                          <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-[8px] px-1 py-0.5 rounded whitespace-nowrap z-10">
+                            {p.date}: {formatCurrency(Number(p.balance))}
+                          </div>
+                          <div className="w-full rounded-sm transition-all cursor-pointer"
+                            style={{ height: `${Math.max(h, 2)}%`, background: Number(p.balance) >= 0 ? "#10b981" : "#ef4444", opacity: 0.7 }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = "0.7")} />
                         </div>
-                        <div className="w-full rounded-sm transition-all cursor-pointer"
-                          style={{ height: `${Math.max(h, 2)}%`, background: Number(p.balance) >= 0 ? "#10b981" : "#ef4444", opacity: 0.7 }}
-                          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
-                          onMouseLeave={e => (e.currentTarget.style.opacity = "0.7")} />
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[9px] mt-1" style={{ color: "var(--text-muted)" }}>
+                    <span>{cashFlow[0]?.date}</span>
+                    <span>{cashFlow[cashFlow.length - 1]?.date}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[9px] mt-1" style={{ color: "var(--text-muted)" }}>
-                  <span>{cashFlow[0]?.date}</span>
-                  <span>{cashFlow[cashFlow.length - 1]?.date}</span>
-                </div>
-              </div>
-            )}
+              )}
+            </LoadingBoundary>
           </div>
         </div>
       </div>
@@ -477,11 +485,12 @@ function DashboardTab() {
               <Activity size={14} style={{ color: ACCENT }} />
               <p className="detail-section-title mb-0">Recent Transactions</p>
             </div>
-            {recentJournals.length === 0 ? (
-              <EmptyState title="No transactions yet" sub="Post a journal entry to see activity" icon={FileText} />
-            ) : (
-              <div className="space-y-0">
-                {recentJournals.slice(0, 10).map((j) => {
+            <LoadingBoundary loading={isLoading} height={200}>
+              {recentJournals.length === 0 ? (
+                <EmptyState title="No transactions yet" sub="Post a journal entry to see activity" icon={FileText} />
+              ) : (
+                <div className="space-y-0">
+                  {recentJournals.map((j) => {
                   const drTotal = j.entries?.reduce((s: number, e: any) => s + Number(e.debit), 0) || 0;
                   const crTotal = j.entries?.reduce((s: number, e: any) => s + Number(e.credit), 0) || 0;
                   const isExpense = j.reference_type === "expense";
@@ -513,6 +522,7 @@ function DashboardTab() {
                 })}
               </div>
             )}
+            </LoadingBoundary>
           </div>
         </div>
 
@@ -554,298 +564,13 @@ function LoadingBoundary({ loading, children, height }: any) {
   return children;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// JOURNALS TAB
-// ═══════════════════════════════════════════════════════════════════════════════
 
-function JournalsTab({ accounts }: { accounts: Account[] }) {
-  const [journals, setJournals] = useState<Journal[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [viewJournal, setViewJournal] = useState<Journal | null>(null);
-  const [params, setParams] = useState({ page: 1, pageSize: 10, search: "", filter: "", startDate: "", endDate: "", propertyType: "", status: "", source: "" });
 
-  const fetchJournals = useCallback(async (currentParams: typeof params) => {
-    setLoading(true); setError(null);
-    try {
-      const sanitized = removeEmptyParams({ limit: currentParams.pageSize, skip: (currentParams.page - 1) * currentParams.pageSize, source: currentParams.source, start_date: currentParams.startDate, end_date: currentParams.endDate });
-      const res = await api.get<Journal[]>("/finance/journals", { params: sanitized });
-      setJournals(res.data);
-      setTotal(res.data.length < currentParams.pageSize ? (currentParams.page - 1) * currentParams.pageSize + res.data.length : 1000);
-    } catch (e: any) { setError(e.message || "Failed to load journals"); }
-    finally { setLoading(false); }
-  }, []);
 
-  useEffect(() => { void fetchJournals(params); }, [params, fetchJournals]);
-
-  const journalColumns = [
-    { key: "id", label: "JE-ID", sortable: true, className: "font-mono text-[10px] text-blue-400 font-semibold", render: (val: number) => `JE-${String(val).padStart(4, "0")}` },
-    { key: "date", label: "Date", sortable: true, render: (val: string) => new Date(val).toLocaleDateString() },
-    { key: "reference_type", label: "Type", render: (val: string) => <StatusBadge status={val} /> },
-    { key: "description", label: "Description", className: "text-xs max-w-[200px] truncate" },
-    { key: "source", label: "Source", render: (val?: string) => <SourceBadge source={val || "MANUAL"} /> },
-    { key: "dr_total", label: "DR Total", className: "text-right text-xs", render: (val: any, row: Journal) => formatCurrency(row.dr_total || 0) },
-    { key: "cr_total", label: "CR Total", className: "text-right text-xs", render: (val: any, row: Journal) => formatCurrency(row.cr_total || 0) },
-    { key: "balanced", label: "Status", render: (val: any, row: Journal) => row.balanced ? <span className="text-emerald-400 text-[10px]">✓ Balanced</span> : <span className="text-red-400 text-[10px]">✗ Unbalanced</span> },
-    { key: "_lines", label: "Lines", render: (val: any, row: Journal) => `${row.entries?.length || 0} lines` },
-  ];
-
-  const sourceOptions = [
-    { label: "All Sources", value: "" },
-    { label: "Manual", value: "MANUAL" },
-    { label: "CRM", value: "CRM" },
-    { label: "Property", value: "PROPERTY" },
-    { label: "Expense", value: "EXPENSE" },
-    { label: "Payroll", value: "PAYROLL" },
-  ];
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-3">
-        <select className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-          value={params.source} onChange={e => setParams(p => ({ ...p, source: e.target.value, page: 1 }))}>
-          {sourceOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-      <AppTable
-        storageKey="rems_finance_journals"
-        title="Journal Entries"
-        subtitle="Double-entry ledger journal postings"
-        data={journals}
-        columns={journalColumns}
-        rowActions={[{ key: "view", label: "View Detail", icon: Eye, onClick: (row: Journal) => setViewJournal(row) }]}
-        loading={loading} error={error}
-        onRetry={() => fetchJournals(params)}
-        pagination={{ page: params.page, pageSize: params.pageSize, total }}
-        onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
-        onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
-        showDateFilter={false} showStatusFilter={false} showTypeFilter={false}
-      />
-
-      {viewJournal && <JournalDetailView journal={viewJournal} onClose={() => setViewJournal(null)} accounts={accounts} />}
-    </div>
-  );
-}
-
-function JournalDetailView({ journal, onClose, accounts }: { journal: Journal; onClose: () => void; accounts: Account[] }) {
-  const drTotal = journal.entries?.reduce((s: number, e: any) => s + Number(e.debit), 0) || 0;
-  const crTotal = journal.entries?.reduce((s: number, e: any) => s + Number(e.credit), 0) || 0;
-  const balanced = Math.abs(drTotal - crTotal) < 0.01;
-
-  return (
-    <AppDialog isOpen onClose={onClose} title={`Journal Entry JE-${String(journal.id).padStart(4, "0")}`}
-      subtitle={`${new Date(journal.date).toLocaleDateString()} · ${journal.reference_type}`} size="lg">
-      {journal.source && journal.source !== "MANUAL" && (
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-          Source: <SourceBadge source={journal.source} />
-        </div>
-      )}
-          <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
-            <div><span className="text-muted">Reference:</span> <span className="text-primary">{journal.reference_id || "—"}</span></div>
-            <div><span className="text-muted">Editable:</span> <span className={journal.is_editable ? "text-emerald-400" : "text-red-400"}>{journal.is_editable ? "Yes" : "No (auto-posted)"}</span></div>
-            <div className="col-span-2"><span className="text-muted">Description:</span> <span className="text-primary">{journal.description || "—"}</span></div>
-          </div>
-          <DataTable
-            data={journal.entries || []}
-            columns={[
-              { key: "account_code", label: "Code", render: (val: string) => <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{val || "—"}</span> },
-              { key: "account_name", label: "Account", render: (val: string, row: any) => <span className="text-xs text-primary">{val || `Account #${row.account_id}`}</span> },
-              { key: "description", label: "Narration", render: (val: string) => <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{val || "—"}</span> },
-              { key: "debit", label: "Debit", align: "right", render: (val: number) => val > 0 ? <span className="text-emerald-400 text-xs font-medium">{formatCurrency(val)}</span> : "—" },
-              { key: "credit", label: "Credit", align: "right", render: (val: number) => val > 0 ? <span className="text-red-400 text-xs font-medium">{formatCurrency(val)}</span> : "—" },
-            ]}
-            sortable={false} searchable={false}
-          />
-          <div className="flex justify-between items-center mt-3 pt-3 text-xs font-semibold" style={{ borderTop: "1px solid var(--border)" }}>
-            <div className="flex gap-4">
-              <span style={{ color: "var(--text-muted)" }}>Total DR: <span className="text-emerald-400">{formatCurrency(drTotal)}</span></span>
-              <span style={{ color: "var(--text-muted)" }}>Total CR: <span className="text-red-400">{formatCurrency(crTotal)}</span></span>
-              <span style={{ color: "var(--text-muted)" }}>Status:
-                {balanced
-                  ? <span className="text-emerald-400 ml-1">✓ Balanced</span>
-                  : <span className="text-red-400 ml-1">✗ Unbalanced (diff: {formatCurrency(Math.abs(drTotal - crTotal))})</span>}
-              </span>
-            </div>
-          </div>
-    </AppDialog>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// INVOICES TAB
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function InvoicesTab({ accounts, onRefresh }: { accounts: Account[]; onRefresh: () => Promise<void> }) {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [viewInv, setViewInv] = useState<Invoice | null>(null);
-  const [fileCounts, setFileCounts] = useState<Record<string, number>>({});
-  const [params, setParams] = useState({ page: 1, pageSize: 10, search: "", filter: "", startDate: "", endDate: "", propertyType: "", status: "" });
-
-  const fetchInvoices = useCallback(async (currentParams: typeof params) => {
-    setLoading(true); setError(null);
-    try {
-      const sanitized = removeEmptyParams({ limit: currentParams.pageSize, offset: (currentParams.page - 1) * currentParams.pageSize, search: currentParams.search, startDate: currentParams.startDate, endDate: currentParams.endDate, status: currentParams.status });
-      const res = await api.get<Invoice[]>("/finance/invoices", { params: sanitized });
-      setInvoices(res.data);
-      setTotal(Number(res.headers["x-total-count"] || res.data.length));
-      if (res.data.length > 0) {
-        const ids = res.data.map((inv: any) => String(inv.id)).join(",");
-        fileService.getFileCountsBatch("finance", "invoice", ids).then((data) => {
-          if (data?.counts) setFileCounts(data.counts);
-        }).catch(() => {});
-      }
-    } catch (e: any) { setError(e.message || "Failed to load invoices"); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { void fetchInvoices(params); }, [params, fetchInvoices]);
-
-  const invoiceColumns = [
-    { key: "id", label: "INV-ID", sortable: true, className: "font-mono text-[10px] text-blue-400 font-semibold", render: (val: number) => `INV-${String(val).padStart(4, "0")}` },
-    { key: "date", label: "Date", render: (val: any, row: Invoice) => new Date(row.created_at).toLocaleDateString() },
-    { key: "due_date", label: "Due Date", sortable: true, render: (val: string) => new Date(val).toLocaleDateString() },
-    { key: "client_name", label: "Client/Tenant", render: (val: any, row: Invoice) => row.client_name || `Tenant #${row.tenant_id}` || "—" },
-    { key: "property_id", label: "Property", render: (val: any) => `#${val}` || "—" },
-    { key: "unit_id", label: "Unit", render: (val: any) => val ? `#${val}` : "—" },
-    { key: "amount", label: "Amount", sortable: true, className: "font-semibold text-right", render: (val: number) => formatCurrency(val) },
-    { key: "paid_amount", label: "Paid", className: "text-right", render: (val: any, row: Invoice) => formatCurrency(row.paid_amount || 0) },
-    { key: "remaining_amount", label: "Remaining", className: "text-right", render: (val: any, row: Invoice) => <span style={{ color: Number(row.remaining_amount || 0) > 0 ? "#ef4444" : "#10b981" }}>{formatCurrency(row.remaining_amount || 0)}</span> },
-    { key: "status", label: "Status", render: (val: string) => <StatusBadge status={val} /> },
-    { key: "invoice_type", label: "Type", render: (val: string) => val || "rent" },
-    { key: "files", label: "Files", className: "text-center", render: (val: any, row: Invoice) => {
-      const count = fileCounts[String(row.id)];
-      if (count === undefined || count === 0) return <span className="text-[var(--text-muted,#6b7280)]">—</span>;
-      return <span className="inline-flex items-center gap-1 text-xs text-blue-400"><Paperclip size={12} />{count}</span>;
-    }},
-  ];
-
-  const statusOptions = [
-    { label: "All Statuses", value: "" },
-    { label: "Paid", value: "paid" },
-    { label: "Partial", value: "partial" },
-    { label: "Pending", value: "pending" },
-  ];
-
-  return (
-    <div>
-      <AppTable
-        storageKey="rems_finance_invoices"
-        title="Invoices"
-        subtitle="Manage billing, rental invoices, and collection status"
-        data={invoices} columns={invoiceColumns}
-        rowActions={[
-          { key: "view", label: "View", icon: Eye, onClick: (row: Invoice) => setViewInv(row) },
-          { key: "pay", label: "Record Payment", icon: DollarSign, onClick: (row: Invoice) => {}, hidden: (row: Invoice) => row.status === "paid" },
-          { key: "print", label: "Print", icon: Printer, onClick: () => window.print() },
-        ]}
-        loading={loading} error={error} onRetry={() => fetchInvoices(params)}
-        pagination={{ page: params.page, pageSize: params.pageSize, total }}
-        onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
-        onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
-        showStatusFilter={true} statusOptions={statusOptions} showTypeFilter={false}
-      />
-
-      {viewInv && <InvoiceDetailView invoice={viewInv} onClose={() => setViewInv(null)} onRefresh={onRefresh} />}
-    </div>
-  );
-}
-
-function InvoiceDetailView({ invoice, onClose, onRefresh }: any) {
-  return (
-    <AppDialog isOpen onClose={onClose} title={`Invoice #${invoice.id}`} size="md">
-      <div className="grid grid-cols-2 gap-3 text-xs">
-        <div><span className="text-muted">Amount:</span> <span className="font-semibold text-primary">{formatCurrency(invoice.amount)}</span></div>
-        <div><span className="text-muted">Status:</span> <StatusBadge status={invoice.status} /></div>
-        <div><span className="text-muted">Due Date:</span> <span className="text-primary">{new Date(invoice.due_date).toLocaleDateString()}</span></div>
-        <div><span className="text-muted">Type:</span> <span className="text-primary">{invoice.invoice_type || "rent"}</span></div>
-        {invoice.client_name && <div><span className="text-muted">Client:</span> <span className="text-primary">{invoice.client_name}</span></div>}
-        {invoice.description && <div className="col-span-2"><span className="text-muted">Description:</span> <span className="text-primary">{invoice.description}</span></div>}
-      </div>
-      <div className="pt-3 border-t border-theme">
-        <p className="text-xs font-semibold text-primary mb-2">Payment History</p>
-        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Paid: {formatCurrency(invoice.paid_amount || 0)} / Remaining: {formatCurrency(invoice.remaining_amount || 0)}</p>
-      </div>
-      <FileUpload module="finance" recordType="invoice" recordId={String(invoice.id)} documentTypes={["Invoice", "Receipt", "Purchase Order", "Bank Statement", "Other"]} />
-      <div className="flex justify-end gap-2 pt-3 border-t border-theme">
-        {invoice.status !== "paid" && <button className="btn-primary px-4 py-2 text-xs"><DollarSign size={12} /> Record Payment</button>}
-        <button onClick={onClose} className="btn-ghost px-4 py-2 text-xs">Close</button>
-      </div>
-    </AppDialog>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAYMENTS TAB
 // ═══════════════════════════════════════════════════════════════════════════════
-
-function PaymentsTab({ accounts }: { accounts: Account[] }) {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [postingId, setPostingId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [params, setParams] = useState({ page: 1, pageSize: 10, search: "", filter: "", startDate: "", endDate: "", propertyType: "", status: "" });
-
-  const fetchPayments = useCallback(async (currentParams: typeof params) => {
-    setLoading(true); setError(null);
-    try {
-      const sanitized = removeEmptyParams({ limit: currentParams.pageSize, skip: (currentParams.page - 1) * currentParams.pageSize });
-      const res = await api.get<Payment[]>("/finance/payments", { params: sanitized });
-      setPayments(res.data);
-      setTotal(res.data.length < currentParams.pageSize ? (currentParams.page - 1) * currentParams.pageSize + res.data.length : 1000);
-    } catch (e: any) { setError(e.message || "Failed to load payments"); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { void fetchPayments(params); }, [params, fetchPayments]);
-
-  const handlePostToFinance = useCallback(async (payment: Payment) => {
-    setPostingId(payment.id);
-    try {
-      await api.patch(`/finance/payments/${payment.id}/post`);
-      await fetchPayments(params);
-    } catch (e: any) {
-      setError(e.response?.data?.detail || e.message || "Failed to post payment");
-    } finally {
-      setPostingId(null);
-    }
-  }, [fetchPayments, params]);
-
-  const paymentColumns = [
-    { key: "id", label: "PAY-ID", className: "font-mono text-[10px] text-blue-400 font-semibold", render: (val: number) => `PAY-${String(val).padStart(4, "0")}` },
-    { key: "date", label: "Date", sortable: true, render: (val: string) => new Date(val).toLocaleDateString() },
-    { key: "received_from", label: "Received From", render: (val: any) => val || "—" },
-    { key: "source", label: "Source", render: (val: any) => <SourceBadge source={val || "MANUAL"} /> },
-    { key: "reference_number", label: "Reference", render: (val: any) => val || "—" },
-    { key: "amount", label: "Amount", className: "font-semibold text-emerald-400 text-right", render: (val: number) => formatCurrency(val) },
-    { key: "method", label: "Method", render: (val: string) => <StatusBadge status={val} /> },
-    { key: "invoice_id", label: "Invoice", render: (val: any) => val ? `#${val}` : "—" },
-    { key: "posted_to_finance", label: "Finance Posted", render: (val: any, row: Payment) => row.posted_to_finance ? <span className="text-emerald-400 text-[10px]">✓ JE-{String(row.finance_journal_id).padStart(4, "0")}</span> : postingId === row.id ? <span className="text-yellow-400 text-[10px]">⏳ Posting…</span> : <span className="text-yellow-400 text-[10px]">⏳ Pending</span> },
-  ];
-
-  const paymentRowActions = [
-    { key: "post", label: "Post to Finance", icon: Upload, onClick: handlePostToFinance, hidden: (row: Payment) => row.posted_to_finance || postingId === row.id },
-  ];
-
-  return (
-    <AppTable
-      storageKey="rems_finance_payments"
-      title="Payments"
-      subtitle="Unified payment register — all money received"
-      data={payments} columns={paymentColumns}
-      loading={loading} error={error} onRetry={() => fetchPayments(params)}
-      pagination={{ page: params.page, pageSize: params.pageSize, total }}
-      onPageChange={(config) => setParams((prev) => ({ ...prev, ...config }))}
-      onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
-      showDateFilter={false} showStatusFilter={false} showTypeFilter={false}
-      rowActions={paymentRowActions}
-    />
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // BANK / CASH TAB
@@ -955,6 +680,7 @@ function BankCashTab({ instrument, accounts, setDlg }: any) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function CommissionsTab({ accounts, onRefresh }: { accounts: Account[]; onRefresh: () => Promise<void> }) {
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -982,6 +708,7 @@ function CommissionsTab({ accounts, onRefresh }: { accounts: Account[]; onRefres
   const handleMarkPaid = async (c: Commission) => {
     try {
       await commissionsApi.markPaid(c.id);
+      pushToast({ title: "Commission Paid", message: `Commission #${c.id} marked as paid`, type: "success" });
       syncApi.commissionPaid({
         commission_id: c.id,
         dealer_name: c.dealer_name || "Unknown",
@@ -1051,6 +778,8 @@ function ExpensesTab({ accounts }: { accounts: Account[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useState({ page: 1, pageSize: 10, search: "", filter: "", startDate: "", endDate: "", propertyType: "", status: "" });
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const fetchExpenses = useCallback(async (currentParams: typeof params) => {
     setLoading(true); setError(null);
@@ -1065,6 +794,19 @@ function ExpensesTab({ accounts }: { accounts: Account[] }) {
 
   useEffect(() => { void fetchExpenses(params); }, [params, fetchExpenses]);
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await expensesApi.delete(deleteTarget.id);
+      pushToast({ title: "Expense Deleted", message: `Expense #${deleteTarget.id} deleted successfully`, type: "success" });
+      setDeleteTarget(null);
+      fetchExpenses(params);
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail || "Failed to delete expense", priority: "urgent" });
+      setDeleteTarget(null);
+    }
+  };
+
   const expenseColumns = [
     { key: "id", label: "#", className: "font-mono text-[10px]" },
     { key: "account_name", label: "Account", render: (val: any, row: Expense) => `${row.account_code || ""} ${row.account_name || ""}` || `Account #${row.account_id}` },
@@ -1078,14 +820,15 @@ function ExpensesTab({ accounts }: { accounts: Account[] }) {
   ];
 
   return (
+    <>
     <AppTable
       storageKey="rems_finance_expenses"
       title="Expenses"
       subtitle="Track corporate operating expenditures"
       data={expenses} columns={expenseColumns}
       rowActions={[
-        { key: "approve", label: "Approve", icon: Check, onClick: async (r: Expense) => { await expensesApi.approve(r.id); fetchExpenses(params); }, hidden: (r: Expense) => r.approval_status === "approved" },
-        { key: "delete", label: "Delete", icon: Trash2, variant: "danger" as const, onClick: async (r: Expense) => { await expensesApi.delete(r.id); fetchExpenses(params); } },
+        { key: "approve", label: "Approve", icon: Check, onClick: async (r: Expense) => { await expensesApi.approve(r.id); pushToast({ title: "Expense Approved", message: `Expense #${r.id} approved`, type: "success" }); fetchExpenses(params); }, hidden: (r: Expense) => r.approval_status === "approved" },
+        { key: "delete", label: "Delete", icon: Trash2, variant: "danger" as const, onClick: (r: Expense) => setDeleteTarget(r) },
       ]}
       loading={loading} error={error} onRetry={() => fetchExpenses(params)}
       pagination={{ page: params.page, pageSize: params.pageSize, total }}
@@ -1093,6 +836,18 @@ function ExpensesTab({ accounts }: { accounts: Account[] }) {
       onFilterChange={(filters) => setParams((prev) => ({ ...prev, ...filters }))}
       showStatusFilter={false} showTypeFilter={false}
     />
+      {deleteTarget && (
+        <ConfirmDialog
+          open={!!deleteTarget}
+          title="Delete Expense"
+          message={`Are you sure you want to delete expense #${deleteTarget.id}? This action cannot be undone.`}
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -1109,6 +864,9 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
   const [receivablesAging, setReceivablesAging] = useState<any>(null);
   const [propertyIncome, setPropertyIncome] = useState<any>(null);
   const [dealerCommission, setDealerCommission] = useState<any>(null);
+  const [dayBook, setDayBook] = useState<any>(null);
+  const [cashBook, setCashBook] = useState<any>(null);
+  const [bankBook, setBankBook] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState("monthly");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
@@ -1122,7 +880,7 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
         if (dateRange.start) params.start_date = dateRange.start;
         if (dateRange.end) params.end_date = dateRange.end;
 
-        const [tb, pl, bs, cf, ra, pi, dc] = await Promise.allSettled([
+        const [tb, pl, bs, cf, ra, pi, dc, dbk, cbk, bkb] = await Promise.allSettled([
           journalsApi.trialBalance(),
           journalsApi.profitLoss(params),
           journalsApi.balanceSheet(),
@@ -1130,6 +888,9 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
           journalsApi.receivablesAging(),
           journalsApi.propertyIncome(),
           journalsApi.dealerCommission(params),
+          journalsApi.dayBook(params),
+          journalsApi.cashBook(params),
+          journalsApi.bankBook(params),
         ]);
         if (cancelled) return;
         if (tb.status === "fulfilled") setTrialBalance(tb.value);
@@ -1139,21 +900,42 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
         if (ra.status === "fulfilled") setReceivablesAging(ra.value);
         if (pi.status === "fulfilled") setPropertyIncome(pi.value);
         if (dc.status === "fulfilled") setDealerCommission(dc.value);
+        if (dbk.status === "fulfilled") setDayBook(dbk.value);
+        if (cbk.status === "fulfilled") setCashBook(cbk.value);
+        if (bkb.status === "fulfilled") setBankBook(bkb.value);
+
+        if (!cancelled) {
+          if (["invoice_outstanding", "invoice_aging", "invoice_monthly"].includes(report)) {
+            if (report === "invoice_outstanding") invoicesApi.outstandingReport().then(setInvoiceOutstanding).catch(() => {});
+            if (report === "invoice_aging") invoicesApi.agingReport().then(setInvoiceAging).catch(() => {});
+            if (report === "invoice_monthly") invoicesApi.monthlyRevenueReport().then(setInvoiceMonthly).catch(() => {});
+          }
+        }
       } catch (e) { console.error(e); }
       finally { if (!cancelled) setLoading(false); }
     }
     load();
     return () => { cancelled = true; };
-  }, [period, dateRange]);
+  }, [period, dateRange, report]);
+
+  const [invoiceOutstanding, setInvoiceOutstanding] = useState<any>(null);
+  const [invoiceAging, setInvoiceAging] = useState<any>(null);
+  const [invoiceMonthly, setInvoiceMonthly] = useState<any>(null);
 
   const reports = [
     { id: "trial_balance", label: "Trial Balance", icon: BookOpen },
     { id: "profit_loss", label: "P&L Statement", icon: TrendingUp },
     { id: "balance_sheet", label: "Balance Sheet", icon: Landmark },
     { id: "cash_flow", label: "Cash Flow", icon: DollarSign },
+    { id: "day_book", label: "Day Book", icon: FileText },
+    { id: "cash_book", label: "Cash Book", icon: Banknote },
+    { id: "bank_book", label: "Bank Book", icon: CreditCard },
     { id: "receivables", label: "Receivables Aging", icon: Wallet },
     { id: "property_income", label: "Property Income", icon: Building2 },
     { id: "dealer_commission", label: "Dealer Commission", icon: Users },
+    { id: "invoice_outstanding", label: "Outstanding Invoices", icon: DollarSign },
+    { id: "invoice_aging", label: "Invoice Aging", icon: AlertTriangle },
+    { id: "invoice_monthly", label: "Monthly Revenue", icon: TrendingUp },
   ];
 
   if (loading) return <LoadingSpinner />;
@@ -1352,6 +1134,161 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
           </div>
         )}
 
+        {report === "day_book" && dayBook && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Day Book</p>
+              <p className="text-[10px] text-muted mb-3">All journal entries for {dayBook.date ? new Date(dayBook.date).toLocaleDateString() : "selected period"}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-2 text-muted">JE#</th>
+                      <th className="text-left py-2 text-muted">Date</th>
+                      <th className="text-left py-2 text-muted">Type</th>
+                      <th className="text-left py-2 text-muted">Description</th>
+                      <th className="text-left py-2 text-muted">Account</th>
+                      <th className="text-right py-2 text-muted">Debit</th>
+                      <th className="text-right py-2 text-muted">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayBook.entries?.map((e: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td className="py-1.5 font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{e.journal_number || `JE-${String(e.journal_id).padStart(4, "0")}`}</td>
+                        <td className="py-1.5 text-primary">{new Date(e.date).toLocaleDateString()}</td>
+                        <td className="py-1.5"><StatusBadge status={e.reference_type} /></td>
+                        <td className="py-1.5 text-xs max-w-[200px] truncate" style={{ color: "var(--text-secondary)" }}>{e.description || "—"}</td>
+                        <td className="py-1.5 text-xs">{e.account_code} — {e.account_name}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.debit > 0 ? "#3b82f6" : "var(--text-muted)" }}>{e.debit > 0 ? formatCurrency(e.debit) : "—"}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.credit > 0 ? "#10b981" : "var(--text-muted)" }}>{e.credit > 0 ? formatCurrency(e.credit) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid var(--border)" }}>
+                      <td colSpan={5} className="py-2 font-semibold text-primary">Totals</td>
+                      <td className="py-2 text-right font-semibold" style={{ color: "#3b82f6" }}>{formatCurrency(dayBook.total_debit)}</td>
+                      <td className="py-2 text-right font-semibold" style={{ color: "#10b981" }}>{formatCurrency(dayBook.total_credit)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {Number(dayBook.total_debit) !== Number(dayBook.total_credit) && (
+                <div className="mt-3 p-2 rounded-lg text-[10px]" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
+                  ⚠ Day Book does NOT balance! DR ({formatCurrency(dayBook.total_debit)}) ≠ CR ({formatCurrency(dayBook.total_credit)})
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report === "cash_book" && cashBook && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Cash Book</p>
+              <p className="text-[10px] text-muted mb-3">Cash account transactions with running balance</p>
+              <div className="grid grid-cols-4 gap-3 mb-3">
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Opening Balance</p>
+                  <p className="text-lg font-bold text-primary">{formatCurrency(cashBook.opening_balance)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Total Receipts</p>
+                  <p className="text-lg font-bold text-emerald-400">{formatCurrency(cashBook.total_receipts)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Total Payments</p>
+                  <p className="text-lg font-bold text-red-400">{formatCurrency(cashBook.total_payments)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Closing Balance</p>
+                  <p className="text-lg font-bold" style={{ color: Number(cashBook.closing_balance) >= 0 ? "#10b981" : "#ef4444" }}>{formatCurrency(cashBook.closing_balance)}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-2 text-muted">Date</th>
+                      <th className="text-left py-2 text-muted">Type</th>
+                      <th className="text-left py-2 text-muted">Description</th>
+                      <th className="text-right py-2 text-muted">Receipts (DR)</th>
+                      <th className="text-right py-2 text-muted">Payments (CR)</th>
+                      <th className="text-right py-2 text-muted">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashBook.entries?.map((e: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td className="py-1.5 text-primary">{new Date(e.date).toLocaleDateString()}</td>
+                        <td className="py-1.5"><StatusBadge status={e.reference_type} /></td>
+                        <td className="py-1.5 text-xs max-w-[200px] truncate" style={{ color: "var(--text-secondary)" }}>{e.description || "—"}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.debit > 0 ? "#10b981" : "var(--text-muted)" }}>{e.debit > 0 ? formatCurrency(e.debit) : "—"}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.credit > 0 ? "#ef4444" : "var(--text-muted)" }}>{e.credit > 0 ? formatCurrency(e.credit) : "—"}</td>
+                        <td className="py-1.5 text-right font-medium" style={{ color: Number(e.balance) >= 0 ? "var(--text-primary)" : "#ef4444" }}>{formatCurrency(e.balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {report === "bank_book" && bankBook && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Bank Book</p>
+              <p className="text-[10px] text-muted mb-3">Bank account transactions with running balance</p>
+              <div className="grid grid-cols-4 gap-3 mb-3">
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Opening Balance</p>
+                  <p className="text-lg font-bold text-primary">{formatCurrency(bankBook.opening_balance)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Total Deposits</p>
+                  <p className="text-lg font-bold text-emerald-400">{formatCurrency(bankBook.total_deposits)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Total Withdrawals</p>
+                  <p className="text-lg font-bold text-red-400">{formatCurrency(bankBook.total_withdrawals)}</p>
+                </div>
+                <div className="stat-card p-3">
+                  <p className="text-[10px] text-muted">Closing Balance</p>
+                  <p className="text-lg font-bold" style={{ color: Number(bankBook.closing_balance) >= 0 ? "#10b981" : "#ef4444" }}>{formatCurrency(bankBook.closing_balance)}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-2 text-muted">Date</th>
+                      <th className="text-left py-2 text-muted">Type</th>
+                      <th className="text-left py-2 text-muted">Description</th>
+                      <th className="text-right py-2 text-muted">Deposits (DR)</th>
+                      <th className="text-right py-2 text-muted">Withdrawals (CR)</th>
+                      <th className="text-right py-2 text-muted">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bankBook.entries?.map((e: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td className="py-1.5 text-primary">{new Date(e.date).toLocaleDateString()}</td>
+                        <td className="py-1.5"><StatusBadge status={e.reference_type} /></td>
+                        <td className="py-1.5 text-xs max-w-[200px] truncate" style={{ color: "var(--text-secondary)" }}>{e.description || "—"}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.debit > 0 ? "#10b981" : "var(--text-muted)" }}>{e.debit > 0 ? formatCurrency(e.debit) : "—"}</td>
+                        <td className="py-1.5 text-right" style={{ color: e.credit > 0 ? "#ef4444" : "var(--text-muted)" }}>{e.credit > 0 ? formatCurrency(e.credit) : "—"}</td>
+                        <td className="py-1.5 text-right font-medium" style={{ color: Number(e.balance) >= 0 ? "var(--text-primary)" : "#ef4444" }}>{formatCurrency(e.balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {report === "receivables" && receivablesAging && (
           <div className="detail-container">
             <div className="detail-section">
@@ -1443,6 +1380,125 @@ function ReportsTab({ accounts }: { accounts: Account[] }) {
             </div>
           </div>
         )}
+
+        {report === "invoice_outstanding" && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Outstanding Invoices</p>
+              <p className="text-[10px] text-muted mb-3">All unpaid and partially paid invoices</p>
+              {!invoiceOutstanding ? (
+                <LoadingSpinner />
+              ) : Array.isArray(invoiceOutstanding) && invoiceOutstanding.length === 0 ? (
+                <div className="flex flex-col items-center py-8 text-muted"><DollarSign size={24} className="mb-2 opacity-50" /><p className="text-xs">No outstanding invoices</p></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        <th className="text-left py-2 text-muted">Invoice</th>
+                        <th className="text-left py-2 text-muted">Client</th>
+                        <th className="text-left py-2 text-muted">Type</th>
+                        <th className="text-right py-2 text-muted">Amount</th>
+                        <th className="text-right py-2 text-muted">Paid</th>
+                        <th className="text-right py-2 text-muted">Due</th>
+                        <th className="text-right py-2 text-muted">Due Date</th>
+                        <th className="text-center py-2 text-muted">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(invoiceOutstanding) ? invoiceOutstanding : invoiceOutstanding?.invoices || []).map((inv: any) => (
+                        <tr key={inv.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                          <td className="py-1.5 font-mono text-[10px] text-blue-400">{inv.invoice_number || `#${inv.id}`}</td>
+                          <td className="py-1.5 text-primary">{inv.client_name || "—"}</td>
+                          <td className="py-1.5"><span className="text-[10px] uppercase text-muted">{inv.invoice_type || "—"}</span></td>
+                          <td className="py-1.5 text-right font-medium">{formatCurrency(Number(inv.amount))}</td>
+                          <td className="py-1.5 text-right text-emerald-400">{formatCurrency(Number(inv.paid_amount || 0))}</td>
+                          <td className="py-1.5 text-right font-semibold" style={{ color: (inv.remaining_amount ?? inv.amount - (inv.paid_amount || 0)) > 0 ? "#ef4444" : "#10b981" }}>{formatCurrency(Number(inv.remaining_amount ?? inv.amount - (inv.paid_amount || 0)))}</td>
+                          <td className="py-1.5 text-right text-muted">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</td>
+                          <td className="py-1.5 text-center"><StatusBadge status={inv.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report === "invoice_aging" && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Invoice Aging Report</p>
+              <p className="text-[10px] text-muted mb-3">Aging analysis of outstanding invoices</p>
+              {!invoiceAging ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="space-y-3">
+                  {(Array.isArray(invoiceAging) ? invoiceAging : invoiceAging?.buckets || []).map((bucket: any, i: number) => (
+                    <div key={i} className="p-3 rounded-lg" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.1)" }}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-semibold text-primary">{bucket.label || bucket.range || `Bucket ${i + 1}`}</span>
+                        <span className="text-xs font-bold" style={{ color: "#ef4444" }}>{formatCurrency(Number(bucket.total || bucket.amount || 0))}</span>
+                      </div>
+                      {(bucket.invoices || bucket.items || []).map((inv: any) => (
+                        <div key={inv.id} className="flex justify-between text-[10px] py-1" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            {inv.client_name || inv.client || "Unknown"} · {inv.days_overdue || 0}d overdue
+                          </span>
+                          <span className="font-medium" style={{ color: "#ef4444" }}>{formatCurrency(Number(inv.amount || inv.remaining_amount || 0))}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {(!invoiceAging || (Array.isArray(invoiceAging) && invoiceAging.length === 0)) && (
+                    <div className="flex flex-col items-center py-8 text-muted"><AlertTriangle size={24} className="mb-2 opacity-50" /><p className="text-xs">No aging data</p></div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report === "invoice_monthly" && (
+          <div className="detail-container">
+            <div className="detail-section">
+              <p className="detail-section-title">Monthly Revenue Report</p>
+              <p className="text-[10px] text-muted mb-3">Revenue breakdown by month</p>
+              {!invoiceMonthly ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        <th className="text-left py-2 text-muted">Month</th>
+                        <th className="text-right py-2 text-muted">Invoice Count</th>
+                        <th className="text-right py-2 text-muted">Total Revenue</th>
+                        <th className="text-right py-2 text-muted">Collected</th>
+                        <th className="text-right py-2 text-muted">Outstanding</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(invoiceMonthly) ? invoiceMonthly : invoiceMonthly?.months || []).map((m: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                          <td className="py-1.5 font-medium text-primary">{m.month || m.label || "—"}</td>
+                          <td className="py-1.5 text-right text-muted">{m.count || m.invoice_count || 0}</td>
+                          <td className="py-1.5 text-right font-medium text-emerald-400">{formatCurrency(Number(m.revenue || m.total || m.amount || 0))}</td>
+                          <td className="py-1.5 text-right text-emerald-400">{formatCurrency(Number(m.collected || m.paid || 0))}</td>
+                          <td className="py-1.5 text-right" style={{ color: "#ef4444" }}>{formatCurrency(Number(m.outstanding || m.due || 0))}</td>
+                        </tr>
+                      ))}
+                      {Array.isArray(invoiceMonthly) && invoiceMonthly.length === 0 && (
+                        <tr><td colSpan={5} className="py-4 text-center text-muted">No revenue data</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );
@@ -1511,370 +1567,7 @@ function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: any) {
   );
 }
 
-function CreateInvoiceDialog({ isOpen, onClose, onSubmit, accounts, isLoading }: any) {
-  const [form, setForm] = useState({ tenant_id: "", property_id: "", unit_id: "", amount: "", due_date: "", description: "", invoice_type: "rent", client_name: "", reference: "" });
-  const [error, setError] = useState("");
-  const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null);
 
-  const reset = () => {
-    setForm({ tenant_id: "", property_id: "", unit_id: "", amount: "", due_date: "", description: "", invoice_type: "rent", client_name: "", reference: "" });
-    setError("");
-  };
-
-  const handleSubmit = async () => {
-    if (!form.amount || !form.due_date) { setError("Amount and Due Date are required"); return; }
-    setError("");
-    try {
-      const invoiceId = await onSubmit({ ...form, tenant_id: form.tenant_id ? Number(form.tenant_id) : null, property_id: form.property_id ? Number(form.property_id) : null, unit_id: form.unit_id ? Number(form.unit_id) : null, amount: Number(form.amount) });
-      setCreatedInvoiceId(invoiceId);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Failed to create invoice");
-    }
-  };
-
-  if (createdInvoiceId) {
-    return (
-      <AppDialog isOpen={isOpen} onClose={() => { setCreatedInvoiceId(null); onClose(); }} title="Create Invoice" subtitle="Invoice created successfully" size="lg">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <Check size={16} className="text-emerald-400" />
-            <p className="text-sm font-medium text-emerald-400">Invoice created successfully</p>
-          </div>
-          <AttachmentPanel module="finance" recordId={createdInvoiceId} />
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => { setCreatedInvoiceId(null); reset(); }} className="btn-ghost px-4 py-2 text-xs">
-              Add Another
-            </button>
-            <button onClick={() => { setCreatedInvoiceId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
-              Done
-            </button>
-          </div>
-        </div>
-      </AppDialog>
-    );
-  }
-
-  return (
-    <AppDialog isOpen={isOpen} onClose={() => { reset(); onClose(); }} title="Create Invoice" subtitle="Generate a new invoice" size="lg">
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-3">
-          <FormField label="Invoice Type">
-            <Select value={form.invoice_type} onChange={e => setForm(f => ({ ...f, invoice_type: e.target.value }))}>
-              <option value="rent">Rent</option><option value="sale">Sale</option><option value="service">Service</option><option value="other">Other</option>
-            </Select>
-          </FormField>
-          <FormField label="Amount" required><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></FormField>
-          <FormField label="Due Date" required><Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} /></FormField>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Client Name"><Input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Client/Tenant name" /></FormField>
-          <FormField label="Reference"><Input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Invoice reference" /></FormField>
-        </div>
-        <FormField label="Description"><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description" /></FormField>
-        {error && <p className="text-[10px]" style={{ color: "#ef4444" }}>{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={() => { reset(); onClose(); }} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
-          <button onClick={handleSubmit} disabled={isLoading} className="btn-primary px-4 py-2 text-xs">
-            {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Create Invoice
-          </button>
-        </div>
-      </div>
-    </AppDialog>
-  );
-}
-
-function MakePaymentDialog({ isOpen, onClose, onSubmit, accounts, preselectedInvoiceId, isLoading }: any) {
-  const [form, setForm] = useState({ invoice_id: preselectedInvoiceId || "", method: "bank", amount: "", date: new Date().toISOString().slice(0, 10), reference_number: "", received_from: "", payment_type: "manual", notes: "" });
-  const [error, setError] = useState("");
-  const [createdPaymentId, setCreatedPaymentId] = useState<number | null>(null);
-
-  const defaultForm = () => ({ invoice_id: "", method: "bank", amount: "", date: new Date().toISOString().slice(0, 10), reference_number: "", received_from: "", payment_type: "manual", notes: "" });
-
-  useEffect(() => {
-    if (preselectedInvoiceId) setForm(f => ({ ...f, invoice_id: preselectedInvoiceId }));
-  }, [preselectedInvoiceId]);
-
-  const handleSubmit = async () => {
-    if (!form.amount) { setError("Amount is required"); return; }
-    setError("");
-    try {
-      const paymentId = await onSubmit({ ...form, invoice_id: form.invoice_id ? Number(form.invoice_id) : null, amount: Number(form.amount), date: form.date || new Date().toISOString() });
-      setCreatedPaymentId(paymentId);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Failed to record payment");
-    }
-  };
-
-  if (createdPaymentId) {
-    return (
-      <AppDialog isOpen={isOpen} onClose={() => { setCreatedPaymentId(null); onClose(); }} title="Record Payment" subtitle="Payment recorded successfully" size="lg">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <Check size={16} className="text-emerald-400" />
-            <p className="text-sm font-medium text-emerald-400">Payment recorded successfully</p>
-          </div>
-          <AttachmentPanel module="finance" recordId={createdPaymentId} />
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => { setCreatedPaymentId(null); setForm(defaultForm()); }} className="btn-ghost px-4 py-2 text-xs">
-              Add Another
-            </button>
-            <button onClick={() => { setCreatedPaymentId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
-              Done
-            </button>
-          </div>
-        </div>
-      </AppDialog>
-    );
-  }
-
-  return (
-    <AppDialog isOpen={isOpen} onClose={onClose} title="Record Payment" subtitle="Record money received" size="lg">
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Amount" required><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></FormField>
-          <FormField label="Method">
-            <Select value={form.method} onChange={e => setForm(f => ({ ...f, method: e.target.value }))}>
-              <option value="bank">Bank</option><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="online">Online</option>
-            </Select>
-          </FormField>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Received From"><Input value={form.received_from} onChange={e => setForm(f => ({ ...f, received_from: e.target.value }))} placeholder="Client/Tenant name" /></FormField>
-          <FormField label="Reference"><Input value={form.reference_number} onChange={e => setForm(f => ({ ...f, reference_number: e.target.value }))} placeholder="Reference number" /></FormField>
-        </div>
-        <FormField label="Notes"><Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></FormField>
-        {error && <p className="text-[10px]" style={{ color: "#ef4444" }}>{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
-          <button onClick={handleSubmit} disabled={isLoading} className="btn-primary px-4 py-2 text-xs">
-            {isLoading ? <Loader2 size={12} className="animate-spin" /> : <DollarSign size={12} />} Record Payment
-          </button>
-        </div>
-      </div>
-    </AppDialog>
-  );
-}
-
-function AddExpenseDialog({ isOpen, onClose, onSubmit, accounts, isLoading }: any) {
-  const expenseAccounts = accounts?.filter((a: Account) => a.account_type === "Expense") || [];
-  const [form, setForm] = useState({ account_id: "", paid_from: "bank", amount: "", date: new Date().toISOString().slice(0, 10), description: "", vendor_name: "", invoice_bill_no: "", payment_method: "", payment_status: "pending", reference: "" });
-  const [error, setError] = useState("");
-  const [createdExpenseId, setCreatedExpenseId] = useState<number | null>(null);
-
-  const defaultForm = () => ({ account_id: "", paid_from: "bank", amount: "", date: new Date().toISOString().slice(0, 10), description: "", vendor_name: "", invoice_bill_no: "", payment_method: "", payment_status: "pending", reference: "" });
-
-  const handleSubmit = async () => {
-    if (!form.account_id || !form.amount || !form.description) { setError("Account, Amount, and Description are required"); return; }
-    setError("");
-    try {
-      const expenseId = await onSubmit({ ...form, account_id: Number(form.account_id), amount: Number(form.amount) });
-      setCreatedExpenseId(expenseId);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Failed to add expense");
-    }
-  };
-
-  if (createdExpenseId) {
-    return (
-      <AppDialog isOpen={isOpen} onClose={() => { setCreatedExpenseId(null); onClose(); }} title="Add Expense" subtitle="Expense recorded successfully" size="lg">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <Check size={16} className="text-emerald-400" />
-            <p className="text-sm font-medium text-emerald-400">Expense recorded successfully</p>
-          </div>
-          <AttachmentPanel module="finance" recordId={createdExpenseId} />
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => { setCreatedExpenseId(null); setForm(defaultForm()); }} className="btn-ghost px-4 py-2 text-xs">
-              Add Another
-            </button>
-            <button onClick={() => { setCreatedExpenseId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
-              Done
-            </button>
-          </div>
-        </div>
-      </AppDialog>
-    );
-  }
-
-  return (
-    <AppDialog isOpen={isOpen} onClose={onClose} title="Add Expense" subtitle="Record a corporate expense" size="lg">
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Expense Account" required>
-            <Select value={form.account_id} onChange={e => setForm(f => ({ ...f, account_id: e.target.value }))}>
-              <option value="">Select account</option>
-              {expenseAccounts.map((a: Account) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Amount" required><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></FormField>
-        </div>
-        <FormField label="Description" required><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Expense description" /></FormField>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Vendor Name"><Input value={form.vendor_name} onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))} placeholder="Vendor" /></FormField>
-          <FormField label="Invoice/Bill No"><Input value={form.invoice_bill_no} onChange={e => setForm(f => ({ ...f, invoice_bill_no: e.target.value }))} /></FormField>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Paid From">
-            <Select value={form.paid_from} onChange={e => setForm(f => ({ ...f, paid_from: e.target.value }))}>
-              <option value="bank">Bank</option><option value="cash">Cash</option>
-            </Select>
-          </FormField>
-          <FormField label="Payment Status">
-            <Select value={form.payment_status} onChange={e => setForm(f => ({ ...f, payment_status: e.target.value }))}>
-              <option value="pending">Pending</option><option value="paid">Paid</option>
-            </Select>
-          </FormField>
-        </div>
-        {error && <p className="text-[10px]" style={{ color: "#ef4444" }}>{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
-          <button onClick={handleSubmit} disabled={isLoading} className="btn-primary px-4 py-2 text-xs">
-            {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add Expense
-          </button>
-        </div>
-      </div>
-    </AppDialog>
-  );
-}
-
-function ManualJournalDialog({ isOpen, onClose, onSubmit, accounts, isLoading }: any) {
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), description: "", reference_type: "manual", reference_id: "", source: "MANUAL" });
-  const [lines, setLines] = useState([{ account_id: "", description: "", debit: "", credit: "" }]);
-  const [error, setError] = useState("");
-  const [createdJournalId, setCreatedJournalId] = useState<number | null>(null);
-
-  const defaultForm = () => ({ date: new Date().toISOString().slice(0, 10), description: "", reference_type: "manual", reference_id: "", source: "MANUAL" });
-  const defaultLines = () => [{ account_id: "", description: "", debit: "", credit: "" }];
-
-  const addLine = () => setLines(l => [...l, { account_id: "", description: "", debit: "", credit: "" }]);
-  const updateLine = (i: number, field: string, value: string) => {
-    const newLines = [...lines];
-    (newLines[i] as any)[field] = value;
-    setLines(newLines);
-  };
-  const removeLine = (i: number) => { if (lines.length > 1) setLines(l => l.filter((_, idx) => idx !== i)); };
-
-  const drTotal = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
-  const crTotal = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
-  const diff = drTotal - crTotal;
-  const balanced = Math.abs(diff) < 0.01;
-
-  const handleSubmit = async () => {
-    if (!form.description) { setError("Description is required"); return; }
-    if (!balanced) { setError("Debits must equal credits"); return; }
-    if (lines.some(l => !l.account_id)) { setError("All lines must have an account"); return; }
-    setError("");
-    try {
-      const journalId = await onSubmit({
-        date: form.date || undefined,
-        description: form.description,
-        reference_type: form.reference_type,
-        reference_id: form.reference_id || null,
-        source: form.source,
-        lines: lines.map(l => ({
-          account_id: Number(l.account_id),
-          debit: Number(l.debit) || 0,
-          credit: Number(l.credit) || 0,
-          description: l.description || null,
-        })),
-      });
-      setCreatedJournalId(journalId);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Failed to post journal");
-    }
-  };
-
-  if (createdJournalId) {
-    return (
-      <AppDialog isOpen={isOpen} onClose={() => { setCreatedJournalId(null); onClose(); }} title="Manual Journal Entry" subtitle="Journal posted successfully" size="lg">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <Check size={16} className="text-emerald-400" />
-            <p className="text-sm font-medium text-emerald-400">Journal entry posted successfully</p>
-          </div>
-          <AttachmentPanel module="finance" recordId={createdJournalId} />
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => { setCreatedJournalId(null); setForm(defaultForm()); setLines(defaultLines()); }} className="btn-ghost px-4 py-2 text-xs">
-              Add Another
-            </button>
-            <button onClick={() => { setCreatedJournalId(null); onClose(); }} className="btn-primary px-4 py-2 text-xs">
-              Done
-            </button>
-          </div>
-        </div>
-      </AppDialog>
-    );
-  }
-
-  return (
-    <AppDialog isOpen={isOpen} onClose={onClose} title="Manual Journal Entry" subtitle="Create a double-entry journal posting" size="lg">
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Date"><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></FormField>
-          <FormField label="Reference Type">
-            <Select value={form.reference_type} onChange={e => setForm(f => ({ ...f, reference_type: e.target.value }))}>
-              <option value="manual">Manual</option><option value="adjustment">Adjustment</option><option value="transfer">Transfer</option><option value="opening">Opening Balance</option>
-            </Select>
-          </FormField>
-        </div>
-        <FormField label="Description" required><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Journal description" /></FormField>
-        <FormField label="Reference ID"><Input value={form.reference_id} onChange={e => setForm(f => ({ ...f, reference_id: e.target.value }))} placeholder="Optional reference" /></FormField>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-primary">Journal Lines</p>
-            <button onClick={addLine} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}>
-              <Plus size={10} /> Add Line
-            </button>
-          </div>
-          {lines.map((line, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-end p-2 rounded-lg" style={{ background: "var(--bg-card)" }}>
-              <div className="col-span-4">
-                <select className="w-full text-[10px] px-2 py-1.5 rounded-lg" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-                  value={line.account_id} onChange={e => updateLine(i, "account_id", e.target.value)}>
-                  <option value="">Select account</option>
-                  {accounts?.map((a: Account) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-                </select>
-              </div>
-              <div className="col-span-3">
-                <input className="w-full text-[10px] px-2 py-1.5 rounded-lg" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-                  value={line.description} onChange={e => updateLine(i, "description", e.target.value)} placeholder="Narration" />
-              </div>
-              <div className="col-span-2">
-                <input type="number" className="w-full text-[10px] px-2 py-1.5 rounded-lg" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "#10b981" }}
-                  value={line.debit} onChange={e => updateLine(i, "debit", e.target.value)} placeholder="Debit" />
-              </div>
-              <div className="col-span-2">
-                <input type="number" className="w-full text-[10px] px-2 py-1.5 rounded-lg" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", color: "#ef4444" }}
-                  value={line.credit} onChange={e => updateLine(i, "credit", e.target.value)} placeholder="Credit" />
-              </div>
-              <div className="col-span-1">
-                {lines.length > 1 && (
-                  <button onClick={() => removeLine(i)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[10px]"
-                    style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }}>✕</button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-between text-[10px] font-semibold p-2 rounded-lg" style={{ background: "var(--bg-card)" }}>
-          <span style={{ color: "var(--text-muted)" }}>Total DR: <span className="text-emerald-400">{formatCurrency(drTotal)}</span></span>
-          <span style={{ color: "var(--text-muted)" }}>Total CR: <span className="text-red-400">{formatCurrency(crTotal)}</span></span>
-          <span style={{ color: "var(--text-muted)" }}>Diff: <span className={balanced ? "text-emerald-400" : "text-red-400"}>{formatCurrency(Math.abs(diff))}{balanced ? " ✓" : ""}</span></span>
-        </div>
-
-        {error && <p className="text-[10px]" style={{ color: "#ef4444" }}>{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="btn-ghost px-4 py-2 text-xs">Cancel</button>
-          <button onClick={handleSubmit} disabled={isLoading || !balanced} className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5">
-            {isLoading ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} Post Journal
-          </button>
-        </div>
-      </div>
-    </AppDialog>
-  );
-}
 
 function BankCashDialog({ isOpen, type, onClose, onSubmit, accounts, isLoading }: any) {
   const isPayment = type?.includes("payment");

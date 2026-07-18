@@ -21,8 +21,9 @@ from app.core.database import get_db
 from app.core.table_query import apply_table_filters
 from app.models.auth import User
 from app.models.booking import Booking, BookingAttachment, BookingLog
-from app.models.crm import Client, Installment, InstallmentPlan, InstallmentPayment
+from app.models.crm import Client, Installment, InstallmentPlan, InstallmentPayment, Lead
 from app.models.property import Property, Unit
+from app.services.finance_posting_service import post_token_receipt, post_booking_fee
 from app.schemas.booking import (
     BookingAssignment,
     BookingAttachmentOut,
@@ -356,6 +357,23 @@ def create_booking_from_deal(
         nominee_cnic=payload.nominee_cnic,
         notes=payload.notes,
     )
+    db.flush()
+
+    # ── Auto-posting finance entries ──────────────────────────────────────────
+    if payload.booking_amount > 0:
+        post_token_receipt(db, booking, payload.booking_amount,
+                           payment_mode="cash", user=current_user)
+    if payload.processing_fee and payload.processing_fee > 0:
+        post_booking_fee(db, booking, payload.processing_fee,
+                         fee_type="processing_fee", user=current_user)
+
+    # ── Pipeline updates ──────────────────────────────────────────────────────
+    deal.status = "won"
+    client = db.query(Client).filter(Client.id == deal.client_id).first()
+    if client and client.lead_id:
+        lead = db.query(Lead).filter(Lead.id == client.lead_id).first()
+        if lead and lead.status not in ("deal_won", "converted", "lost"):
+            lead.status = "deal_won"
 
     db.commit()
     db.refresh(booking)

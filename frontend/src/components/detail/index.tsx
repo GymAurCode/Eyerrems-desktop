@@ -195,13 +195,13 @@ export function InfoGrid({ items }: { items: { label: string; value: React.React
       {items.map((item, i) => (
         <div
           key={i}
-          className="flex items-start justify-between py-2.5"
+          className="grid grid-cols-[auto_1fr] gap-3 py-2.5 items-start"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
-          <span className="text-xs shrink-0 w-36" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
             {item.label}
           </span>
-          <span className="text-xs font-medium text-right text-primary flex-1">{item.value ?? "—"}</span>
+          <span className="text-xs font-medium text-right text-primary break-words min-w-0">{item.value ?? "—"}</span>
         </div>
       ))}
     </div>

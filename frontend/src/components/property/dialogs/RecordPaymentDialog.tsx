@@ -85,12 +85,12 @@ export default function RecordPaymentDialog({ isOpen, onClose, onSaved, saleId, 
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-muted mb-1">Amount (Rs) *</label>
+            <label className="block text-xs text-muted mb-1">Amount (Rs) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="dialog-input" type="number" value={amount}
               onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Payment Date *</label>
+            <label className="block text-xs text-muted mb-1">Payment Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="dialog-input" type="date" value={date}
               onChange={(e) => setDate(e.target.value)} />
           </div>

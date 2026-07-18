@@ -6,12 +6,12 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { Users, ArrowLeft, Plus, Search } from "lucide-react";
 import DataTable from "../../components/data-table/DataTable";
 import type { TableColumn } from "../../components/data-table/types";
-import {
-  ledgerApi,
-  type ClientLedgerListItem,
-  type ClientLedgerEntry,
-  type ClientLedgerResponse,
-  type ClientLedgerEntryCreate,
+import { ledgerApi } from "../../lib/financeApi";
+import type {
+  ClientLedgerListItem,
+  ClientLedgerEntry,
+  ClientLedgerResponse,
+  ClientLedgerEntryCreate,
 } from "../../lib/ledgerApi";
 import { formatCurrency } from "../../lib/currency";
 import LedgerTable, { type LedgerRow } from "./LedgerTable";

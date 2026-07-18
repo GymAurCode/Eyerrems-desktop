@@ -41,7 +41,8 @@ class Lead(Base):
     budget_max           = Column(Numeric(14, 2), nullable=True)
     preferred_town       = Column(String(80), nullable=True)
     preferred_property_type = Column(String(80), nullable=True)
-    unit_preference      = Column(String(80), nullable=True)
+    unit_preference         = Column(String(80), nullable=True)
+    preferred_project       = Column(String(120), nullable=True)
 
     # Acquisition
     source     = Column(String(80), nullable=True)
@@ -49,10 +50,19 @@ class Lead(Base):
     referral   = Column(String(120), nullable=True)
     assigned_dealer_id = Column(Integer, ForeignKey("dealers.id"), nullable=True)
 
+    # Lead Cost (snapshot when dealer assigned)
+    lead_cost = Column(Numeric(14, 2), nullable=True)
+
     # Tag: investor | end_user
     investor_type = Column(String(20), nullable=True)
 
-    # Status: new | contacted | interested | site_visit_scheduled | site_visit_completed | negotiation | converted | lost
+    # Linear pipeline stages (enforced by backend — cannot skip):
+    # new → contacted → qualified → follow_up → site_visit → quotation → negotiation → deal_won → converted | lost
+    STATUS_ORDER = [
+        "new", "contacted", "qualified", "follow_up",
+        "site_visit", "quotation", "negotiation",
+        "deal_won", "converted", "lost",
+    ]
     status     = Column(String(30), nullable=False, default="new")
     notes      = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -247,11 +257,14 @@ class Dealer(Base):
     notes            = Column(Text, nullable=True)
     is_active        = Column(Boolean, nullable=False, default=True)
     monthly_target   = Column(Numeric(12, 2), nullable=True)
+    cost_per_lead    = Column(Numeric(14, 2), nullable=True)  # cost dealer pays per lead
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     deals       = relationship("Deal", back_populates="dealer")
     attachments = relationship("DealerAttachment", back_populates="dealer",
                                cascade="all, delete-orphan")
+    ledger_entries = relationship("DealerLedgerEntry", back_populates="dealer",
+                                  cascade="all, delete-orphan")
 
 
 # ── DealerAttachment ──────────────────────────────────────────────────────────
@@ -301,9 +314,10 @@ class Deal(Base):
     client_role  = Column(String(20), nullable=True)   # Buyer | Seller | Investor
 
     # ── Financial ─────────────────────────────────────────────────────────────
-    deal_value      = Column(Numeric(14, 2), nullable=False)  # proposed price
-    down_payment    = Column(Numeric(14, 2), nullable=True)
-    discount        = Column(Numeric(14, 2), nullable=True)
+    deal_value          = Column(Numeric(14, 2), nullable=False)  # proposed price
+    down_payment        = Column(Numeric(14, 2), nullable=True)
+    down_payment_status = Column(String(20), nullable=False, default="pending")
+    discount            = Column(Numeric(14, 2), nullable=True)
     tax             = Column(Numeric(14, 2), nullable=True)
     commission      = Column(Numeric(14, 2), nullable=True)
     net_amount      = Column(Numeric(14, 2), nullable=True)

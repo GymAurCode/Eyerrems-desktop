@@ -6,7 +6,6 @@ import {
 import AppDialog from "../components/ui/AppDialog";
 import { auditApi, type AuditLogEntry, type AuditLogsResponse, type AuditStats } from "../lib/auditApi";
 import { DataTable } from "../components/data-table";
-
 const MODULES = ["All Modules", "Property", "Tenant", "CRM", "HR", "Maintenance", "Finance", "User", "Settings", "Construction"];
 const ACTIONS = ["All Actions", "CREATE", "UPDATE", "DELETE"];
 const PERIODS = ["today", "week", "month", "year"] as const;
@@ -49,21 +48,7 @@ function ActionBadge({ action }: { action: string }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: React.ElementType; color: string }) {
-  return (
-    <div className="card-dark p-4 rounded-xl" style={{ border: "1px solid var(--border)" }}>
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
-          <Icon size={16} style={{ color }} />
-        </div>
-        <div>
-          <p className="text-lg font-bold text-primary">{value}</p>
-          <p className="text-xs text-muted">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+import StatCard from "../components/ui/StatCard";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -220,9 +205,11 @@ export default function HistoryPage() {
       if (periodFilter) params.period = periodFilter;
 
       const res: AuditLogsResponse = await auditApi.getLogs(params);
+      console.log("[History] API response:", res);
       setLogs(res.logs);
       setTotal(res.total);
-    } catch {
+    } catch (err) {
+      console.error("[History] fetchLogs error:", err);
       setLogs([]);
       setTotal(0);
     } finally {
@@ -261,10 +248,10 @@ export default function HistoryPage() {
 
       {stats && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-          <StatCard label="Today" value={stats.total_today} icon={Calendar} color="#3b82f6" />
-          <StatCard label="This Week" value={stats.total_week} icon={Calendar} color="#10b981" />
-          <StatCard label="This Month" value={stats.total_month} icon={Calendar} color="#a855f7" />
-          <StatCard label="Total All" value={stats.total_all} icon={Clock} color="#f59e0b" />
+          <StatCard label="Today"     value={String(stats.total_today ?? 0)} icon={Calendar} iconBg="rgba(59,130,246,0.15)" iconColor="#3b82f6" />
+          <StatCard label="This Week" value={String(stats.total_week ?? 0)} icon={Calendar} iconBg="rgba(16,185,129,0.15)" iconColor="#10b981" />
+          <StatCard label="This Month" value={String(stats.total_month ?? 0)} icon={Calendar} iconBg="rgba(168,85,247,0.15)" iconColor="#a855f7" />
+          <StatCard label="Total All" value={String(stats.total_all ?? 0)} icon={Clock}     iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" />
         </div>
       )}
 

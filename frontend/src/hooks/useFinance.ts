@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { api } from "../lib/api";
+import { useNotifStore } from "../store/notifications";
 
 export interface Account {
   id: number;
@@ -103,6 +104,7 @@ export interface ProfitLossRow {
 export function useFinance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // ==================== ACCOUNTS ====================
 
@@ -204,9 +206,11 @@ export function useFinance() {
       setError(null);
       try {
         await api.delete(`/finance/accounts/${accountId}`);
+        pushToast({ title: "Success", message: "Account deleted", type: "success" });
       } catch (err: any) {
         const msg = err.response?.data?.detail || "Failed to delete account";
         setError(msg);
+        pushToast({ title: "Error", message: msg, type: "error" });
         throw new Error(msg);
       } finally {
         setLoading(false);

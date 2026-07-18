@@ -14,6 +14,7 @@ import {
 } from "../lib/aiApi";
 import { printRecord } from "../components/actions";
 import { DataTable } from "../components/data-table";
+import StatCard from "../components/ui/StatCard";
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#f59e0b", LOW: "#10b981",
@@ -46,23 +47,6 @@ function RiskBar({ score }: { score: number }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color, sub }: {
-  label: string; value: number | string; icon: React.ElementType; color: string; sub?: string;
-}) {
-  return (
-    <div className="card-dark rounded-2xl p-5 flex items-start gap-4" style={{ border: "1px solid var(--border)" }}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}20` }}>
-        <Icon size={18} style={{ color }} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold text-primary">{value}</p>
-        <p className="text-xs text-muted mt-0.5">{label}</p>
-        {sub && <p className="text-[10px] mt-0.5" style={{ color }}>{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 const TABS = [
   { key: "dashboard",  label: "Dashboard",    icon: BarChart2 },
   { key: "anomalies",  label: "Anomalies",     icon: AlertTriangle },
@@ -76,10 +60,11 @@ const TABS = [
 type TabKey = typeof TABS[number]["key"];
 
 function TrendChart({ data }: { data: AIDashboardStats["risk_trend"] }) {
-  const max = Math.max(...data.map((d) => d.total), 1);
+  const items = data ?? [];
+  const max = Math.max(...items.map((d) => d.total), 1);
   return (
     <div className="flex items-end gap-1 h-16">
-      {data.map((d) => (
+      {items.map((d) => (
         <div key={d.date} className="flex-1 flex flex-col items-center gap-0.5">
           <div className="w-full rounded-sm" style={{
             height: `${Math.max(4, (d.total / max) * 52)}px`,
@@ -118,14 +103,14 @@ function DashboardTab({ stats, onRefresh, error }: { stats: AIDashboardStats | n
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Anomalies"    value={stats.total_anomalies}       icon={AlertTriangle} color="#f97316" sub={`${stats.unresolved_anomalies} unresolved`} />
-        <StatCard label="Critical Alerts"    value={stats.critical_anomalies}    icon={Shield}        color="#ef4444" sub="Needs immediate attention" />
-        <StatCard label="Unread Alerts"      value={stats.unread_alerts}         icon={Zap}           color="#f59e0b" sub={`${stats.total_alerts} total`} />
-        <StatCard label="Duplicate Records"  value={stats.duplicate_matches}     icon={Copy}          color="#8b5cf6" sub="Pending review" />
-        <StatCard label="High-Risk Users"    value={stats.high_risk_users}       icon={Users}         color="#ef4444" sub="HIGH or CRITICAL" />
-        <StatCard label="Finance Deletions"  value={stats.deleted_finance_today} icon={Trash2}        color="#ef4444" sub="Today" />
-        <StatCard label="After-Hours Events" value={stats.after_hours_today}     icon={Clock}         color="#f59e0b" sub="Today" />
-        <StatCard label="High Anomalies"     value={stats.high_anomalies}        icon={Activity}      color="#f97316" sub="Unresolved" />
+        <StatCard label="Total Anomalies"    value={String(stats.total_anomalies ?? 0)}       icon={AlertTriangle} iconBg="rgba(249,115,22,0.15)" iconColor="#f97316" sub={`${stats.unresolved_anomalies ?? 0} unresolved`} />
+        <StatCard label="Critical Alerts"    value={String(stats.critical_anomalies ?? 0)}    icon={Shield}        iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" sub="Needs immediate attention" />
+        <StatCard label="Unread Alerts"      value={String(stats.unread_alerts ?? 0)}         icon={Zap}           iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" sub={`${stats.total_alerts ?? 0} total`} />
+        <StatCard label="Duplicate Records"  value={String(stats.duplicate_matches ?? 0)}     icon={Copy}          iconBg="rgba(139,92,246,0.15)" iconColor="#8b5cf6" sub="Pending review" />
+        <StatCard label="High-Risk Users"    value={String(stats.high_risk_users ?? 0)}       icon={Users}         iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" sub="HIGH or CRITICAL" />
+        <StatCard label="Finance Deletions"  value={String(stats.deleted_finance_today ?? 0)} icon={Trash2}        iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" sub="Today" />
+        <StatCard label="After-Hours Events" value={String(stats.after_hours_today ?? 0)}     icon={Clock}         iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" sub="Today" />
+        <StatCard label="High Anomalies"     value={String(stats.high_anomalies ?? 0)}        icon={Activity}      iconBg="rgba(249,115,22,0.15)" iconColor="#f97316" sub="Unresolved" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -152,10 +137,10 @@ function DashboardTab({ stats, onRefresh, error }: { stats: AIDashboardStats | n
             <p className="text-sm text-secondary leading-relaxed">{stats.latest_insight.summary_text}</p>
             <div className="grid grid-cols-4 gap-2 mt-4">
               {[
-                { label: "Anomalies",  val: stats.latest_insight.anomaly_count,   color: "#f97316" },
-                { label: "Alerts",     val: stats.latest_insight.alert_count,     color: "#f59e0b" },
-                { label: "Duplicates", val: stats.latest_insight.duplicate_count, color: "#8b5cf6" },
-                { label: "High Risk",  val: stats.latest_insight.high_risk_count, color: "#ef4444" },
+                { label: "Anomalies",  val: stats.latest_insight.anomaly_count ?? 0,   color: "#f97316" },
+                { label: "Alerts",     val: stats.latest_insight.alert_count ?? 0,     color: "#f59e0b" },
+                { label: "Duplicates", val: stats.latest_insight.duplicate_count ?? 0, color: "#8b5cf6" },
+                { label: "High Risk",  val: stats.latest_insight.high_risk_count ?? 0, color: "#ef4444" },
               ].map(({ label, val, color }) => (
                 <div key={label} className="text-center p-2 rounded-xl" style={{ background: `${color}10` }}>
                   <p className="text-lg font-bold" style={{ color }}>{val}</p>
@@ -174,8 +159,8 @@ function DashboardTab({ stats, onRefresh, error }: { stats: AIDashboardStats | n
             <span className="text-xs font-semibold text-primary">Recent Alerts</span>
           </div>
           <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-            {stats.recent_alerts.length === 0 && <p className="px-5 py-6 text-xs text-muted text-center">No active alerts</p>}
-            {stats.recent_alerts.map((a) => (
+            {(stats.recent_alerts ?? []).length === 0 && <p className="px-5 py-6 text-xs text-muted text-center">No active alerts</p>}
+            {(stats.recent_alerts ?? []).map((a) => (
               <div key={a.id} className="px-5 py-3 flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: SEV_COLOR[a.severity] }} />
                 <div className="min-w-0 flex-1">
@@ -194,8 +179,8 @@ function DashboardTab({ stats, onRefresh, error }: { stats: AIDashboardStats | n
             <span className="text-xs font-semibold text-primary">Recent Anomalies</span>
           </div>
           <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-            {stats.recent_anomalies.length === 0 && <p className="px-5 py-6 text-xs text-muted text-center">No active anomalies</p>}
-            {stats.recent_anomalies.map((a) => (
+            {(stats.recent_anomalies ?? []).length === 0 && <p className="px-5 py-6 text-xs text-muted text-center">No active anomalies</p>}
+            {(stats.recent_anomalies ?? []).map((a) => (
               <div key={a.id} className="px-5 py-3 flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: SEV_COLOR[a.severity] }} />
                 <div className="min-w-0 flex-1">
@@ -537,7 +522,7 @@ function AuditMonitorTab() {
         </button>
         {data && <span className="text-xs text-muted ml-auto">{data.total} total entries</span>}
       </div>
-      {data && Object.keys(data.breakdown).length > 0 && (
+      {data?.breakdown && Object.keys(data.breakdown).length > 0 && (
         <div className="flex flex-wrap gap-2">
           {Object.entries(data.breakdown).map(([act, cnt]) => (
             <div key={act} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs"
@@ -853,19 +838,29 @@ export default function AIIntelligencePage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1 p-1 rounded-xl w-fit" style={{ background: "var(--border)", border: "1px solid var(--border)" }}>
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${tab === key ? "text-white" : "text-secondary hover:text-primary"}`}
-            style={tab === key ? { background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 2px 10px rgba(99,102,241,0.3)" } : {}}>
-            <Icon size={12} /> {label}
-            {key === "alerts" && stats && stats.unread_alerts > 0 && (
-              <span className="ml-0.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center" style={{ background: "#ef4444", color: "#fff" }}>
-                {stats.unread_alerts > 9 ? "9+" : stats.unread_alerts}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="flex items-center gap-0 border-b" style={{ borderColor: "var(--border)" }}>
+        {TABS.map(({ key, label, icon: Icon }) => {
+          const isActive = tab === key;
+          const activeColor = "var(--tab-active-color)";
+          return (
+            <button key={key} onClick={() => setTab(key)}
+              className="relative flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-all duration-200 whitespace-nowrap"
+              style={{
+                color: isActive ? activeColor : "var(--text-muted, #9ca3af)",
+                fontWeight: isActive ? 700 : 500,
+              }}>
+              <Icon size={12} /> {label}
+              {isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: activeColor, borderRadius: "2px" }} />
+              )}
+              {key === "alerts" && stats && stats.unread_alerts > 0 && (
+                <span className="ml-0.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center" style={{ background: "#ef4444", color: "#fff" }}>
+                  {stats.unread_alerts > 9 ? "9+" : stats.unread_alerts}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {tab === "dashboard"  && <DashboardTab stats={stats} onRefresh={loadStats} error={statsError} />}

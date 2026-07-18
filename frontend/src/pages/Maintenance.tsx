@@ -13,10 +13,13 @@ import AppDialog from "../components/ui/AppDialog";
 import { printRecord } from "../components/actions";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import StatCard from "../components/ui/StatCard";
 import { useLookup } from "../hooks/useLookup";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
 import { DataTable } from "../components/data-table";
+import ConfirmDialog from "../components/actions/ConfirmDialog";
+import { useNotifStore } from "../store/notifications";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -64,33 +67,26 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, icon: Icon, color, sub }: {
-  label: string; value: string | number; icon: React.ElementType; color: string; sub?: string;
-}) {
-  return (
-    <div className="card-dark rounded-2xl p-4 flex items-start gap-3" style={{ border: "1px solid var(--border)" }}>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: `${color}18` }}>
-        <Icon size={16} style={{ color }} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xl font-bold text-primary">{value}</p>
-        <p className="text-[10px] text-muted uppercase tracking-wider">{label}</p>
-        {sub && <p className="text-[10px] mt-0.5" style={{ color }}>{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 // ── Create / Edit Modal ───────────────────────────────────────────────────────
 
 function MaintenanceFormModal({
   record, onClose, onSaved,
 }: { record?: Maintenance | null; onClose: () => void; onSaved: () => void }) {
-  const { options: CATEGORY_OPTS } = useLookup('maintenance_category');
-  const { options: PRIORITY_OPTS } = useLookup('maintenance_priority');
+  const { options: _CAT_OPTS } = useLookup('maintenance_category');
+  const { options: _PRI_OPTS } = useLookup('maintenance_priority');
+  const FALLBACK_CATS = [
+    { value: "repair", label: "Repair" }, { value: "plumbing", label: "Plumbing" },
+    { value: "electrical", label: "Electrical" }, { value: "hvac", label: "HVAC" },
+    { value: "cleaning", label: "Cleaning" }, { value: "utility", label: "Utility" },
+    { value: "security", label: "Security" }, { value: "emergency", label: "Emergency" },
+    { value: "preventive", label: "Preventive" }, { value: "other", label: "Other" },
+  ];
+  const FALLBACK_PRIOS = [
+    { value: "low", label: "Low" }, { value: "normal", label: "Normal" },
+    { value: "high", label: "High" }, { value: "urgent", label: "Urgent" },
+  ];
+  const CATEGORY_OPTS = _CAT_OPTS.length > 0 ? _CAT_OPTS : FALLBACK_CATS;
+  const PRIORITY_OPTS = _PRI_OPTS.length > 0 ? _PRI_OPTS : FALLBACK_PRIOS;
   const [properties, setProps]   = useState<Property[]>([]);
   const [units,      setUnits]   = useState<Unit[]>([]);
   const [unitsLoading, setUL]    = useState(false);
@@ -118,6 +114,7 @@ function MaintenanceFormModal({
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // Load properties once
   useEffect(() => {
@@ -200,6 +197,7 @@ function MaintenanceFormModal({
       };
       if (record) {
         await tenantApi.updateMaintenance(record.id, payload);
+        pushToast({ title: "Maintenance updated", message: "Maintenance request has been updated successfully", type: "success" });
       } else {
         const created = await tenantApi.createMaintenance(payload);
         syncApi.maintenance({
@@ -209,6 +207,7 @@ function MaintenanceFormModal({
           maintenance_id: created.id,
           is_payable: false,
         }).catch(() => {});
+        pushToast({ title: "Maintenance created", message: "Maintenance request has been created successfully", type: "success" });
       }
       onSaved();
     } catch (e: any) {
@@ -264,7 +263,7 @@ function MaintenanceFormModal({
 
           {/* ── Property ── */}
           <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Property *</label>
+            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Property <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <select className="select-dark w-full px-3 py-2 text-sm" value={form.property_id}
               onChange={e => { set("property_id", e.target.value); setForm(p => ({ ...p, unit_id: "", tenant_id: "" })); setUnitInfo(null); }}>
               <option value="">Select property...</option>
@@ -276,7 +275,7 @@ function MaintenanceFormModal({
           {scope === "unit" && (
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-xs text-muted font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                Unit *
+                Unit <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
                 {unitsLoading && <Loader2 size={11} className="animate-spin text-muted" />}
               </label>
               {!form.property_id ? (
@@ -340,7 +339,7 @@ function MaintenanceFormModal({
 
           {/* ── Description ── */}
           <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Description *</label>
+            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Description <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <textarea className="input-dark w-full px-3 py-2 text-sm resize-none" rows={2}
               value={form.description} onChange={e => set("description", e.target.value)}
               placeholder="Describe the issue or work required..." />
@@ -369,7 +368,7 @@ function MaintenanceFormModal({
               onChange={e => set("estimated_cost", e.target.value)} placeholder="0" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Date *</label>
+            <label className="text-xs text-muted font-semibold uppercase tracking-wider">Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input type="date" className="input-dark w-full px-3 py-2 text-sm" value={form.date}
               onChange={e => set("date", e.target.value)} />
           </div>
@@ -421,6 +420,7 @@ function StatusUpdateModal({
   const [note,        setNote]        = useState("");
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const handleSave = async () => {
     setSaving(true); setError("");
@@ -432,6 +432,7 @@ function StatusUpdateModal({
         completed_date: newStatus === "completed" ? completedDate : undefined,
         status_note:    note || undefined,
       });
+      pushToast({ title: "Status updated", message: `Maintenance status changed to "${newStatus}"`, type: "success" });
       onSaved();
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to update");
@@ -525,6 +526,8 @@ function DetailPanel({ record, onBack, onRefresh }: {
   const [showStatus, setShowStatus] = useState(false);
   const [showEdit,   setShowEdit]   = useState(false);
   const [loading,    setLoading]    = useState(true);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -541,11 +544,17 @@ function DetailPanel({ record, onBack, onRefresh }: {
 
   const m = full ?? record;
 
-  const handleDelete = async () => {
-    if (!confirm("Delete this maintenance request? This cannot be undone.")) return;
-    await tenantApi.deleteMaintenance(m.id);
+  const handleDelete = () => {
+    setDeleteTarget({ item: m.id });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    await tenantApi.deleteMaintenance(deleteTarget.item as number);
+    pushToast({ title: "Maintenance deleted", message: "Maintenance request has been deleted successfully", type: "success" });
     onBack();
     onRefresh();
+    setDeleteTarget(null);
   };
 
   return (
@@ -711,6 +720,16 @@ function DetailPanel({ record, onBack, onRefresh }: {
         <MaintenanceFormModal record={m} onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); void load(); onRefresh(); }} />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Maintenance Request"
+        message="Delete this maintenance request? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -734,11 +753,11 @@ function AnalyticsTab() {
     <div className="space-y-5">
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Requests" value={data.total_requests ?? 0} icon={Wrench}       color="#3b82f6" />
-        <StatCard label="Pending"        value={data.pending ?? 0}        icon={Clock}        color="#f59e0b" />
-        <StatCard label="In Progress"    value={data.in_progress ?? 0}    icon={Activity}     color="#8b5cf6" />
-        <StatCard label="Completed"      value={data.completed ?? 0}      icon={CheckCircle}  color="#10b981" />
-        <StatCard label="Total Cost"     value={formatCurrency(data.total_cost)} icon={DollarSign} color="#ef4444" />
+        <StatCard label="Total Requests" value={String(data.total_requests ?? 0)} icon={Wrench}      iconBg="rgba(59,130,246,0.15)" iconColor="#3b82f6" />
+        <StatCard label="Pending"        value={String(data.pending ?? 0)}        icon={Clock}       iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" />
+        <StatCard label="In Progress"    value={String(data.in_progress ?? 0)}    icon={Activity}    iconBg="rgba(139,92,246,0.15)" iconColor="#8b5cf6" />
+        <StatCard label="Completed"      value={String(data.completed ?? 0)}      icon={CheckCircle} iconBg="rgba(16,185,129,0.15)" iconColor="#10b981" />
+        <StatCard label="Total Cost"     value={formatCurrency(data.total_cost)}   icon={DollarSign}  iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -824,6 +843,8 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
   const [priorityF,setPriorityF]= useState("");
   const [categoryF,setCategoryF]= useState("");
   const [showForm, setShowForm] = useState(false);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -848,6 +869,15 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
     (r.property_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (r.tenant_name ?? "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const row = deleteTarget.item as Maintenance;
+    await tenantApi.deleteMaintenance(row.id);
+    pushToast({ title: "Maintenance deleted", message: "Maintenance request has been deleted successfully", type: "success" });
+    void load();
+    setDeleteTarget(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -905,10 +935,7 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
         ]}
         onRowClick={(row) => onSelect(row)}
         onView={(row) => onSelect(row)}
-        onDelete={async (row) => {
-          await tenantApi.deleteMaintenance(row.id);
-          void load();
-        }}
+        onDelete={(row) => setDeleteTarget({ item: row })}
         onPrint={(row) => printRecord(`Maintenance #${row.id}`, [
           { label: "Title", value: row.title ?? row.description?.slice(0, 80) ?? "—" },
           { label: "Property", value: row.property_name ?? String(row.property_id) },
@@ -926,6 +953,16 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
         <MaintenanceFormModal onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); void load(); }} />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Maintenance Request"
+        message="Delete this maintenance request? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -980,10 +1017,10 @@ export default function MaintenancePage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Requests" value={stats.total}      icon={Wrench}      color="#3b82f6" />
-        <StatCard label="Pending"        value={stats.pending}    icon={Clock}       color="#f59e0b" sub="Awaiting action" />
-        <StatCard label="In Progress"    value={stats.inProgress} icon={Activity}    color="#8b5cf6" />
-        <StatCard label="Total Cost"     value={formatCurrency(stats.totalCost)} icon={DollarSign} color="#ef4444" />
+        <StatCard label="Total Requests" value={String(stats.total)}           icon={Wrench}      iconBg="rgba(59,130,246,0.15)" iconColor="#3b82f6" />
+        <StatCard label="Pending"        value={String(stats.pending)}         icon={Clock}       iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" sub="Awaiting action" />
+        <StatCard label="In Progress"    value={String(stats.inProgress)}      icon={Activity}    iconBg="rgba(139,92,246,0.15)" iconColor="#8b5cf6" />
+        <StatCard label="Total Cost"     value={formatCurrency(stats.totalCost)} icon={DollarSign} iconBg="rgba(239,68,68,0.15)" iconColor="#ef4444" />
       </div>
 
       {/* Tabs */}

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Upload, Paperclip, X, FileText } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { FormField, FormSection } from "./FormField";
@@ -22,6 +22,13 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
   const { options: DOWN_PAYMENT_STATUS_OPTS } = useLookup("down_payment_status");
   const { options: DEAL_STATUS_OPTS } = useLookup("deal_status");
 
+  const clientRoleOptions = CLIENT_ROLE_OPTS.length > 0 ? CLIENT_ROLE_OPTS
+    : [{ value: "buyer", label: "Buyer" }, { value: "seller", label: "Seller" }, { value: "investor", label: "Investor" }];
+  const downPaymentStatusOptions = DOWN_PAYMENT_STATUS_OPTS.length > 0 ? DOWN_PAYMENT_STATUS_OPTS
+    : [{ value: "pending", label: "Pending" }, { value: "partial", label: "Partial" }, { value: "paid", label: "Paid" }];
+  const dealStatusOptions = DEAL_STATUS_OPTS.length > 0 ? DEAL_STATUS_OPTS
+    : [{ value: "pending", label: "Pending" }, { value: "active", label: "Active" }, { value: "closed", label: "Closed" }, { value: "cancelled", label: "Cancelled" }];
+
   const [title, setTitle] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
   const [trackingId, setTrackingId] = useState("");
@@ -38,6 +45,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
   const [dueDate, setDueDate] = useState("");
   const [desc, setDesc] = useState("");
   const [docFiles, setDocFiles] = useState<File[]>([]);
+  const fileUploadRef = useRef<any>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -110,13 +118,18 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
         : await crmApi.createDeal(payload);
 
       // Upload legal docs after deal is created
-      if (docFiles.length > 0) {
-        await Promise.allSettled(
-          docFiles.map((f) =>
-            attachmentApi.upload("deal", deal.id, f, "Legal & Financial Document", "PENDING"),
-          ),
-        );
-      }
+      const uploads: Promise<any>[] = [];
+      docFiles.forEach((f) => {
+        uploads.push(attachmentApi.upload("deal", deal.id, f, "Legal & Financial Document", "PENDING"));
+      });
+
+      const pendingFiles = fileUploadRef.current?.getPendingFiles() || [];
+      pendingFiles.forEach((entry: { file: File; documentType: string | null }) => {
+        uploads.push(attachmentApi.upload("deal", deal.id, entry.file, entry.documentType || "General", "PENDING"));
+      });
+      fileUploadRef.current?.clearPending();
+
+      await Promise.allSettled(uploads);
 
       onSaved(deal);
       onClose();
@@ -223,7 +236,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
               <select className="select-dark w-full px-3 py-2 text-sm" value={role}
                 onChange={(e) => setRole(e.target.value)}>
                 <option value="">— None —</option>
-                {CLIENT_ROLE_OPTS.map(opt => (
+                {clientRoleOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
@@ -286,7 +299,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
               <FormField label="DP Status">
                 <select className="select-dark w-full px-3 py-2 text-sm" value={downPayStatus}
                   onChange={(e) => setDownPayStatus(e.target.value)}>
-                  {DOWN_PAYMENT_STATUS_OPTS.map(opt => (
+                  {downPaymentStatusOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
@@ -310,7 +323,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
             <FormField label="Deal Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-              {DEAL_STATUS_OPTS.map(opt => (
+              {dealStatusOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
               </select>
@@ -364,7 +377,7 @@ export default function DealForm({ open, onClose, onSaved, initial }: Props) {
           </div>
         </div>
         <div className="pt-3 border-t border-theme">
-          <FileUpload module="crm" recordType="deal" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["Sale Agreement", "SPA", "Token Receipt", "Cheque", "Other"]} />
+          <FileUpload ref={fileUploadRef} module="crm" recordType="deal" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["Sale Agreement", "SPA", "Token Receipt", "Cheque", "Other"]} />
         </div>
       </form>
     </AppDialog>

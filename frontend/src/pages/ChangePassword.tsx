@@ -89,7 +89,7 @@ export default function ChangePasswordPage() {
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Current Password</label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Current Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input
                 className="input-dark w-full px-4 py-2.5 text-sm"
                 type={showPass ? "text" : "password"}
@@ -99,7 +99,7 @@ export default function ChangePasswordPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">New Password</label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">New Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <div className="relative">
                 <input
                   className="input-dark w-full px-4 py-2.5 text-sm pr-10"
@@ -116,7 +116,7 @@ export default function ChangePasswordPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Confirm New Password</label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Confirm New Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input
                 className="input-dark w-full px-4 py-2.5 text-sm"
                 type={showPass ? "text" : "password"}

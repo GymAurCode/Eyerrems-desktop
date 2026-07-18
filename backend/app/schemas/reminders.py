@@ -1,185 +1,241 @@
-"""Pydantic schemas for Reminder & Notification System."""
 from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
 
-# ── Template ──────────────────────────────────────────────────────────────────
+CATEGORIES = {"", "general", "meeting", "task", "followup", "deadline", "inventory"}
+PRIORITIES = {"low", "medium", "high", "critical"}
+REPEATS = {"none", "daily", "weekly", "monthly", "yearly"}
+STATUSES = {"pending", "completed", "cancelled", "snoozed"}
+LOG_STATUSES = {"delivered", "missed", "failed"}
+USER_ACTIONS = {"completed", "snoozed", "ignored"}
 
-class TemplateCreate(BaseModel):
-    name: str
-    title_tpl: str
-    message_tpl: str
-    module: Optional[str] = None
-    default_pre_alert_minutes: int = 30
-    is_active: bool = True
-
-
-class TemplateUpdate(BaseModel):
-    name: Optional[str] = None
-    title_tpl: Optional[str] = None
-    message_tpl: Optional[str] = None
-    module: Optional[str] = None
-    default_pre_alert_minutes: Optional[int] = None
-    is_active: Optional[bool] = None
-
-
-class TemplateOut(BaseModel):
-    id: int
-    name: str
-    title_tpl: str
-    message_tpl: str
-    module: Optional[str]
-    default_pre_alert_minutes: int
-    is_active: bool
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ── Reminder ──────────────────────────────────────────────────────────────────
 
 class ReminderCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    module_name: Optional[str] = None
-    record_id: Optional[int] = None
-    due_time: datetime
-    recurrence: str = "none"
-    cron_expr: Optional[str] = None
+    category: Optional[str] = None
+    remind_at: datetime
     priority: str = "medium"
-    pre_alert_minutes: int = 0
+    repeat: str = "none"
+    reminder_before: int = 0
     template_id: Optional[int] = None
-    assigned_user_ids: list[int] = []
 
-    @field_validator("recurrence")
+    @field_validator("title")
     @classmethod
-    def validate_recurrence(cls, v: str) -> str:
-        allowed = {"none", "daily", "weekly", "monthly", "custom"}
-        if v not in allowed:
-            raise ValueError(f"recurrence must be one of {allowed}")
+    def title_length(cls, v: str) -> str:
+        if len(v) < 1 or len(v) > 200:
+            raise ValueError("title must be 1-200 characters")
+        return v
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in CATEGORIES:
+            raise ValueError(f"category must be one of {CATEGORIES}")
         return v
 
     @field_validator("priority")
     @classmethod
     def validate_priority(cls, v: str) -> str:
-        allowed = {"low", "medium", "high", "urgent"}
-        if v not in allowed:
-            raise ValueError(f"priority must be one of {allowed}")
+        if v not in PRIORITIES:
+            raise ValueError(f"priority must be one of {PRIORITIES}")
+        return v
+
+    @field_validator("repeat")
+    @classmethod
+    def validate_repeat(cls, v: str) -> str:
+        if v not in REPEATS:
+            raise ValueError(f"repeat must be one of {REPEATS}")
+        return v
+
+    @field_validator("reminder_before")
+    @classmethod
+    def validate_reminder_before(cls, v: int) -> int:
+        if v < 0 or v > 10080:
+            raise ValueError("reminder_before must be 0-10080")
         return v
 
 
 class ReminderUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    module_name: Optional[str] = None
-    record_id: Optional[int] = None
-    due_time: Optional[datetime] = None
-    recurrence: Optional[str] = None
-    cron_expr: Optional[str] = None
+    category: Optional[str] = None
+    remind_at: Optional[datetime] = None
     priority: Optional[str] = None
-    status: Optional[str] = None
-    pre_alert_minutes: Optional[int] = None
+    repeat: Optional[str] = None
+    reminder_before: Optional[int] = None
     template_id: Optional[int] = None
-    assigned_user_ids: Optional[list[int]] = None
 
+    @field_validator("title")
+    @classmethod
+    def title_length(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and (len(v) < 1 or len(v) > 200):
+            raise ValueError("title must be 1-200 characters")
+        return v
 
-class AssignedUserOut(BaseModel):
-    id: int
-    full_name: str
-    email: str
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in CATEGORIES:
+            raise ValueError(f"category must be one of {CATEGORIES}")
+        return v
 
-    model_config = {"from_attributes": True}
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in PRIORITIES:
+            raise ValueError(f"priority must be one of {PRIORITIES}")
+        return v
+
+    @field_validator("repeat")
+    @classmethod
+    def validate_repeat(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in REPEATS:
+            raise ValueError(f"repeat must be one of {REPEATS}")
+        return v
+
+    @field_validator("reminder_before")
+    @classmethod
+    def validate_reminder_before(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 0 or v > 10080):
+            raise ValueError("reminder_before must be 0-10080")
+        return v
 
 
 class ReminderOut(BaseModel):
     id: int
+    user_id: int
     title: str
-    description: Optional[str]
-    module_name: Optional[str]
-    record_id: Optional[int]
-    due_time: datetime
-    recurrence: str
-    cron_expr: Optional[str]
+    description: Optional[str] = None
+    category: Optional[str] = None
+    remind_at: datetime
     priority: str
+    repeat: str
     status: str
-    pre_alert_minutes: int
-    template_id: Optional[int]
-    created_by: int
+    reminder_before: int
+    notification_sent: bool
+    snoozed_until: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    template_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    snoozed_until: Optional[datetime]
-    next_fire_at: Optional[datetime]
-    assigned_users: list[AssignedUserOut] = []
 
     model_config = {"from_attributes": True}
+
+
+class ReminderDashboardOut(BaseModel):
+    upcoming_24h: list[ReminderOut]
+    overdue: list[ReminderOut]
+    today_total: int
+    today_completed: int
+    today_pending: int
+
+
+class RecoveryOut(BaseModel):
+    missed_count: int
+    missed: list[dict]
+
+
+class SchedulerStatusOut(BaseModel):
+    running: bool
+    loop_alive: bool
 
 
 class SnoozeRequest(BaseModel):
-    snooze_until: datetime
+    minutes: int = 5
+
+    @field_validator("minutes")
+    @classmethod
+    def validate_minutes(cls, v: int) -> int:
+        if v < 1 or v > 60:
+            raise ValueError("minutes must be 1-60")
+        return v
 
 
-# ── Notification ──────────────────────────────────────────────────────────────
+class BulkActionRequest(BaseModel):
+    ids: list[int]
+    action: str
 
-class NotificationOut(BaseModel):
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        if v not in {"complete", "delete"}:
+            raise ValueError("action must be 'complete' or 'delete'")
+        return v
+
+
+class TemplateCreate(BaseModel):
+    name: str
+    title_template: str
+    description_template: Optional[str] = None
+    priority: str = "medium"
+    repeat: str = "none"
+    reminder_before: int = 0
+
+    @field_validator("name")
+    @classmethod
+    def name_length(cls, v: str) -> str:
+        if len(v) < 1 or len(v) > 120:
+            raise ValueError("name must be 1-120 characters")
+        return v
+
+    @field_validator("title_template")
+    @classmethod
+    def title_template_length(cls, v: str) -> str:
+        if len(v) < 1 or len(v) > 200:
+            raise ValueError("title_template must be 1-200 characters")
+        return v
+
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, v: str) -> str:
+        if v not in PRIORITIES:
+            raise ValueError(f"priority must be one of {PRIORITIES}")
+        return v
+
+    @field_validator("repeat")
+    @classmethod
+    def validate_repeat(cls, v: str) -> str:
+        if v not in REPEATS:
+            raise ValueError(f"repeat must be one of {REPEATS}")
+        return v
+
+    @field_validator("reminder_before")
+    @classmethod
+    def validate_reminder_before(cls, v: int) -> int:
+        if v < 0 or v > 10080:
+            raise ValueError("reminder_before must be 0-10080")
+        return v
+
+
+class TemplateOut(BaseModel):
     id: int
     user_id: int
-    reminder_id: Optional[int]
-    title: str
-    message: str
-    channel: str
-    is_read: bool
-    notif_type: str
-    module_name: Optional[str]
-    record_id: Optional[int]
+    name: str
+    title_template: str
+    description_template: Optional[str] = None
+    priority: str
+    repeat: str
+    reminder_before: int
     created_at: datetime
-    read_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class ApplyTemplateRequest(BaseModel):
+    remind_at: datetime
+    variables: dict[str, str] = {}
 
 
 class NotificationLogOut(BaseModel):
     id: int
-    notification_id: int
-    reminder_id: Optional[int]
-    user_id: int
+    reminder_id: int
+    reminder_title: Optional[str] = None
+    reminder_priority: Optional[str] = None
+    reminder_category: Optional[str] = None
     triggered_at: datetime
-    delivered_at: Optional[datetime]
-    read_at: Optional[datetime]
     status: str
-
-    model_config = {"from_attributes": True}
-
-
-# ── Settings ──────────────────────────────────────────────────────────────────
-
-class ReminderSettingsUpdate(BaseModel):
-    sound_enabled: Optional[bool] = None
-    in_app_enabled: Optional[bool] = None
-    default_pre_alert_mins: Optional[int] = None
-    module_preferences: Optional[str] = None   # JSON string
-
-
-class ReminderSettingsOut(BaseModel):
-    id: int
-    user_id: int
-    sound_enabled: bool
-    in_app_enabled: bool
-    default_pre_alert_mins: int
-    module_preferences: Optional[str]
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ── Dashboard ─────────────────────────────────────────────────────────────────
-
-class ReminderDashboard(BaseModel):
-    today_count: int
-    upcoming_count: int
-    overdue_count: int
-    unread_notifications: int
-    today: list[ReminderOut]
-    overdue: list[ReminderOut]
-    upcoming: list[ReminderOut]
+    user_action: Optional[str] = None
+    snooze_minutes: Optional[int] = None

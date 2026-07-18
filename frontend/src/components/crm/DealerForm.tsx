@@ -4,6 +4,7 @@ import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Dealer } from "../../lib/crmApi";
 import AttachmentsButton from "../attachments/AttachmentsButton";
 import { useLookup } from "../../hooks/useLookup";
+import { formatCNIC } from "../../lib/cnic";
 
 const CNIC_RE  = /^\d{5}-\d{7}-\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,6 +30,8 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
   const formId  = useId();
   const editing = !!initial;
   const { options: COMMISSION_TYPE_OPTS } = useLookup('commission_type');
+  const commissionTypeOptions = COMMISSION_TYPE_OPTS.length > 0 ? COMMISSION_TYPE_OPTS
+    : [{ value: "percentage", label: "Percentage (%)" }, { value: "fixed", label: "Fixed Amount" }];
 
   const [name, setName]         = useState("");
   const [email, setEmail]       = useState("");
@@ -38,6 +41,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
   const [commRate, setCommRate] = useState("");
   const [cnic, setCnic]         = useState("");
   const [address, setAddress]   = useState("");
+  const [costPerLead, setCostPerLead] = useState("");
   const [notes, setNotes]       = useState("");
   const [errors, setErrors]     = useState<Record<string, string>>({});
   const [saving, setSaving]     = useState(false);
@@ -49,10 +53,10 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
       setName(i.name); setEmail(i.email ?? ""); setPhone(i.phone ?? "");
       setCompany(i.company ?? ""); setCommType(i.commission_type);
       setCommRate(i.commission_rate ?? ""); setCnic(i.cnic ?? "");
-      setAddress(i.address ?? ""); setNotes(i.notes ?? "");
+      setCostPerLead(i.cost_per_lead ?? ""); setAddress(i.address ?? ""); setNotes(i.notes ?? "");
     } else {
       setName(""); setEmail(""); setPhone(""); setCompany("");
-      setCommType("percentage"); setCommRate(""); setCnic(""); setAddress(""); setNotes("");
+      setCommType("percentage"); setCommRate(""); setCostPerLead(""); setCnic(""); setAddress(""); setNotes("");
     }
     setErrors({});
   }, [open, initial]);
@@ -77,6 +81,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
         name: name.trim(), email: email || null, phone: phone.trim(),
         company: company || null, commission_type: commType,
         commission_rate: commRate ? Number(commRate) : null,
+        cost_per_lead: costPerLead ? Number(costPerLead) : null,
         cnic: cnic || null, address: address || null, notes: notes || null,
       };
       const res = editing
@@ -155,7 +160,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
 
           <FormField label="CNIC" error={errors.cnic}>
             <input className="input-dark w-full px-3 py-2 text-sm" value={cnic}
-              onChange={(e) => setCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+              onChange={(e) => setCnic(formatCNIC(e.target.value))} placeholder="XXXXX-XXXXXXX-X" />
           </FormField>
 
           <FormField label="Address" span="full">
@@ -168,7 +173,7 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
           <FormField label="Type">
             <select className="select-dark w-full px-3 py-2 text-sm" value={commType}
               onChange={(e) => setCommType(e.target.value)}>
-              {COMMISSION_TYPE_OPTS.map(opt => (
+              {commissionTypeOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
@@ -180,6 +185,12 @@ export default function DealerForm({ open, onClose, onSaved, initial }: Props) {
               min="0" step="0.01" value={commRate}
               onChange={(e) => setCommRate(e.target.value)}
               placeholder={commType === "percentage" ? "e.g. 2.5" : "e.g. 50000"} />
+          </FormField>
+
+          <FormField label="Cost per Lead (PKR)">
+            <input className="input-dark w-full px-3 py-2 text-sm" type="number" min="0" step="0.01"
+              value={costPerLead} onChange={(e) => setCostPerLead(e.target.value)}
+              placeholder="e.g. 500" />
           </FormField>
 
           {/* Live preview chip */}

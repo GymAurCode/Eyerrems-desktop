@@ -18,6 +18,10 @@ from app.models.crm import (
 )
 from app.models.finance import Account
 from app.models.property import Property, Unit
+from app.services.business_rules import (
+    BLOCKING_DEAL_STATUSES,
+    UnitNotAvailableError,
+)
 from app.models.auth import User
 from app.core.journal_service import JournalService, JournalEntryData
 
@@ -81,25 +85,41 @@ class BookingService:
     ) -> bool:
         """
         Return True if the unit/property is available for booking.
-        A unit is unavailable if an active (non-expired, non-cancelled) booking exists.
+
+        A unit is unavailable if:
+        - An active (non-expired, non-cancelled) booking exists, OR
+        - An active deal with a blocking status exists.
         """
         active_statuses = ["pending", "reserved", "confirmed", "active"]
 
-        query = db.query(Booking).filter(
+        # ── Check bookings ────────────────────────────────────────────────
+        booking_query = db.query(Booking).filter(
             Booking.status.in_(active_statuses),
             Booking.expiry_date > datetime.utcnow(),
         )
         if unit_id:
-            query = query.filter(Booking.unit_id == unit_id)
+            booking_query = booking_query.filter(Booking.unit_id == unit_id)
         elif property_id:
-            query = query.filter(Booking.property_id == property_id)
+            booking_query = booking_query.filter(Booking.property_id == property_id)
         else:
             return True
 
         if exclude_booking_id:
-            query = query.filter(Booking.id != exclude_booking_id)
+            booking_query = booking_query.filter(Booking.id != exclude_booking_id)
 
-        return query.first() is None
+        if booking_query.first() is not None:
+            return False
+
+        # ── Check deals ──────────────────────────────────────────────────
+        if unit_id is not None:
+            deal_query = db.query(Deal).filter(
+                Deal.unit_id == unit_id,
+                Deal.status.in_(BLOCKING_DEAL_STATUSES),
+            )
+            if deal_query.first() is not None:
+                return False
+
+        return True
 
     # ── Date helpers ──────────────────────────────────────────────────────────
 

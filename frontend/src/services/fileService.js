@@ -1,11 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { getAuthToken } from "../lib/api";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 function getToken() {
-  try {
-    return localStorage.getItem("token") || sessionStorage.getItem("token") || null;
-  } catch {
-    return null;
-  }
+  return getAuthToken();
 }
 
 async function apiFetch(url, options = {}) {
@@ -19,32 +17,48 @@ async function apiFetch(url, options = {}) {
     let detail = `Request failed with status ${res.status}`;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = Array.isArray(body.detail)
+        ? body.detail.map((d) => d.msg).join("; ")
+        : body.detail || detail;
     } catch {}
     throw new Error(detail);
   }
   return res.json();
 }
 
+function logFormData(formData) {
+  const entries = [];
+  for (const [key, value] of formData.entries()) {
+    if (value instanceof File) {
+      entries.push(`${key}=File(name=${value.name}, type=${value.type}, size=${value.size})`);
+    } else {
+      entries.push(`${key}=${value}`);
+    }
+  }
+  console.log("[fileService] FormData entries:", entries.join(", "));
+}
+
 export const fileService = {
-  async uploadFile({
-    file,
-    module,
+async uploadFile({
+    file: theFile,
+    module: mod,
     recordType,
     recordId,
     documentType = null,
     description = null,
     expiryDate = null,
     onProgress = null,
-  }) {
+}) {
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("module", module);
-    formData.append("record_type", recordType);
-    formData.append("record_id", recordId);
+    formData.append("file", theFile);
+    formData.append("module", mod != null ? String(mod) : "");
+    formData.append("record_type", recordType != null ? String(recordType) : "");
+    formData.append("record_id", recordId != null ? String(recordId) : "");
     if (documentType) formData.append("document_type", documentType);
     if (description) formData.append("description", description);
     if (expiryDate) formData.append("expiry_date", expiryDate);
+
+    logFormData(formData);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -63,7 +77,17 @@ export const fileService = {
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
-            reject(new Error(err.detail || "Upload failed"));
+            let msg;
+            if (Array.isArray(err.detail)) {
+              msg = err.detail.map((d) => {
+                const loc = d.loc ? d.loc.join(".") : "unknown";
+                return `${d.msg} (field: ${loc})`;
+              }).join("; ");
+            } else {
+              msg = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+            }
+            console.error("[fileService] Upload failed:", xhr.status, err);
+            reject(new Error(msg));
           } catch {
             reject(new Error(`Upload failed with status ${xhr.status}`));
           }
@@ -71,6 +95,7 @@ export const fileService = {
       });
 
       xhr.addEventListener("error", () => {
+        console.error("[fileService] Network error during upload");
         reject(new Error("Network error during upload"));
       });
 

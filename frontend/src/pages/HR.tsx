@@ -7,15 +7,16 @@ import {
   Users, Calendar, FileText, DollarSign, Settings2, Plus,
   RefreshCw, Search, CheckCircle, XCircle, Clock,
   Building2, MapPin, Briefcase, UserCheck,
-  TrendingUp, ArrowDownRight, Printer, Eye,
+  TrendingUp, ArrowDownRight, Printer, Eye, Edit2, Trash2,
 } from "lucide-react";
 import AppDialog from "../components/ui/AppDialog";
 import { formatCurrency } from "../lib/currency";
-import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord } from "../components/actions";
+import { QuickRowActions, RowActions, ActionsTh, ActionsCell, printRecord, ConfirmDialog } from "../components/actions";
 import { DataTable, SmartTable } from "../components/data-table";
 import { api } from "../lib/api";
 import AttachmentPanel from "../components/attachments/AttachmentPanel";
 import AttachmentsButton from "../components/attachments/AttachmentsButton";
+import StatCard from "../components/ui/StatCard";
 import FileUpload from "../components/ui/FileUpload";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
@@ -26,6 +27,7 @@ import {
   type Attendance, type LeaveType, type Leave, type LeaveBalance,
   type Payroll, type Holiday, type SalaryStructure, type PayslipData,
 } from "../lib/hrApi";
+import { useNotifStore } from "../store/notifications";
 import { useLookup } from "../hooks/useLookup";
 
 type Tab = "dashboard" | "employees" | "attendance" | "leaves" | "payroll" | "setup";
@@ -70,35 +72,20 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, iconBg, iconColor, sub }: {
-  label: string; value: string | number; icon: React.ElementType;
-  iconBg: string; iconColor: string; sub?: string;
-}) {
-  return (
-    <div className="stat-card">
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: iconBg }}>
-          <Icon size={18} style={{ color: iconColor }} />
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-primary mb-1">{value}</p>
-      <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{label}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>}
-    </div>
-  );
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const redStar = (k: number) => <span key={k} style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>;
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{label}</label>
+      <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+        {label.split('*').flatMap((part, i) => i === 0 ? [part] : [redStar(i), part])}
+      </label>
       {children}
     </div>
   );
 }
 
-const inputCls = "w-full px-3 py-2 rounded-lg text-xs text-primary bg-transparent outline-none transition-colors";
-const inputStyle = { border: "1px solid var(--border)", background: "var(--input-bg, var(--card-bg))" };
+const inputCls = "w-full px-3 py-2 rounded-lg text-xs text-primary bg-transparent select-dark outline-none transition-colors";
+const inputStyle = { border: "1px solid var(--border)", background: "var(--dialog-input-bg)" };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function HRPage() {
@@ -170,14 +157,140 @@ function DashboardTab({ employees, departments }: { employees: Employee[]; depar
     count: employees.filter(e => e.department_id === d.id).length,
   })).filter(d => d.count > 0).sort((a, b) => b.count - a.count);
 
+  const [todayAtt, setTodayAtt] = useState<any>(null);
+  const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<any[]>([]);
+  const [payrollStatus, setPayrollStatus] = useState<any>(null);
+  const today = new Date().toISOString().split("T")[0];
+
+  useEffect(() => {
+    api.get("/hr/attendance/report/daily", { params: { date: today } }).then(({ data }) => {
+      const rows = Array.isArray(data) ? data : data?.items ?? data?.data ?? [];
+      setTodayAtt({
+        total: rows.length,
+        present: rows.filter((r: any) => r.status === "Present").length,
+        late: rows.filter((r: any) => r.status === "Late").length,
+        absent: rows.filter((r: any) => r.status === "Absent").length,
+        onLeave: rows.filter((r: any) => r.status === "On Leave" || r.status === "Leave").length,
+      });
+    }).catch(() => {});
+
+    leavesApi.list({ status: "Pending" }).then(data => {
+      setPendingLeaves(Array.isArray(data) ? data : []);
+    }).catch(() => {});
+
+    api.get("/hr/holidays").then(({ data }) => {
+      const hols = Array.isArray(data) ? data : data?.items ?? data?.data ?? [];
+      const todayObj = new Date();
+      const upcoming = hols.filter((h: any) => new Date(h.holiday_date) >= todayObj).slice(0, 5);
+      setUpcomingHolidays(upcoming);
+    }).catch(() => {});
+
+    const cp = new Date().toISOString().slice(0, 7);
+    payrollApi.summary(cp).then(setPayrollStatus).catch(() => {});
+  }, [today]);
+
+  const onLeaveToday = employees.filter(e =>
+    pendingLeaves.some(l => l.employee_id === e.id && l.status === "Approved" &&
+      new Date(l.start_date) <= new Date(today) && new Date(l.end_date) >= new Date(today))
+  );
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total Employees" value={employees.length} icon={Users} iconBg="rgba(59,130,246,0.12)" iconColor="#3b82f6" />
-        <StatCard label="Active" value={active} icon={UserCheck} iconBg="rgba(16,185,129,0.12)" iconColor="#10b981" />
-        <StatCard label="Departments" value={departments.length} icon={Building2} iconBg="rgba(139,92,246,0.12)" iconColor="#8b5cf6" />
-        <StatCard label="On Probation" value={onProbation} icon={Clock} iconBg="rgba(245,158,11,0.12)" iconColor="#f59e0b" />
+        <StatCard label="Total Employees" value={String(employees.length)} icon={Users} iconBg="rgba(59,130,246,0.12)" iconColor="#3b82f6" />
+        <StatCard label="Active" value={String(active)} icon={UserCheck} iconBg="rgba(16,185,129,0.12)" iconColor="#10b981" />
+        <StatCard label="Departments" value={String(departments.length)} icon={Building2} iconBg="rgba(139,92,246,0.12)" iconColor="#8b5cf6" />
+        <StatCard label="On Probation" value={String(onProbation)} icon={Clock} iconBg="rgba(245,158,11,0.12)" iconColor="#f59e0b" />
       </div>
+
+      {todayAtt && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="detail-container p-4 flex items-center justify-between">
+            <div><p className="text-xs text-muted">Present Today</p><p className="text-xl font-bold text-primary mt-1">{todayAtt.present}</p></div>
+            <StatusBadge status="Present" />
+          </div>
+          <div className="detail-container p-4 flex items-center justify-between">
+            <div><p className="text-xs text-muted">Late Today</p><p className="text-xl font-bold text-primary mt-1">{todayAtt.late}</p></div>
+            <StatusBadge status="Late" />
+          </div>
+          <div className="detail-container p-4 flex items-center justify-between">
+            <div><p className="text-xs text-muted">Absent Today</p><p className="text-xl font-bold text-primary mt-1">{todayAtt.absent}</p></div>
+            <StatusBadge status="Absent" />
+          </div>
+          <div className="detail-container p-4 flex items-center justify-between">
+            <div><p className="text-xs text-muted">On Leave Today</p><p className="text-xl font-bold text-primary mt-1">{todayAtt.onLeave}</p></div>
+            <StatusBadge status="On Leave" />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="detail-container">
+          <div className="detail-section">
+            <p className="detail-section-title">Pending Leave Approvals</p>
+            <div className="space-y-2">
+              {pendingLeaves.length === 0 ? (
+                <p className="text-xs text-center py-4 text-muted">No pending approvals</p>
+              ) : (
+                pendingLeaves.slice(0, 5).map(l => {
+                  const emp = employees.find(e => e.id === l.employee_id);
+                  return (
+                    <div key={l.id} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "rgba(245,158,11,0.08)" }}>
+                      <div>
+                        <p className="text-xs font-medium text-primary">{emp?.full_name ?? "—"}</p>
+                        <p className="text-[10px] text-muted">{l.total_days} day(s) · {new Date(l.start_date).toLocaleDateString()}</p>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>Pending</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-container">
+          <div className="detail-section">
+            <p className="detail-section-title">Upcoming Holidays</p>
+            <div className="space-y-2">
+              {upcomingHolidays.length === 0 ? (
+                <p className="text-xs text-center py-4 text-muted">No upcoming holidays</p>
+              ) : (
+                upcomingHolidays.map(h => (
+                  <div key={h.id} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "rgba(139,92,246,0.08)" }}>
+                    <div>
+                      <p className="text-xs font-medium text-primary">{h.name}</p>
+                      <p className="text-[10px] text-muted">{new Date(h.holiday_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</p>
+                    </div>
+                    {h.is_recurring && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)", color: "#8b5cf6" }}>Annual</span>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-container">
+          <div className="detail-section">
+            <p className="detail-section-title">Payroll Status</p>
+            <div className="space-y-2">
+              {payrollStatus ? (
+                Object.entries(payrollStatus.status_counts ?? {}).map(([status, count]) => (
+                  <div key={status} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "var(--bg-surface)" }}>
+                    <span className="text-xs text-primary">{status}</span>
+                    <span className="text-sm font-bold" style={{ color: status === "Paid" ? "#10b981" : status === "Approved" ? "#3b82f6" : status === "Calculated" ? "#f59e0b" : "#94a3b8" }}>{String(count)}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-center py-4 text-muted">No payroll data for current month</p>
+              )}
+              <p className="text-[10px] text-muted pt-1">Period: {new Date().toISOString().slice(0, 7)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="detail-container">
           <div className="detail-section">
@@ -239,20 +352,32 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
 }) {
   const { options: EMPLOYMENT_TYPE_OPTS } = useLookup('employment_type');
   const { options: EMPLOYEE_STATUS_OPTS } = useLookup('employee_status');
+  const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
   const [emps, setEmps] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const paramsRef = useRef<any>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
-  const [selected, setSelected]     = useState<Employee | null>(null);
-  const [showAdd, setShowAdd]       = useState(false);
-  const [showSalary, setShowSalary] = useState(false);
-  const [salary, setSalary]         = useState<SalaryStructure | null>(null);
-  const [err, setErr]               = useState("");
+  useEffect(() => {
+    api.get("/hr/shift-templates").then(({ data }) => {
+      setShiftTemplates(Array.isArray(data) ? data : data?.items ?? data?.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  const [selected, setSelected]       = useState<Employee | null>(null);
+  const [showAdd, setShowAdd]         = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showSalary, setShowSalary]   = useState(false);
+  const [salary, setSalary]           = useState<SalaryStructure | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [err, setErr]                 = useState("");
 
   const [empForm, setEmpForm] = useState<Record<string, any>>({
     employment_type: "Permanent", employment_status: "Active",
     joining_date: new Date().toISOString().split("T")[0],
+    shift_template_id: "",
+    exit_date: "",
   });
   const [salForm, setSalForm] = useState<Record<string, any>>({
     basic_salary: 0, house_rent_allowance: 0, conveyance_allowance: 0,
@@ -299,13 +424,54 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
   const saveEmployee = async () => {
     setErr(""); setLoading(true);
     try {
-      await employeesApi.create(empForm);
+      if (editingEmployee) {
+        await employeesApi.update(editingEmployee.id, empForm);
+        pushToast({ title: "Success", message: "Employee updated", type: "success" });
+      } else {
+        await employeesApi.create(empForm);
+        pushToast({ title: "Success", message: "Employee created", type: "success" });
+      }
       setShowAdd(false);
-      setEmpForm({ employment_type: "Permanent", employment_status: "Active", joining_date: new Date().toISOString().split("T")[0] });
+      setEditingEmployee(null);
+      setEmpForm({ employment_type: "Permanent", employment_status: "Active", joining_date: new Date().toISOString().split("T")[0], shift_template_id: "", exit_date: "" });
       refreshTable();
       await onRefresh();
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
+  };
+
+  const openEditEmployee = (emp: Employee) => {
+    setEmpForm({
+      first_name: emp.first_name ?? "",
+      last_name: emp.last_name ?? "",
+      work_email: emp.work_email ?? "",
+      personal_phone: emp.personal_phone ?? "",
+      department_id: String(emp.department_id ?? ""),
+      position_id: String(emp.position_id ?? ""),
+      branch_id: String(emp.branch_id ?? ""),
+      shift_template_id: String(emp.shift_template_id ?? ""),
+      joining_date: emp.joining_date ?? "",
+      exit_date: emp.exit_date ?? "",
+      employment_type: emp.employment_type ?? "Permanent",
+      employment_status: emp.employment_status ?? "Active",
+    });
+    setEditingEmployee(emp);
+    setShowAdd(true);
+    setErr("");
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!deleteTarget) return;
+    try {
+      await employeesApi.delete(deleteTarget.id);
+      pushToast({ title: "Success", message: "Employee deleted", type: "success" });
+      setDeleteTarget(null);
+      refreshTable();
+      await onRefresh();
+    } catch (e: any) {
+      setErr(e.message);
+      setDeleteTarget(null);
+    }
   };
 
   const saveSalary = async () => {
@@ -343,6 +509,18 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
       onClick: (row: Employee) => openEmployee(row)
     },
     {
+      key: "edit",
+      label: "Edit",
+      icon: Edit2,
+      onClick: (row: Employee) => openEditEmployee(row)
+    },
+    {
+      key: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (row: Employee) => setDeleteTarget(row)
+    },
+    {
       key: "print",
       label: "Print",
       icon: Printer,
@@ -378,8 +556,8 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
         }
       />
 
-      {/* Add Employee */}
-      <AppDialog isOpen={showAdd} title="Add Employee" onClose={() => setShowAdd(false)}>
+      {/* Add / Edit Employee */}
+      <AppDialog isOpen={showAdd} title={editingEmployee ? "Edit Employee" : "Add Employee"} onClose={() => { setShowAdd(false); setEditingEmployee(null); }}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name *"><input value={empForm.first_name ?? ""} onChange={ef("first_name")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Last Name *"><input value={empForm.last_name ?? ""} onChange={ef("last_name")} className={inputCls} style={inputStyle} /></Field>
@@ -403,7 +581,14 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </Field>
+          <Field label="Shift Template">
+            <select value={empForm.shift_template_id ?? ""} onChange={ef("shift_template_id")} className={inputCls} style={inputStyle}>
+              <option value="">Select…</option>
+              {shiftTemplates.map(s => <option key={s.id} value={s.id}>{s.shift_name}</option>)}
+            </select>
+          </Field>
           <Field label="Joining Date *"><input type="date" value={empForm.joining_date ?? ""} onChange={ef("joining_date")} className={inputCls} style={inputStyle} /></Field>
+          <Field label="Exit Date"><input type="date" value={empForm.exit_date ?? ""} onChange={ef("exit_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Employment Type">
             <select value={empForm.employment_type ?? "Permanent"} onChange={ef("employment_type")} className={inputCls} style={inputStyle}>
               {EMPLOYMENT_TYPE_OPTS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -418,8 +603,8 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
         {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
         <div className="flex justify-end gap-2 pt-3">
           <AttachmentsButton module="employee" />
-          <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
-          <button onClick={saveEmployee} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save Employee"}</button>
+          <button onClick={() => { setShowAdd(false); setEditingEmployee(null); }} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
+          <button onClick={saveEmployee} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : editingEmployee ? "Update Employee" : "Save Employee"}</button>
         </div>
       </AppDialog>
 
@@ -430,7 +615,9 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
             <div className="grid grid-cols-2 gap-3 text-xs">
               {([["Employee ID", selected.employee_id], ["Status", selected.employment_status], ["Type", selected.employment_type],
                 ["Department", selected.department?.name ?? "—"], ["Position", selected.position?.title ?? "—"],
-                ["Branch", selected.branch?.name ?? "—"], ["Joined", selected.joining_date ? new Date(selected.joining_date).toLocaleDateString() : "—"],
+                ["Branch", selected.branch?.name ?? "—"], ["Shift", selected.shift_template?.shift_name ?? "—"],
+                ["Joined", selected.joining_date ? new Date(selected.joining_date).toLocaleDateString() : "—"],
+                ["Exit Date", selected.exit_date ? new Date(selected.exit_date).toLocaleDateString() : "—"],
                 ["Work Email", selected.work_email ?? "—"]] as [string,string][]).map(([k, v]) => (
                 <div key={k}><p style={{ color: "var(--text-muted)" }}>{k}</p><p className="font-medium text-primary mt-0.5">{v}</p></div>
               ))}
@@ -477,6 +664,17 @@ function EmployeesTab({ employees, departments, positions, branches, onRefresh }
           <button onClick={saveSalary} disabled={loading} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save Salary"}</button>
         </div>
       </AppDialog>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete ${deleteTarget?.full_name ?? ""}`}
+        message={`Remove employee "${deleteTarget?.full_name}" (${deleteTarget?.employee_id})? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => void handleDeleteEmployee()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -490,9 +688,16 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
   const [showMark, setShowMark] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
   const [attForm, setAttForm] = useState<Record<string, any>>({
     attendance_date: today, attendance_status: "Present", is_manual_correction: false,
   });
+
+  useEffect(() => {
+    api.get("/hr/shift-templates").then(({ data }) => {
+      setShiftTemplates(Array.isArray(data) ? data : data?.items ?? data?.data ?? []);
+    }).catch(() => {});
+  }, []);
 
   const loadReport = useCallback(async () => {
     try {
@@ -515,8 +720,12 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
 
   const counts = {
     Present: dailyReport.filter(r => r.status === "Present").length,
+    Late: dailyReport.filter(r => r.status === "Late").length,
+    "Half Day": dailyReport.filter(r => r.status === "Half Day").length,
     Absent:  dailyReport.filter(r => r.status === "Absent").length,
-    Leave:   dailyReport.filter(r => r.status === "Leave").length,
+    "On Leave": dailyReport.filter(r => r.status === "On Leave").length,
+    Holiday: dailyReport.filter(r => r.status === "Holiday").length,
+    "Weekly Off": dailyReport.filter(r => r.status === "Weekly Off").length,
     "Not Marked": dailyReport.filter(r => r.status === "Not Marked").length,
   };
 
@@ -572,11 +781,24 @@ function AttendanceTab({ employees, departments }: { employees: Employee[]; depa
           <Field label="Date *"><input type="date" value={attForm.attendance_date ?? today} onChange={af("attendance_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Status">
             <select value={attForm.attendance_status ?? "Present"} onChange={af("attendance_status")} className={inputCls} style={inputStyle}>
-              {["Present","Absent","Half-day","Leave","Holiday"].map(s => <option key={s}>{s}</option>)}
+              {["Present","Late","Half Day","Absent","On Leave","Holiday","Weekly Off"].map(s => <option key={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Shift Template">
+            <select value={attForm.shift_template_id ?? ""} onChange={af("shift_template_id")} className={inputCls} style={inputStyle}>
+              <option value="">Default</option>
+              {shiftTemplates.map(s => <option key={s.id} value={s.id}>{s.shift_name}</option>)}
             </select>
           </Field>
           <Field label="Check In"><input type="datetime-local" value={attForm.check_in_time ?? ""} onChange={af("check_in_time")} className={inputCls} style={inputStyle} /></Field>
           <Field label="Check Out"><input type="datetime-local" value={attForm.check_out_time ?? ""} onChange={af("check_out_time")} className={inputCls} style={inputStyle} /></Field>
+          <Field label="Is Manual Correction">
+            <select value={attForm.is_manual_correction ? "true" : "false"} onChange={e => setAttForm(p => ({ ...p, is_manual_correction: e.target.value === "true" }))} className={inputCls} style={inputStyle}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </Field>
+          {attForm.is_manual_correction && <div className="col-span-2"><Field label="Correction Reason *"><input value={attForm.correction_reason ?? ""} onChange={af("correction_reason")} className={inputCls} style={inputStyle} placeholder="Required for audit trail" /></Field></div>}
           <Field label="Notes"><input value={attForm.notes ?? ""} onChange={af("notes")} className={inputCls} style={inputStyle} /></Field>
         </div>
         {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
@@ -595,6 +817,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
   const [loading, setLoading]         = useState(false);
   const [total, setTotal]             = useState(0);
   const paramsRef = useRef<any>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const [showRequest, setShowRequest] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
@@ -660,6 +883,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
     setErr(""); setLoading(true);
     try {
       await leavesApi.request(leaveForm);
+      pushToast({ title: "Success", message: "Leave request submitted", type: "success" });
       setShowRequest(false);
       refreshTable();
     } catch (e: any) { setErr(e.message); }
@@ -670,6 +894,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
     setLoading(true);
     try {
       await leavesApi.approve(id);
+      pushToast({ title: "Success", message: "Leave approved", type: "success" });
       refreshTable();
     } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
@@ -680,6 +905,7 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
     setLoading(true);
     try {
       await leavesApi.reject(rejectId, rejectReason);
+      pushToast({ title: "Success", message: "Leave rejected", type: "success" });
       setRejectId(null);
       setRejectReason("");
       refreshTable();
@@ -803,11 +1029,27 @@ function LeavesTab({ employees, leaveTypes }: { employees: Employee[]; leaveType
           </Field>
           <Field label="Start Date *"><input type="date" value={leaveForm.start_date ?? ""} onChange={lf("start_date")} className={inputCls} style={inputStyle} /></Field>
           <Field label="End Date *"><input type="date" value={leaveForm.end_date ?? ""} onChange={lf("end_date")} className={inputCls} style={inputStyle} /></Field>
+          <Field label="Half Day">
+            <select value={leaveForm.is_half_day ? "true" : "false"} onChange={e => setLeaveForm(p => ({ ...p, is_half_day: e.target.value === "true" }))} className={inputCls} style={inputStyle}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </Field>
           <div className="col-span-2">
             <Field label="Reason *">
               <textarea value={leaveForm.reason ?? ""} onChange={lf("reason")} rows={3} className={`${inputCls} resize-none`} style={inputStyle} />
             </Field>
           </div>
+          {(() => {
+            const selectedLT = leaveTypes.find(t => t.id === Number(leaveForm.leave_type_id));
+            return selectedLT?.requires_document ? (
+              <div className="col-span-2">
+                <Field label="Attachment (Medical Certificate / Document)">
+                  <input type="file" onChange={e => setLeaveForm(p => ({ ...p, medical_certificate: e.target.files?.[0]?.name || "" }))} className={inputCls} style={inputStyle} />
+                </Field>
+              </div>
+            ) : null;
+          })()}
         </div>
         {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
         <div className="flex justify-end gap-2 pt-3">
@@ -860,6 +1102,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const [markPaidId, setMarkPaidId] = useState<number | null>(null);
   const [loading, setLoading]     = useState(false);
   const paramsRef = useRef<any>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [paidForm, setPaidForm]   = useState({
     payment_date: new Date().toISOString().split("T")[0],
     payment_method: "Bank Transfer", transaction_reference: "", bank_account: "",
@@ -908,28 +1151,28 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const calcSingle = async () => {
     if (!calcEmpId || calcEmpId === -1) return;
     setLoading(true);
-    try { await payrollApi.calculate(calcEmpId, period); setCalcEmpId(null); refreshTable(); }
+    try { await payrollApi.calculate(calcEmpId, period); pushToast({ title: "Success", message: "Payroll calculated", type: "success" }); setCalcEmpId(null); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const calcAll = async () => {
     setLoading(true);
-    try { await payrollApi.calculateAll(period); refreshTable(); }
+    try { await payrollApi.calculateAll(period); pushToast({ title: "Success", message: "All payrolls calculated", type: "success" }); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const approve = async (id: number) => {
     setLoading(true);
-    try { await payrollApi.approve(id); refreshTable(); }
+    try { await payrollApi.approve(id); pushToast({ title: "Success", message: "Payroll approved", type: "success" }); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
 
   const postAccounting = async (id: number) => {
     setLoading(true);
-    try { await payrollApi.postAccounting(id); refreshTable(); }
+    try { await payrollApi.postAccounting(id); pushToast({ title: "Success", message: "Payroll posted to accounting", type: "success" }); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
@@ -937,7 +1180,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
   const markPaid = async () => {
     if (!markPaidId) return;
     setLoading(true);
-    try { await payrollApi.markPaid(markPaidId, paidForm); setMarkPaidId(null); refreshTable(); }
+    try { await payrollApi.markPaid(markPaidId, paidForm); pushToast({ title: "Success", message: "Payroll marked as paid", type: "success" }); setMarkPaidId(null); refreshTable(); }
     catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
@@ -1039,7 +1282,7 @@ function PayrollTab({ employees, departments }: { employees: Employee[]; departm
     <div className="space-y-4">
       {summary && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 animate-fadeIn">
-          <StatCard label="Employees" value={summary.total_employees} icon={Users} iconBg="rgba(59,130,246,0.12)" iconColor="#3b82f6" />
+          <StatCard label="Employees" value={String(summary.total_employees)} icon={Users} iconBg="rgba(59,130,246,0.12)" iconColor="#3b82f6" />
           <StatCard label="Total Gross" value={formatCurrency(summary.total_gross_salary)} icon={TrendingUp} iconBg="rgba(16,185,129,0.12)" iconColor="#10b981" />
           <StatCard label="Total Deductions" value={formatCurrency(summary.total_deductions)} icon={ArrowDownRight} iconBg="rgba(239,68,68,0.12)" iconColor="#ef4444" />
           <StatCard label="Total Net" value={formatCurrency(summary.total_net_salary)} icon={DollarSign} iconBg="rgba(139,92,246,0.12)" iconColor="#8b5cf6" />
@@ -1154,227 +1397,268 @@ function SetupTab({
   departments: Department[]; positions: Position[]; branches: Branch[];
   leaveTypes: LeaveType[]; holidays: Holiday[]; onRefresh: () => void;
 }) {
-  type SetupSection = "departments" | "positions" | "branches" | "leaveTypes" | "holidays";
+  type SetupSection = "branches" | "departments" | "positions" | "leaveTypes" | "holidays" | "shiftTemplates";
   const [section, setSection] = useState<SetupSection>("departments");
   const [loading, setLoading] = useState(false);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: string; item: any } | null>(null);
 
-  // ── Department form ──────────────────────────────────────────────────────
-  const blankDept = { name: "", code: "", description: "" };
-  const [deptForm, setDeptForm] = useState(blankDept);
-  const [editDeptId, setEditDeptId] = useState<number | null>(null);
-  const [deptModal, setDeptModal] = useState(false);
+  // ── Shift Templates ──────────────────────────────────────────────────────
+  const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
+  const blankShift = { shift_name: "", start_time: "", end_time: "", break_duration: 0, grace_period_minutes: 0, half_day_threshold_hours: 0, full_day_required_hours: 0, weekly_off_days: "", is_flexible: false, is_active: true };
+  const [shiftForm, setShiftForm] = useState(blankShift);
+  const [editShiftId, setEditShiftId] = useState<number | null>(null);
+  const [shiftModal, setShiftModal] = useState(false);
 
-  const openDept = (d?: Department) => {
-    if (d) { setDeptForm({ name: d.name, code: d.code ?? "", description: d.description ?? "" }); setEditDeptId(d.id); }
-    else   { setDeptForm(blankDept); setEditDeptId(null); }
-    setDeptModal(true);
+  const loadShiftTemplates = async () => {
+    try {
+      const { data } = await api.get("/hr/shift-templates");
+      setShiftTemplates(Array.isArray(data) ? data : data.items ?? data.data ?? []);
+    } catch { setShiftTemplates([]); }
   };
-  const saveDept = async () => {
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const { type, item } = deleteTarget;
     setLoading(true);
     try {
-      if (editDeptId) await departmentsApi.update(editDeptId, deptForm);
-      else            await departmentsApi.create(deptForm);
-      setDeptModal(false); onRefresh();
+      if (type === "shiftTemplate") {
+        await api.delete(`/hr/shift-templates/${item.id}`);
+        await loadShiftTemplates();
+      } else if (type === "branch") {
+        await branchesApi.delete(item.id);
+        await onRefresh();
+      } else if (type === "department") {
+        await departmentsApi.delete(item.id);
+        await onRefresh();
+      } else if (type === "position") {
+        await api.delete(`/hr/positions/${item.id}`);
+        await onRefresh();
+      } else if (type === "leaveType") {
+        await api.delete(`/hr/leave-types/${item.id}`);
+        await onRefresh();
+      } else if (type === "holiday") {
+        await holidaysApi.delete(item.id);
+        await onRefresh();
+      }
+      pushToast({ title: "Success", message: `${type === "shiftTemplate" ? "Shift template" : type} deleted successfully`, type: "success" });
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail || e?.message || "Delete failed", type: "error" });
+    } finally {
+      setLoading(false);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget, pushToast, loadShiftTemplates, onRefresh]);
+  useEffect(() => { loadShiftTemplates(); }, []);
+
+  const openShift = (s?: any) => {
+    if (s) {
+      setShiftForm({
+        shift_name: s.shift_name ?? "", start_time: s.start_time ?? "", end_time: s.end_time ?? "",
+        break_duration: s.break_duration ?? 0, grace_period_minutes: s.grace_period_minutes ?? 0,
+        half_day_threshold_hours: s.half_day_threshold_hours ?? 0, full_day_required_hours: s.full_day_required_hours ?? 0,
+        weekly_off_days: s.weekly_off_days ?? "", is_flexible: s.is_flexible ?? false, is_active: s.is_active ?? true,
+      });
+      setEditShiftId(s.id);
+    } else { setShiftForm(blankShift); setEditShiftId(null); }
+    setShiftModal(true);
+  };
+  const saveShift = async () => {
+    setLoading(true);
+    try {
+      if (editShiftId) { await api.patch(`/hr/shift-templates/${editShiftId}`, shiftForm); pushToast({ title: "Success", message: "Shift template updated", type: "success" }); }
+      else { await api.post("/hr/shift-templates", shiftForm); pushToast({ title: "Success", message: "Shift template created", type: "success" }); }
+      setShiftModal(false); await loadShiftTemplates();
     } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
-  const deleteDept = async (id: number) => {
-    if (!confirm("Delete this department?")) return;
-    setLoading(true);
-    try { await departmentsApi.delete(id); onRefresh(); }
-    catch (e: any) { alert(e.message); }
-    finally { setLoading(false); }
+  const deleteShift = (id: number) => {
+    setDeleteTarget({ type: "shiftTemplate", item: { id } });
   };
 
-  // ── Position form ────────────────────────────────────────────────────────
-  const blankPos = { title: "", code: "", grade: "", description: "", min_salary: "", max_salary: "" };
-  const [posForm, setPosForm] = useState(blankPos);
-  const [editPosId, setEditPosId] = useState<number | null>(null);
-  const [posModal, setPosModal] = useState(false);
-
-  const openPos = (p?: Position) => {
-    if (p) { setPosForm({ title: p.title, code: p.code ?? "", grade: p.grade ?? "", description: p.description ?? "", min_salary: String(p.min_salary ?? ""), max_salary: String(p.max_salary ?? "") }); setEditPosId(p.id); }
-    else   { setPosForm(blankPos); setEditPosId(null); }
-    setPosModal(true);
-  };
-  const savePos = async () => {
-    setLoading(true);
-    try {
-      const data = { ...posForm, min_salary: posForm.min_salary ? Number(posForm.min_salary) : undefined, max_salary: posForm.max_salary ? Number(posForm.max_salary) : undefined };
-      if (editPosId) await positionsApi.update(editPosId, data);
-      else           await positionsApi.create(data);
-      setPosModal(false); onRefresh();
-    } catch (e: any) { alert(e.message); }
-    finally { setLoading(false); }
-  };
-
-  // ── Branch form ──────────────────────────────────────────────────────────
-  const blankBranch = { name: "", code: "", address: "", city: "", country: "", phone: "", email: "" };
+  // ── Branches ─────────────────────────────────────────────────────────────
+  const blankBranch = { name: "", code: "", address: "", city: "", contact_person: "", phone: "", timezone: "", is_active: true };
   const [branchForm, setBranchForm] = useState(blankBranch);
   const [editBranchId, setEditBranchId] = useState<number | null>(null);
   const [branchModal, setBranchModal] = useState(false);
 
-  const openBranch = (b?: Branch) => {
-    if (b) { setBranchForm({ name: b.name, code: b.code ?? "", address: b.address ?? "", city: b.city ?? "", country: b.country ?? "", phone: b.phone ?? "", email: b.email ?? "" }); setEditBranchId(b.id); }
-    else   { setBranchForm(blankBranch); setEditBranchId(null); }
+  const openBranch = (b?: any) => {
+    if (b) {
+      setBranchForm({ name: b.name ?? "", code: b.code ?? "", address: b.address ?? "", city: b.city ?? "", contact_person: b.contact_person ?? "", phone: b.phone ?? "", timezone: b.timezone ?? "", is_active: b.is_active ?? true });
+      setEditBranchId(b.id);
+    } else { setBranchForm(blankBranch); setEditBranchId(null); }
     setBranchModal(true);
   };
   const saveBranch = async () => {
     setLoading(true);
     try {
-      if (editBranchId) await branchesApi.update(editBranchId, branchForm);
-      else              await branchesApi.create(branchForm);
-      setBranchModal(false); onRefresh();
+      if (editBranchId) { await branchesApi.update(editBranchId, branchForm); pushToast({ title: "Success", message: "Branch updated", type: "success" }); }
+      else { await branchesApi.create(branchForm); pushToast({ title: "Success", message: "Branch created", type: "success" }); }
+      setBranchModal(false); await onRefresh();
     } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
+  const deleteBranch = (id: number) => {
+    setDeleteTarget({ type: "branch", item: { id } });
+  };
 
-  // ── Leave Type form ──────────────────────────────────────────────────────
-  const blankLT = { name: "", code: "", days_per_year: "15", is_paid: true, requires_approval: true, carry_forward: false, max_carry_forward: "" };
+  // ── Departments ──────────────────────────────────────────────────────────
+  const blankDept = { name: "", code: "", parent_id: "", branch_id: "", is_active: true };
+  const [deptForm, setDeptForm] = useState(blankDept);
+  const [editDeptId, setEditDeptId] = useState<number | null>(null);
+  const [deptModal, setDeptModal] = useState(false);
+
+  const openDept = (d?: any) => {
+    if (d) {
+      setDeptForm({ name: d.name ?? "", code: d.code ?? "", parent_id: String(d.parent_id ?? ""), branch_id: String(d.branch_id ?? ""), is_active: d.is_active ?? true });
+      setEditDeptId(d.id);
+    } else { setDeptForm(blankDept); setEditDeptId(null); }
+    setDeptModal(true);
+  };
+  const saveDept = async () => {
+    setLoading(true);
+    try {
+      const payload = { ...deptForm, parent_id: deptForm.parent_id ? Number(deptForm.parent_id) : undefined, branch_id: deptForm.branch_id ? Number(deptForm.branch_id) : undefined };
+      if (editDeptId) { await departmentsApi.update(editDeptId, payload); pushToast({ title: "Success", message: "Department updated", type: "success" }); }
+      else { await departmentsApi.create(payload); pushToast({ title: "Success", message: "Department created", type: "success" }); }
+      setDeptModal(false); await onRefresh();
+    } catch (e: any) { alert(e.message); }
+    finally { setLoading(false); }
+  };
+  const deleteDept = (id: number) => {
+    setDeleteTarget({ type: "department", item: { id } });
+  };
+
+  // ── Positions ────────────────────────────────────────────────────────────
+  const blankPos = { title: "", code: "", grade: "", description: "", is_active: true };
+  const [posForm, setPosForm] = useState(blankPos);
+  const [editPosId, setEditPosId] = useState<number | null>(null);
+  const [posModal, setPosModal] = useState(false);
+
+  const openPos = (p?: any) => {
+    if (p) {
+      setPosForm({ title: p.title ?? "", code: p.code ?? "", grade: p.grade ?? "", description: p.description ?? "", is_active: p.is_active ?? true });
+      setEditPosId(p.id);
+    } else { setPosForm(blankPos); setEditPosId(null); }
+    setPosModal(true);
+  };
+  const savePos = async () => {
+    setLoading(true);
+    try {
+      const payload = { ...posForm };
+      if (editPosId) { await positionsApi.update(editPosId, payload); pushToast({ title: "Success", message: "Position updated", type: "success" }); }
+      else { await positionsApi.create(payload); pushToast({ title: "Success", message: "Position created", type: "success" }); }
+      setPosModal(false); await onRefresh();
+    } catch (e: any) { alert(e.message); }
+    finally { setLoading(false); }
+  };
+  const deletePos = (id: number) => {
+    setDeleteTarget({ type: "position", item: { id } });
+  };
+
+  // ── Leave Types ──────────────────────────────────────────────────────────
+  const blankLT = { name: "", code: "", days_per_year: 15, is_paid: true, carry_forward: false, max_carry_forward: 0, requires_document: false, applicable_after_probation: false, is_active: true };
   const [ltForm, setLtForm] = useState(blankLT);
+  const [editLtId, setEditLtId] = useState<number | null>(null);
   const [ltModal, setLtModal] = useState(false);
 
-  const openLT = () => { setLtForm(blankLT); setLtModal(true); };
+  const openLT = (lt?: any) => {
+    if (lt) {
+      setLtForm({ name: lt.name ?? "", code: lt.code ?? "", days_per_year: lt.days_per_year ?? 15, is_paid: lt.is_paid ?? true, carry_forward: lt.carry_forward ?? false, max_carry_forward: lt.max_carry_forward ?? 0, requires_document: lt.requires_document ?? false, applicable_after_probation: lt.applicable_after_probation ?? false, is_active: lt.is_active ?? true });
+      setEditLtId(lt.id);
+    } else { setLtForm(blankLT); setEditLtId(null); }
+    setLtModal(true);
+  };
   const saveLT = async () => {
     setLoading(true);
     try {
-      await leaveTypesApi.create({ ...ltForm, days_per_year: Number(ltForm.days_per_year), max_carry_forward: ltForm.max_carry_forward ? Number(ltForm.max_carry_forward) : undefined });
-      setLtModal(false); onRefresh();
+      const payload = { ...ltForm, days_per_year: Number(ltForm.days_per_year), max_carry_forward: Number(ltForm.max_carry_forward) };
+      if (editLtId) { await api.patch(`/hr/leave-types/${editLtId}`, payload); pushToast({ title: "Success", message: "Leave type updated", type: "success" }); }
+      else { await leaveTypesApi.create(payload); pushToast({ title: "Success", message: "Leave type created", type: "success" }); }
+      setLtModal(false); await onRefresh();
     } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
+  const deleteLT = (id: number) => {
+    setDeleteTarget({ type: "leaveType", item: { id } });
+  };
 
-  // ── Holiday form ─────────────────────────────────────────────────────────
-  const blankHol = { name: "", holiday_date: "", description: "", is_recurring: false };
+  // ── Holidays ─────────────────────────────────────────────────────────────
+  const blankHol = { name: "", holiday_date: "", is_recurring: false, branch_id: "", is_active: true };
   const [holForm, setHolForm] = useState(blankHol);
+  const [editHolId, setEditHolId] = useState<number | null>(null);
   const [holModal, setHolModal] = useState(false);
 
-  const openHol = () => { setHolForm(blankHol); setHolModal(true); };
+  const openHol = (h?: any) => {
+    if (h) {
+      setHolForm({ name: h.name ?? "", holiday_date: h.holiday_date ?? "", is_recurring: h.is_recurring ?? false, branch_id: String(h.branch_id ?? ""), is_active: h.is_active ?? true });
+      setEditHolId(h.id);
+    } else { setHolForm(blankHol); setEditHolId(null); }
+    setHolModal(true);
+  };
   const saveHol = async () => {
     setLoading(true);
-    try { await holidaysApi.create(holForm); setHolModal(false); onRefresh(); }
-    catch (e: any) { alert(e.message); }
+    try {
+      const payload = { ...holForm, branch_id: holForm.branch_id ? Number(holForm.branch_id) : undefined };
+      if (editHolId) { await api.patch(`/hr/holidays/${editHolId}`, payload); pushToast({ title: "Success", message: "Holiday updated", type: "success" }); }
+      else { await holidaysApi.create(payload); pushToast({ title: "Success", message: "Holiday created", type: "success" }); }
+      setHolModal(false); await onRefresh();
+    } catch (e: any) { alert(e.message); }
     finally { setLoading(false); }
   };
-  const deleteHol = async (id: number) => {
-    if (!confirm("Delete this holiday?")) return;
-    setLoading(true);
-    try { await holidaysApi.delete(id); onRefresh(); }
-    catch (e: any) { alert(e.message); }
-    finally { setLoading(false); }
+  const deleteHol = (id: number) => {
+    setDeleteTarget({ type: "holiday", item: { id } });
   };
 
-  const SECTIONS: { id: SetupSection; label: string }[] = [
-    { id: "departments", label: "Departments" },
-    { id: "positions",   label: "Positions" },
-    { id: "branches",    label: "Branches" },
-    { id: "leaveTypes",  label: "Leave Types" },
-    { id: "holidays",    label: "Holidays" },
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const btnEdit = { color: "#F59E0B", background: "transparent", border: "none", width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" };
+  const btnDel  = { color: "#EF4444", background: "transparent", border: "none", width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" };
+  const ActionsCell = ({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) => (
+    <div className="flex gap-1">
+      <button onClick={onEdit} style={btnEdit}
+        onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
+        onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+        <Edit2 size={13} />
+      </button>
+      <button onClick={onDelete} style={btnDel}
+        onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"}
+        onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+        <Trash2 size={13} />
+      </button>
+    </div>
+  );
+  const SETUP_SECTIONS = [
+    { value: "branches",       label: "Branches",       icon: Building2  },
+    { value: "departments",    label: "Departments",    icon: Building2  },
+    { value: "positions",      label: "Positions",      icon: Briefcase  },
+    { value: "leaveTypes",     label: "Leave Types",    icon: FileText   },
+    { value: "holidays",       label: "Holidays",       icon: Calendar   },
+    { value: "shiftTemplates", label: "Shift Templates", icon: Clock     },
   ];
+  const parentDept = (id: any) => departments.find(d => d.id === id)?.name ?? "—";
+  const branchName = (id: any) => branches.find(b => b.id === id)?.name ?? "—";
+  const deptName   = (id: any) => departments.find(d => d.id === id)?.name ?? "—";
 
   return (
     <div className="space-y-4">
-      {/* Sub-nav */}
-      <div className="flex flex-wrap gap-2">
-        {SECTIONS.map(s => (
-          <button key={s.id} onClick={() => setSection(s.id)}
-            className="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors"
-            style={section === s.id
-              ? { background: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.3)" }
-              : { border: "1px solid var(--border)", color: "var(--text-muted)" }}>
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={SETUP_SECTIONS}
+        activeTab={section}
+        onChange={(v) => setSection(v as SetupSection)}
+        moduleColor={MODULE_COLORS.hr.primary}
+      />
 
-      {/* ── Departments ── */}
-      {section === "departments" && (
-        <DataTable
-          title={`Departments (${departments.length})`}
-          data={departments}
-          columns={[
-            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
-            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
-            { key: "description", label: "Description", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
-            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
-            { key: "actions", label: "Actions", render: (val: any, row: any) => (
-              <div className="flex gap-1">
-                <button onClick={() => openDept(row)}
-                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                  Edit
-                </button>
-                <button onClick={() => deleteDept(row.id)}
-                  style={{ color: "#EF4444", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                  Delete
-                </button>
-              </div>
-            )},
-          ]}
-          sortable={false}
-          searchable={false}
-          customToolbar={
-            <button onClick={() => openDept()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          }
-        />
-      )}
-
-      {/* ── Positions ── */}
-      {section === "positions" && (
-        <DataTable
-          title={`Positions (${positions.length})`}
-          data={positions}
-          columns={[
-            { key: "title", label: "Title", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
-            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
-            { key: "grade", label: "Grade", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
-            { key: "min_salary", label: "Min Salary", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ? formatCurrency(val) : "—"}</span> },
-            { key: "max_salary", label: "Max Salary", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ? formatCurrency(val) : "—"}</span> },
-            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
-            { key: "actions", label: "Actions", render: (val: any, row: any) => (
-              <div className="flex gap-1">
-                <button onClick={() => openPos(row)}
-                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                  Edit
-                </button>
-              </div>
-            )},
-          ]}
-          sortable={false}
-          searchable={false}
-          customToolbar={
-            <button onClick={() => openPos()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
-          }
-        />
-      )}
-
-      {/* ── Branches ── */}
+      {/* ── Branches ──────────────────────────────────────────────────────── */}
       {section === "branches" && (
         <DataTable
           title={`Branches (${branches.length})`}
           data={branches}
           columns={[
             { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
-            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
-            { key: "city", label: "City", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
-            { key: "country", label: "Country", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "city", label: "City", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
             { key: "phone", label: "Phone", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
             { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
-            { key: "actions", label: "Actions", render: (val: any, row: any) => (
-              <div className="flex gap-1">
-                <button onClick={() => openBranch(row)}
-                  style={{ color: "#F59E0B", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.1)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                  Edit
-                </button>
-              </div>
-            )},
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openBranch(row)} onDelete={() => deleteBranch(row.id)} /> },
           ]}
           sortable={false}
           searchable={false}
@@ -1384,101 +1668,128 @@ function SetupTab({
         />
       )}
 
-      {/* ── Leave Types ── */}
+      {/* ── Departments ───────────────────────────────────────────────────── */}
+      {section === "departments" && (
+        <DataTable
+          title={`Departments (${departments.length})`}
+          data={departments}
+          columns={[
+            { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "parent_id", label: "Parent", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{parentDept(val)}</span> },
+            { key: "branch_id", label: "Branch", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{branchName(val)}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openDept(row)} onDelete={() => deleteDept(row.id)} /> },
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
+            <button onClick={() => openDept()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
+          }
+        />
+      )}
+
+      {/* ── Positions ─────────────────────────────────────────────────────── */}
+      {section === "positions" && (
+        <DataTable
+          title={`Positions (${positions.length})`}
+          data={positions}
+          columns={[
+            { key: "title", label: "Title", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "grade", label: "Grade", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openPos(row)} onDelete={() => deletePos(row.id)} /> },
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
+            <button onClick={() => openPos()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
+          }
+        />
+      )}
+
+      {/* ── Leave Types ───────────────────────────────────────────────────── */}
       {section === "leaveTypes" && (
         <DataTable
           title={`Leave Types (${leaveTypes.length})`}
           data={leaveTypes}
           columns={[
             { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
-            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
-            { key: "days_per_year", label: "Days/Year", align: "center" },
-            { key: "is_paid", label: "Paid", align: "center", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
-            { key: "carry_forward", label: "Carry Forward", align: "center", render: (val: any, row: any) => row.carry_forward ? `Yes${row.max_carry_forward ? ` (max ${row.max_carry_forward})` : ""}` : "No" },
+            { key: "code", label: "Code", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "days_per_year", label: "Days/Year", align: "center" as const, render: (val: any) => <span className="font-semibold text-primary">{val}</span> },
+            { key: "is_paid", label: "Paid", align: "center" as const, render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "carry_forward", label: "Carry Fwd", align: "center" as const, render: (val: any, row: any) => row.carry_forward ? (row.max_carry_forward ? `Yes (max ${row.max_carry_forward})` : "Yes") : "No" },
             { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openLT(row)} onDelete={() => deleteLT(row.id)} /> },
           ]}
           sortable={false}
           searchable={false}
           customToolbar={
-            <button onClick={openLT} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
+            <button onClick={() => openLT()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
           }
         />
       )}
 
-      {/* ── Holidays ── */}
+      {/* ── Holidays ──────────────────────────────────────────────────────── */}
       {section === "holidays" && (
         <DataTable
           title={`Holidays (${holidays.length})`}
           data={holidays}
           columns={[
             { key: "name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
-            { key: "holiday_date", label: "Date", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val}</span> },
-            { key: "description", label: "Description", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? "—"}</span> },
-            { key: "is_recurring", label: "Recurring", align: "center", render: (val: boolean) => val ? "Yes" : "No" },
-            { key: "actions", label: "Actions", render: (val: any, row: any) => (
-              <div className="flex gap-1">
-                <button onClick={() => deleteHol(row.id)}
-                  style={{ color: "#EF4444", background: "transparent", border: "none", padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                  Delete
-                </button>
-              </div>
-            )},
+            { key: "holiday_date", label: "Date", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ? new Date(val).toLocaleDateString() : "—"}</span> },
+            { key: "is_recurring", label: "Recurring", align: "center" as const, render: (val: boolean) => val ? <span style={{ color: "#10b981" }}>Yes</span> : <span style={{ color: "var(--text-muted)" }}>No</span> },
+            { key: "branch_id", label: "Branch", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{branchName(val)}</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openHol(row)} onDelete={() => deleteHol(row.id)} /> },
           ]}
           sortable={false}
           searchable={false}
           customToolbar={
-            <button onClick={openHol} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
+            <button onClick={() => openHol()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
           }
         />
       )}
 
-      {/* ── Department Modal ── */}
-      <AppDialog isOpen={deptModal} title={editDeptId ? "Edit Department" : "Add Department"} onClose={() => setDeptModal(false)}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Name *"><input value={deptForm.name} onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Finance" /></Field>
-            <Field label="Code *"><input value={deptForm.code} onChange={e => setDeptForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. FIN" /></Field>
-          </div>
-          <Field label="Description"><input value={deptForm.description} onChange={e => setDeptForm(f => ({ ...f, description: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-        </div>
-        <div className="flex justify-end gap-2 pt-4">
-          <button onClick={() => setDeptModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
-          <button onClick={saveDept} disabled={loading || !deptForm.name || !deptForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
-        </div>
-      </AppDialog>
+      {/* ── Shift Templates ───────────────────────────────────────────────── */}
+      {section === "shiftTemplates" && (
+        <DataTable
+          title={`Shift Templates (${shiftTemplates.length})`}
+          data={shiftTemplates}
+          columns={[
+            { key: "shift_name", label: "Name", render: (val: any) => <span className="font-medium text-primary">{val}</span> },
+            { key: "start_time", label: "Start", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "end_time", label: "End", render: (val: any) => <span style={{ color: "var(--text-secondary)" }}>{val ?? "—"}</span> },
+            { key: "break_duration", label: "Break (min)", render: (val: any) => <span style={{ color: "var(--text-muted)" }}>{val ?? 0}</span> },
+            { key: "is_flexible", label: "Flexible", align: "center" as const, render: (val: boolean) => val ? <span style={{ color: "#10b981" }}>Yes</span> : <span style={{ color: "var(--text-muted)" }}>No</span> },
+            { key: "is_active", label: "Status", render: (val: boolean) => <StatusBadge status={val ? "Active" : "Inactive"} /> },
+            { key: "actions", label: "", render: (val: any, row: any) => <ActionsCell onEdit={() => openShift(row)} onDelete={() => deleteShift(row.id)} /> },
+          ]}
+          sortable={false}
+          searchable={false}
+          customToolbar={
+            <button onClick={() => openShift()} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs"><Plus size={13} /> Add</button>
+          }
+        />
+      )}
 
-      {/* ── Position Modal ── */}
-      <AppDialog isOpen={posModal} title={editPosId ? "Edit Position" : "Add Position"} onClose={() => setPosModal(false)}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Title *"><input value={posForm.title} onChange={e => setPosForm(f => ({ ...f, title: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Senior Developer" /></Field>
-            <Field label="Code *"><input value={posForm.code} onChange={e => setPosForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. SD" /></Field>
-            <Field label="Grade"><input value={posForm.grade} onChange={e => setPosForm(f => ({ ...f, grade: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. L3" /></Field>
-            <Field label="Min Salary"><input type="number" value={posForm.min_salary} onChange={e => setPosForm(f => ({ ...f, min_salary: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-            <Field label="Max Salary"><input type="number" value={posForm.max_salary} onChange={e => setPosForm(f => ({ ...f, max_salary: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-          </div>
-          <Field label="Description"><input value={posForm.description} onChange={e => setPosForm(f => ({ ...f, description: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-        </div>
-        <div className="flex justify-end gap-2 pt-4">
-          <button onClick={() => setPosModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
-          <button onClick={savePos} disabled={loading || !posForm.title || !posForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
-        </div>
-      </AppDialog>
-
-      {/* ── Branch Modal ── */}
+      {/* ── Branch Dialog ─────────────────────────────────────────────────── */}
       <AppDialog isOpen={branchModal} title={editBranchId ? "Edit Branch" : "Add Branch"} onClose={() => setBranchModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Name *"><input value={branchForm.name} onChange={e => setBranchForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Head Office" /></Field>
-            <Field label="Code *"><input value={branchForm.code} onChange={e => setBranchForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. HO" /></Field>
+            <Field label="Branch Name *"><input value={branchForm.name} onChange={e => setBranchForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Head Office" /></Field>
+            <Field label="Branch Code *"><input value={branchForm.code} onChange={e => setBranchForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. HO" /></Field>
             <Field label="City"><input value={branchForm.city} onChange={e => setBranchForm(f => ({ ...f, city: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-            <Field label="Country"><input value={branchForm.country} onChange={e => setBranchForm(f => ({ ...f, country: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
             <Field label="Phone"><input value={branchForm.phone} onChange={e => setBranchForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-            <Field label="Email"><input type="email" value={branchForm.email} onChange={e => setBranchForm(f => ({ ...f, email: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Contact Person"><input value={branchForm.contact_person} onChange={e => setBranchForm(f => ({ ...f, contact_person: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Timezone"><input value={branchForm.timezone} onChange={e => setBranchForm(f => ({ ...f, timezone: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Asia/Karachi" /></Field>
           </div>
-          <Field label="Address"><input value={branchForm.address} onChange={e => setBranchForm(f => ({ ...f, address: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+          <Field label="Address"><textarea value={branchForm.address} onChange={e => setBranchForm(f => ({ ...f, address: e.target.value }))} rows={2} className={`${inputCls} resize-none`} style={inputStyle} /></Field>
+          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={branchForm.is_active} onChange={e => setBranchForm(f => ({ ...f, is_active: e.target.checked }))} />
+            Active
+          </label>
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <button onClick={() => setBranchModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
@@ -1486,27 +1797,93 @@ function SetupTab({
         </div>
       </AppDialog>
 
-      {/* ── Leave Type Modal ── */}
-      <AppDialog isOpen={ltModal} title="Add Leave Type" onClose={() => setLtModal(false)}>
+      {/* ── Department Dialog ─────────────────────────────────────────────── */}
+      <AppDialog isOpen={deptModal} title={editDeptId ? "Edit Department" : "Add Department"} onClose={() => setDeptModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Name *"><input value={ltForm.name} onChange={e => setLtForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Annual Leave" /></Field>
-            <Field label="Code *"><input value={ltForm.code} onChange={e => setLtForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. AL" /></Field>
-            <Field label="Days Per Year *"><input type="number" value={ltForm.days_per_year} onChange={e => setLtForm(f => ({ ...f, days_per_year: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-            <Field label="Max Carry Forward"><input type="number" value={ltForm.max_carry_forward} onChange={e => setLtForm(f => ({ ...f, max_carry_forward: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Department Name *"><input value={deptForm.name} onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Finance" /></Field>
+            <Field label="Department Code *"><input value={deptForm.code} onChange={e => setDeptForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. FIN" /></Field>
+            <Field label="Parent Department">
+              <select value={deptForm.parent_id} onChange={e => setDeptForm(f => ({ ...f, parent_id: e.target.value }))} className={inputCls} style={inputStyle}>
+                <option value="">None</option>
+                {departments.filter(d => d.id !== editDeptId).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Branch">
+              <select value={deptForm.branch_id} onChange={e => setDeptForm(f => ({ ...f, branch_id: e.target.value }))} className={inputCls} style={inputStyle}>
+                <option value="">Select…</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
           </div>
-          <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={deptForm.is_active} onChange={e => setDeptForm(f => ({ ...f, is_active: e.target.checked }))} />
+            Active
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-4">
+          <button onClick={() => setDeptModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
+          <button onClick={saveDept} disabled={loading || !deptForm.name || !deptForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
+        </div>
+      </AppDialog>
+
+      {/* ── Position Dialog ───────────────────────────────────────────────── */}
+      <AppDialog isOpen={posModal} title={editPosId ? "Edit Position" : "Add Position"} onClose={() => setPosModal(false)}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Position Title *"><input value={posForm.title} onChange={e => setPosForm(f => ({ ...f, title: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Senior Developer" /></Field>
+            <Field label="Code *"><input value={posForm.code} onChange={e => setPosForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. SR_DEV" /></Field>
+            <Field label="Grade">
+              <select value={posForm.grade} onChange={e => setPosForm(f => ({ ...f, grade: e.target.value }))} className={inputCls} style={inputStyle}>
+                <option value="">Select…</option>
+                <option value="Junior">Junior</option>
+                <option value="Senior">Senior</option>
+                <option value="Manager">Manager</option>
+                <option value="Executive">Executive</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Description"><textarea value={posForm.description} onChange={e => setPosForm(f => ({ ...f, description: e.target.value }))} rows={2} className={`${inputCls} resize-none`} style={inputStyle} /></Field>
+          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={posForm.is_active} onChange={e => setPosForm(f => ({ ...f, is_active: e.target.checked }))} />
+            Active
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-4">
+          <button onClick={() => setPosModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
+          <button onClick={savePos} disabled={loading || !posForm.title || !posForm.code} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
+        </div>
+      </AppDialog>
+
+      {/* ── Leave Type Dialog ─────────────────────────────────────────────── */}
+      <AppDialog isOpen={ltModal} title={editLtId ? "Edit Leave Type" : "Add Leave Type"} onClose={() => setLtModal(false)}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Leave Type Name *"><input value={ltForm.name} onChange={e => setLtForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Annual Leave" /></Field>
+            <Field label="Code *"><input value={ltForm.code} onChange={e => setLtForm(f => ({ ...f, code: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. AL" /></Field>
+            <Field label="Days Per Year *"><input type="number" min="0" value={ltForm.days_per_year} onChange={e => setLtForm(f => ({ ...f, days_per_year: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Max Carry Forward"><input type="number" min="0" value={ltForm.max_carry_forward} onChange={e => setLtForm(f => ({ ...f, max_carry_forward: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+          </div>
+          <div className="flex flex-wrap gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={ltForm.is_paid} onChange={e => setLtForm(f => ({ ...f, is_paid: e.target.checked }))} />
               Paid Leave
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={ltForm.requires_approval} onChange={e => setLtForm(f => ({ ...f, requires_approval: e.target.checked }))} />
-              Requires Approval
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={ltForm.carry_forward} onChange={e => setLtForm(f => ({ ...f, carry_forward: e.target.checked }))} />
               Carry Forward
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={ltForm.requires_document} onChange={e => setLtForm(f => ({ ...f, requires_document: e.target.checked }))} />
+              Requires Document
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={ltForm.applicable_after_probation} onChange={e => setLtForm(f => ({ ...f, applicable_after_probation: e.target.checked }))} />
+              After Probation
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={ltForm.is_active} onChange={e => setLtForm(f => ({ ...f, is_active: e.target.checked }))} />
+              Active
             </label>
           </div>
         </div>
@@ -1516,24 +1893,76 @@ function SetupTab({
         </div>
       </AppDialog>
 
-      {/* ── Holiday Modal ── */}
-      <AppDialog isOpen={holModal} title="Add Holiday" onClose={() => setHolModal(false)}>
+      {/* ── Holiday Dialog ────────────────────────────────────────────────── */}
+      <AppDialog isOpen={holModal} title={editHolId ? "Edit Holiday" : "Add Holiday"} onClose={() => setHolModal(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Name *"><input value={holForm.name} onChange={e => setHolForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. New Year" /></Field>
-            <Field label="Date *"><input type="date" value={holForm.holiday_date} onChange={e => setHolForm(f => ({ ...f, holiday_date: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Holiday Name *"><input value={holForm.name} onChange={e => setHolForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. New Year" /></Field>
+            <Field label="Holiday Date *"><input type="date" value={holForm.holiday_date} onChange={e => setHolForm(f => ({ ...f, holiday_date: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Branch">
+              <select value={holForm.branch_id} onChange={e => setHolForm(f => ({ ...f, branch_id: e.target.value }))} className={inputCls} style={inputStyle}>
+                <option value="">All Branches</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
           </div>
-          <Field label="Description"><input value={holForm.description} onChange={e => setHolForm(f => ({ ...f, description: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
-          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-            <input type="checkbox" checked={holForm.is_recurring} onChange={e => setHolForm(f => ({ ...f, is_recurring: e.target.checked }))} />
-            Recurring every year
-          </label>
+          <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={holForm.is_recurring} onChange={e => setHolForm(f => ({ ...f, is_recurring: e.target.checked }))} />
+              Recurring every year
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={holForm.is_active} onChange={e => setHolForm(f => ({ ...f, is_active: e.target.checked }))} />
+              Active
+            </label>
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <button onClick={() => setHolModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
           <button onClick={saveHol} disabled={loading || !holForm.name || !holForm.holiday_date} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
         </div>
       </AppDialog>
+
+      {/* ── Shift Template Dialog ─────────────────────────────────────────── */}
+      <AppDialog isOpen={shiftModal} title={editShiftId ? "Edit Shift Template" : "Add Shift Template"} onClose={() => setShiftModal(false)}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Shift Name *"><input value={shiftForm.shift_name} onChange={e => setShiftForm(f => ({ ...f, shift_name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Morning Shift" /></Field>
+            <Field label="Start Time *"><input type="time" value={shiftForm.start_time} onChange={e => setShiftForm(f => ({ ...f, start_time: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="End Time *"><input type="time" value={shiftForm.end_time} onChange={e => setShiftForm(f => ({ ...f, end_time: e.target.value }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Break Duration (min)"><input type="number" min="0" value={shiftForm.break_duration} onChange={e => setShiftForm(f => ({ ...f, break_duration: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Grace Period (min)"><input type="number" min="0" value={shiftForm.grace_period_minutes} onChange={e => setShiftForm(f => ({ ...f, grace_period_minutes: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Half-Day Threshold (hrs)"><input type="number" min="0" step="0.5" value={shiftForm.half_day_threshold_hours} onChange={e => setShiftForm(f => ({ ...f, half_day_threshold_hours: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Full-Day Required (hrs)"><input type="number" min="0" step="0.5" value={shiftForm.full_day_required_hours} onChange={e => setShiftForm(f => ({ ...f, full_day_required_hours: Number(e.target.value) }))} className={inputCls} style={inputStyle} /></Field>
+            <Field label="Weekly Off Days"><input value={shiftForm.weekly_off_days} onChange={e => setShiftForm(f => ({ ...f, weekly_off_days: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Sat,Sun" /></Field>
+          </div>
+          <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={shiftForm.is_flexible} onChange={e => setShiftForm(f => ({ ...f, is_flexible: e.target.checked }))} />
+              Flexible Shift
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={shiftForm.is_active} onChange={e => setShiftForm(f => ({ ...f, is_active: e.target.checked }))} />
+              Active
+            </label>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-4">
+          <button onClick={() => setShiftModal(false)} className="px-4 py-2 text-xs rounded-lg" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>Cancel</button>
+          <button onClick={saveShift} disabled={loading || !shiftForm.shift_name || !shiftForm.start_time || !shiftForm.end_time} className="btn-primary px-4 py-2 text-xs">{loading ? "Saving…" : "Save"}</button>
+        </div>
+      </AppDialog>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete ${deleteTarget?.type === "shiftTemplate" ? "shift template" : deleteTarget?.type || "item"}`}
+        message={`Are you sure you want to delete this ${deleteTarget?.type === "shiftTemplate" ? "shift template" : deleteTarget?.type || "item"}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

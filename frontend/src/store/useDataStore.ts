@@ -16,6 +16,7 @@ import { townApi } from "../lib/townApi";
 import { remindersApi } from "../lib/remindersApi";
 import { bookingApi } from "../lib/bookingApi";
 import { constructionApi } from "../lib/constructionApi";
+import { useNotifStore } from "./notifications";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -609,10 +610,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ accounts: [...s.accounts, newItem] }));
     try {
       const saved = await accountsApi.create(data);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Account created", type: "success" });
       set(s => ({ accounts: s.accounts.map(a => a.id === tid ? saved : a) }));
       return saved;
     } catch {
       set(s => ({ accounts: s.accounts.filter(a => a.id !== tid) }));
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to save account", type: "error" });
       throw new Error("Failed to save account");
     }
   },
@@ -622,8 +625,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ accounts: s.accounts.map(a => a.id === id ? { ...a, ...updates } : a) }));
     try {
       await accountsApi.update(id, updates);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Account updated", type: "success" });
     } catch {
       set({ accounts: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to update account", type: "error" });
       throw new Error("Failed to update account");
     }
   },
@@ -633,8 +638,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ accounts: s.accounts.filter(a => a.id !== id) }));
     try {
       await accountsApi.delete(id);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Account deleted", type: "success" });
     } catch {
       set({ accounts: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to delete account", type: "error" });
       throw new Error("Failed to delete account");
     }
   },
@@ -647,10 +654,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ invoices: [newItem, ...s.invoices] }));
     try {
       const saved = await invoicesApi.create(data);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Invoice created", type: "success" });
       set(s => ({ invoices: s.invoices.map(i => i.id === tid ? saved : i) }));
       return saved;
     } catch {
       set(s => ({ invoices: s.invoices.filter(i => i.id !== tid) }));
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to save invoice", type: "error" });
       throw new Error("Failed to save invoice");
     }
   },
@@ -663,9 +672,11 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ payments: [newItem, ...s.payments] }));
     try {
       await paymentsApi.create(data);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Payment recorded", type: "success" });
       set(s => ({ payments: s.payments.map(p => (p as any).id === tid ? { ...p, _synced: true } : p) }));
     } catch {
       set(s => ({ payments: s.payments.filter(p => (p as any).id !== tid) }));
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to save payment", type: "error" });
       throw new Error("Failed to save payment");
     }
   },
@@ -678,10 +689,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ expenses: [newItem, ...s.expenses] }));
     try {
       const saved = await expensesApi.create(data);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Expense created", type: "success" });
       set(s => ({ expenses: s.expenses.map(e => e.id === tid ? saved : e) }));
       return saved;
     } catch {
       set(s => ({ expenses: s.expenses.filter(e => e.id !== tid) }));
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to save expense", type: "error" });
       throw new Error("Failed to save expense");
     }
   },
@@ -691,8 +704,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ expenses: s.expenses.map(e => e.id === id ? { ...e, ...updates } : e) }));
     try {
       await expensesApi.update(id, updates);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Expense updated", type: "success" });
     } catch {
       set({ expenses: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to update expense", type: "error" });
       throw new Error("Failed to update expense");
     }
   },
@@ -702,8 +717,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
     try {
       await expensesApi.delete(id);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Expense deleted", type: "success" });
     } catch {
       set({ expenses: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to delete expense", type: "error" });
       throw new Error("Failed to delete expense");
     }
   },
@@ -716,10 +733,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ employees: [newItem, ...s.employees] }));
     try {
       const saved = await employeesApi.create(data);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Employee created", type: "success" });
       set(s => ({ employees: s.employees.map(e => e.id === tid ? saved : e) }));
       return saved;
     } catch {
       set(s => ({ employees: s.employees.filter(e => e.id !== tid) }));
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to save employee", type: "error" });
       throw new Error("Failed to save employee");
     }
   },
@@ -729,8 +748,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ employees: s.employees.map(e => e.id === id ? { ...e, ...updates } : e) }));
     try {
       await employeesApi.update(id, updates);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Employee updated", type: "success" });
     } catch {
       set({ employees: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to update employee", type: "error" });
       throw new Error("Failed to update employee");
     }
   },
@@ -740,8 +761,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     set(s => ({ employees: s.employees.filter(e => e.id !== id) }));
     try {
       await employeesApi.delete(id);
+      useNotifStore.getState().pushToast({ title: "Success", message: "Employee deleted", type: "success" });
     } catch {
       set({ employees: prev });
+      useNotifStore.getState().pushToast({ title: "Error", message: "Failed to delete employee", type: "error" });
       throw new Error("Failed to delete employee");
     }
   },

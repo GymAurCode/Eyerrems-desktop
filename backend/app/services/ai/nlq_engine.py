@@ -137,18 +137,17 @@ def _exec_suspicious_transactions(db: Session, company_id: int) -> tuple[list[di
 
 def _exec_deleted_finance(db: Session, company_id: int) -> tuple[list[dict], str]:
     rows = db.query(AuditLog).filter(
-        AuditLog.company_id == company_id,
-        AuditLog.action     == "DELETE",
-        AuditLog.module     == "Finance",
+        AuditLog.action == "DELETE",
+        AuditLog.module == "Finance",
     ).order_by(AuditLog.created_at.desc()).limit(20).all()
 
     results = [
         {
             "id":          r.id,
-            "entity_type": r.entity_type,
-            "entity_id":   r.entity_id,
-            "user_id":     r.user_id,
-            "description": r.description,
+            "entity_type": r.module,
+            "entity_id":   r.record_id,
+            "user_id":     r.changed_by,
+            "description": r.record_label or f"{r.action} on {r.module}",
             "created_at":  str(r.created_at),
         }
         for r in rows
@@ -164,26 +163,22 @@ def _exec_top_editors(db: Session, company_id: int) -> tuple[list[dict], str]:
     since = datetime.utcnow() - timedelta(days=30)
     rows = db.execute(
         text("""
-            SELECT al.user_id, u.full_name, u.email,
-                   COUNT(*) as edit_count
+            SELECT al.changed_by, COUNT(*) as edit_count
             FROM audit_logs al
-            LEFT JOIN users u ON u.id = al.user_id
             WHERE al.action = 'UPDATE'
-              AND al.company_id = :cid
               AND al.created_at >= :since
-            GROUP BY al.user_id, u.full_name, u.email
+            GROUP BY al.changed_by
             ORDER BY edit_count DESC
             LIMIT 10
         """),
-        {"cid": company_id, "since": since},
+        {"since": since},
     ).fetchall()
 
     results = [
         {
             "user_id":    r[0],
-            "full_name":  r[1] or "Unknown",
-            "email":      r[2] or "—",
-            "edit_count": r[3],
+            "full_name":  r[0] or "Unknown",
+            "edit_count": r[1],
         }
         for r in rows
     ]
@@ -309,19 +304,19 @@ def _exec_anomaly_summary(db: Session, company_id: int) -> tuple[list[dict], str
 
 
 def _exec_audit_trail(db: Session, company_id: int) -> tuple[list[dict], str]:
-    rows = db.query(AuditLog).filter(
-        AuditLog.company_id == company_id,
-    ).order_by(AuditLog.created_at.desc()).limit(20).all()
+    rows = db.query(AuditLog).order_by(
+        AuditLog.created_at.desc()
+    ).limit(20).all()
 
     results = [
         {
             "id":          r.id,
             "action":      r.action,
             "module":      r.module,
-            "entity_type": r.entity_type,
-            "entity_id":   r.entity_id,
-            "user_id":     r.user_id,
-            "description": r.description,
+            "entity_type": r.module,
+            "entity_id":   r.record_id,
+            "user_id":     r.changed_by,
+            "description": r.record_label or f"{r.action} on {r.module}",
             "created_at":  str(r.created_at),
         }
         for r in rows
@@ -442,6 +437,7 @@ def process_query(
         results, summary = executor(db, company_id)
     except Exception as exc:
         log.warning("NLQ executor failed for intent %s: %s", intent, exc)
+        db.rollback()
         results, summary = [], f"Query failed: {exc}"
 
     elapsed = int(time.time() * 1000) - start_ms

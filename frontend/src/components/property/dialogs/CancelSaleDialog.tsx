@@ -40,7 +40,7 @@ export default function CancelSaleDialog({ isOpen, onClose, onSaved, saleId }: C
           This will mark the sale as cancelled and restore the property/unit status to Available.
         </p>
         <div>
-          <label className="block text-xs text-muted mb-1">Reason for Cancellation *</label>
+          <label className="block text-xs text-muted mb-1">Reason for Cancellation <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <textarea
             className="dialog-textarea"
             rows={3}

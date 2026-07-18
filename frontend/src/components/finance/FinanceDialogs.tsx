@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { AlertCircle, Plus, Trash2, FileText, DollarSign, CreditCard, Receipt, TrendingUp, BookOpen, Landmark } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
-import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
+import { DialogCancelButton as AppDialogCancelButton, DialogSubmitButton as AppDialogSubmitButton } from "../ui/DialogButtons";
 import AttachmentPanel from "../attachments/AttachmentPanel";
 import { accountsApi, type Account } from "../../lib/financeApi";
 import { useLookup } from "../../hooks/useLookup";
+import AsyncCombobox from "../ui/AsyncCombobox";
+import { useNotifStore } from "../../store/notifications";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ export function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
   const [parentId, setParentId] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [error, setError]   = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     if (isOpen) accountsApi.list().then(setAccounts).catch(() => {});
@@ -46,6 +49,7 @@ export function CreateAccountDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
     if (!code.trim() || !name.trim()) { setError("Code and name are required"); return; }
     try {
       await accountsApi.create({ code: code.trim(), name: name.trim(), account_type: type, parent_id: parentId ? Number(parentId) : null });
+      pushToast({ title: "Account Created", message: `Account "${name.trim()}" created successfully`, type: "success" });
       reset(); onClose();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || "Failed to create account");
@@ -165,11 +169,21 @@ export function CreateInvoiceDialog({ isOpen, onClose, onSubmit, isLoading }: Cr
         <>
           {error && <ErrorBanner msg={error} />}
           <FormRow cols={2}>
-            <FormField label="Tenant ID" required>
-              <input className="dialog-input" type="number" value={tenantId} onChange={e => setTenantId(e.target.value)} placeholder="Tenant ID" disabled={isLoading} />
+            <FormField label="Tenant" required>
+              <AsyncCombobox
+                endpoint="/async-select/tenants"
+                value={tenantId ? Number(tenantId) : null}
+                onChange={(v) => setTenantId(v ? String(v) : "")}
+                placeholder="Search or type tenant ID..."
+              />
             </FormField>
-            <FormField label="Property ID" required>
-              <input className="dialog-input" type="number" value={propertyId} onChange={e => setPropertyId(e.target.value)} placeholder="Property ID" disabled={isLoading} />
+            <FormField label="Property" required>
+              <AsyncCombobox
+                endpoint="/async-select/properties"
+                value={propertyId ? Number(propertyId) : null}
+                onChange={(v) => setPropertyId(v ? String(v) : "")}
+                placeholder="Search or type property ID..."
+              />
             </FormField>
           </FormRow>
           <FormField label="Unit ID" hint="Optional">

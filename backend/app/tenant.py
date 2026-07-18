@@ -50,17 +50,39 @@ def get_schema_engine(schema_name: str):
 
 
 def lookup_company(x_company_id: str) -> Optional[dict]:
-    """Look up company details from master.companies by UUID."""
+    """Look up company details from master.companies.
+    
+    Supports both UUID (master.companies.id) and integer (public.companies.id)
+    lookups. Returns None if the company is not found or the lookup fails."""
     master_engine = get_schema_engine("master")[0]
     with master_engine.connect() as conn:
-        row = conn.execute(
-            text("""
-                SELECT id, name, schema_name, status, expiry_date
-                FROM master.companies
-                WHERE id = :cid
-            """),
-            {"cid": x_company_id},
-        ).fetchone()
+        try:
+            row = conn.execute(
+                text("""
+                    SELECT id, name, schema_name, status, expiry_date
+                    FROM master.companies
+                    WHERE id = :cid
+                """),
+                {"cid": x_company_id},
+            ).fetchone()
+        except Exception:
+            row = None
+
+        if not row:
+            # Fallback: x_company_id may be an integer ID from public.companies
+            # (used by RBAC user tokens).  Join via slug to find the master UUID.
+            try:
+                row = conn.execute(
+                    text("""
+                        SELECT m.id, m.name, m.schema_name, m.status, m.expiry_date
+                        FROM master.companies m
+                        JOIN public.companies c ON c.slug = m.slug
+                        WHERE c.id = :cid::integer
+                    """),
+                    {"cid": x_company_id},
+                ).fetchone()
+            except Exception:
+                row = None
     if not row:
         return None
     return {

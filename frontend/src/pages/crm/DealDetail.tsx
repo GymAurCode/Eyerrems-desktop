@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Edit2, Plus, CreditCard, DollarSign, Info,
@@ -16,6 +17,7 @@ import {
 } from "../../components/detail";
 import ModuleTabs from "../../components/ui/ModuleTabs";
 import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 import { MODULE_COLORS } from "../../config/moduleColors";
 
 const CRM_ACCENT = MODULE_COLORS.crm.primary;
@@ -95,6 +97,7 @@ function CreatePlanDialog({
   const [rules, setRules] = useState([{ type: "monthly" as const, amount: "", count: "1", startDate: "", dayOfMonth: "1" }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const dp = Number(downPay) || 0;
   const remaining = totalValue - dp;
@@ -161,6 +164,7 @@ function CreatePlanDialog({
           // dp payment posting failed silently
         }
       }
+      pushToast({ title: "Plan Created", message: "Payment plan created successfully", type: "success" });
       onCreated();
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to create payment plan");
@@ -207,7 +211,7 @@ function CreatePlanDialog({
             <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Section 1 — Down Payment</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Down Payment Amount *</label>
+                <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Down Payment Amount <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                 <input className="input-dark w-full px-3 py-2 text-sm" type="number" value={downPay} onChange={e => setDownPay(e.target.value)} />
               </div>
               <div>
@@ -252,15 +256,15 @@ function CreatePlanDialog({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Installment Amount *</label>
+                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Installment Amount <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                     <input className="input-dark w-full px-3 py-2 text-sm" type="number" value={rule.amount} onChange={e => updateRule(idx, "amount", e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Number of Installments *</label>
+                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Number of Installments <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                     <input className="input-dark w-full px-3 py-2 text-sm" type="number" min="1" value={rule.count} onChange={e => updateRule(idx, "count", e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Start Date *</label>
+                    <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Start Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                     <input className="input-dark w-full px-3 py-2 text-sm" type="date" value={rule.startDate} onChange={e => updateRule(idx, "startDate", e.target.value)} />
                   </div>
                 </div>
@@ -330,6 +334,7 @@ function PayDialog({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const submit = async () => {
     setSaving(true);
@@ -371,6 +376,7 @@ function PayDialog({
         // Payment tab recording is best-effort
       }
 
+      pushToast({ title: "Payment Recorded", message: `Payment of PKR ${formatCurrency(Number(amount))} recorded`, type: "success" });
       onPaid();
     } catch (e: any) {
       setErr(e?.response?.data?.detail ?? "Payment failed");
@@ -389,12 +395,12 @@ function PayDialog({
           Due: {inst.due_date} · Total: {formatCurrency(inst.amount)} · Paid: {formatCurrency(inst.paid_amount)}
         </p>
         <div>
-          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: "var(--text-muted)" }}>Amount *</label>
+          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: "var(--text-muted)" }}>Amount <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
           <input className="input-dark w-full px-3 py-2 text-sm" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: "var(--text-muted)" }}>Date *</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: "var(--text-muted)" }}>Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="input-dark w-full px-3 py-2 text-sm" type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
           </div>
           <div>
@@ -471,12 +477,14 @@ export default function DealDetail() {
   const [planOpen, setPlanOpen] = useState(false);
   const [payInst, setPayInst] = useState<Installment | null>(null);
   const [activeTab, setActiveTab] = useState<DealTab>("Overview");
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const load = async () => {
     if (!id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const entityId: string | number = id.startsWith("DEAL-") || id.startsWith("TRX-") ? id : Number(id);
+      const entityId: string | number = /^\d+$/.test(id) ? Number(id) : id;
       const lRes = await crmApi.getDealLedger(entityId);
       setLedger(lRes);
       const numericId = lRes.deal.id;
@@ -489,9 +497,26 @@ export default function DealDetail() {
 
   useEffect(() => { void load(); }, [id]);
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      if (type === "deal") {
+        await crmApi.deleteDeal(item.id);
+        pushToast({ title: "Deal Deleted", message: "Deal has been deleted", type: "success" });
+        navigate("/crm");
+      }
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to delete", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const afterSave = (d: Deal) => {
     setEditOpen(false);
     setLedger(prev => prev ? { ...prev, deal: d } : null);
+    pushToast({ title: "Deal Updated", message: "Deal has been updated", type: "success" });
   };
 
   if (loading) return (
@@ -532,12 +557,14 @@ export default function DealDetail() {
 
   return (
     <DetailPage>
-      {payInst && (
+      {payInst && createPortal(
         <PayDialog inst={payInst} dealId={deal.id} onClose={() => setPayInst(null)}
-          onPaid={async () => { setPayInst(null); await load(); }} />
+          onPaid={async () => { setPayInst(null); await load(); }} />,
+        document.body
       )}
-      {planOpen && (
-        <CreatePlanDialog deal={deal} onClose={() => setPlanOpen(false)} onCreated={async () => { setPlanOpen(false); await load(); }} />
+      {planOpen && createPortal(
+        <CreatePlanDialog deal={deal} onClose={() => setPlanOpen(false)} onCreated={async () => { setPlanOpen(false); await load(); }} />,
+        document.body
       )}
 
       <DetailHeader
@@ -741,6 +768,7 @@ export default function DealDetail() {
                             {!dpPaid && (
                               <button onClick={async () => {
                                 await crmApi.updateDeal(deal.id, { down_payment_status: "paid" } as any);
+                                pushToast({ title: "Down Payment", message: "Down payment marked as paid", type: "success" });
                                 syncApi.downPayment({
                                   deal_id: deal.id,
                                   amount: downPayAmount,
@@ -832,6 +860,16 @@ export default function DealDetail() {
 
       <DealForm open={editOpen} onClose={() => setEditOpen(false)}
         initial={deal} onSaved={afterSave} />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete this ${deleteTarget?.type}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </DetailPage>
   );
 }

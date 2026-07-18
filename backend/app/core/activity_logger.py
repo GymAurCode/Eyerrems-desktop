@@ -61,5 +61,7 @@ def log_activity(
             timestamp=datetime.utcnow()
         )
         db.add(log)
+        db.flush()
     except Exception as e:
+        db.rollback()
         print(f"[ActivityLog] Failed to log: {e}")

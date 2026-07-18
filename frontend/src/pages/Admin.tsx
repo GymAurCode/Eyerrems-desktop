@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, Users as UsersIcon, Activity, Settings, CheckCircle, AlertCircle, DollarSign, Save } from "lucide-react";
+import { Shield, Users as UsersIcon, Activity, Settings, CheckCircle, AlertCircle, DollarSign, Save, LayoutDashboard } from "lucide-react";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
 import { useAuthStore } from "../store/auth";
@@ -7,8 +7,10 @@ import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/
 import RolesTabRbac from "../modules/Admin/tabs/RolesTab";
 import UsersTabRbac from "../modules/Admin/tabs/UsersTab";
 import MonitoringTab from "../modules/Admin/tabs/MonitoringTab";
+import AdminDashboard from "./AdminDashboard";
 
 const TABS = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "roles", label: "Roles", icon: Shield },
   { key: "users", label: "Users", icon: UsersIcon },
   { key: "monitoring", label: "Monitoring", icon: Activity },
@@ -149,7 +151,7 @@ export default function AdminPage() {
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
   const canManageRbac = isSuperAdmin || user?.role === "Admin" || user?.roles?.includes("Admin") || false;
 
-  const [tab, setTab] = useState<TabKey>(canManageRbac ? "roles" : "users");
+  const [tab, setTab] = useState<TabKey>(canManageRbac ? "dashboard" : "users");
 
   useEffect(() => {
     if (!canManageRbac && tab === "roles") {
@@ -171,6 +173,7 @@ export default function AdminPage() {
         moduleColor={MODULE_COLORS.admin.primary}
       />
 
+      {tab === "dashboard" && <AdminDashboard />}
       {tab === "roles" && <RolesTabRbac />}
       {tab === "users" && <UsersTabRbac />}
       {tab === "monitoring" && <MonitoringTab />}

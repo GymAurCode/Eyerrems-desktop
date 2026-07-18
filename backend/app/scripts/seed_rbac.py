@@ -129,7 +129,7 @@ def seed_rbac(db: Session):
             full_name="System Administrator",
             hashed_password=hash_password(ADMIN_PASSWORD),
             company_id=company.id,
-            is_super_admin=True,
+            is_super_admin=False,
             status="active",
             is_approved=True,
             is_active=True,
@@ -142,6 +142,7 @@ def seed_rbac(db: Session):
         print(f"[OK] Created admin user in master: {ADMIN_EMAIL}")
     else:
         existing_admin_master.company_id = company.id
+        existing_admin_master.is_super_admin = False
         existing_admin_master.hashed_password = hash_password(ADMIN_PASSWORD)
         if admin_master_role not in existing_admin_master.roles:
             existing_admin_master.roles.append(admin_master_role)
@@ -187,7 +188,38 @@ def seed_rbac(db: Session):
         raise e
     finally:
         tenant_db.close()
-    
+
+    # 7. Seed the admin user into the PostgreSQL company schema (production path)
+    try:
+        from app.tenant import get_schema_engine
+        _, PgSessionClass = get_schema_engine("company_default")
+        pg_db = PgSessionClass()
+        try:
+            pg_user = pg_db.query(User).filter(User.email == ADMIN_EMAIL).first()
+            pg_admin_role = pg_db.query(Role).filter(Role.name == "Admin").first()
+            if pg_admin_role and not pg_user:
+                pg_user = User(
+                    email=ADMIN_EMAIL,
+                    full_name="System Administrator",
+                    hashed_password=hash_password(ADMIN_PASSWORD),
+                    company_id=company.id,
+                    status="active",
+                    is_approved=True,
+                    is_active=True,
+                    approval_status="approved",
+                    role_id=pg_admin_role.id,
+                )
+                pg_user.roles = [pg_admin_role]
+                pg_db.add(pg_user)
+                pg_db.commit()
+                print(f"[OK] Created admin user in PostgreSQL tenant schema: {ADMIN_EMAIL}")
+            elif pg_user:
+                print(f"[INFO]  Admin user already exists in PostgreSQL tenant schema")
+        finally:
+            pg_db.close()
+    except Exception as e:
+        print(f"[WARN]  PostgreSQL tenant schema seeding skipped: {e}")
+
     db.commit()
     print("\n[DONE] RBAC seeding completed successfully!")
 

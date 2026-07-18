@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Plus, Phone, MessageCircle, MessageSquare, User, Mail, CheckCircle2, XCircle, Clock } from "lucide-react";
 import DataTable from '../../components/data-table/DataTable';
 import { crmApi, FollowUp } from "../../lib/crmApi";
+import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 import AppDialog from "../../components/ui/AppDialog";
 import { FormField } from "../../components/crm/FormField";
 
@@ -36,6 +38,8 @@ export default function FollowUps() {
 
   const [form, setForm] = useState({ lead_id: 0, date: "", time: "", fu_type: "call", fu_status: "pending", notes: "" });
   const [leads, setLeads] = useState<{ id: number; name: string }[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const pageSize = 20;
 
@@ -49,6 +53,22 @@ export default function FollowUps() {
   };
 
   useEffect(() => { void fetch(); }, [page, filter]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      if (type === "follow_up") {
+        await crmApi.updateFollowUp(item.id, { fu_status: "missed" });
+        pushToast({ title: "Follow-up Cancelled", message: "Follow-up has been cancelled", type: "success" });
+        void fetch();
+      }
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to cancel", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
@@ -68,6 +88,7 @@ export default function FollowUps() {
       await crmApi.createFollowUp({ ...form, date: form.date, time: form.time || undefined });
       setModal(false);
       setForm({ lead_id: 0, date: "", time: "", fu_type: "call", fu_status: "pending", notes: "" });
+      pushToast({ title: "Follow-up Created", message: "Follow-up has been created", type: "success" });
       void fetch();
     } catch (e: any) { setErr(e?.response?.data?.detail ?? "Failed to create"); }
     finally { setSaving(false); }
@@ -76,6 +97,14 @@ export default function FollowUps() {
   const complete = async (id: number) => {
     try {
       await crmApi.completeFollowUp(id);
+      pushToast({ title: "Follow-up Completed", message: "Follow-up has been marked as completed", type: "success" });
+      void fetch();
+    } catch { }
+  };
+
+  const cancel = async (id: number) => {
+    try {
+      await crmApi.updateFollowUp(id, { fu_status: "missed" });
       void fetch();
     } catch { }
   };
@@ -124,12 +153,64 @@ export default function FollowUps() {
           )},
           { key: 'assigned_user_name', label: 'Assigned To', render: (value: string) => <span className="text-xs text-secondary">{value ?? "—"}</span> },
           { key: 'fu_status', label: 'Status', align: 'center', width: 100, render: (value: string) => <Badge status={value} /> },
-          { key: 'action', label: 'Actions', align: 'right', width: 100, render: (_value: any, row: any) => row.fu_status === "pending" ? (
-            <button onClick={() => complete(row.id)} className="flex items-center gap-1 ml-auto text-[10px] px-2 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>
-              <CheckCircle2 size={11} /> Complete
-            </button>
-          ) : null },
+          { key: 'action', label: 'Actions', align: 'right', width: 180, render: (_value: any, row: any) => {
+            const phone = row.lead_phone;
+            const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+            return (
+              <div className="flex gap-1 justify-end">
+                {phone && (
+                  <>
+                    <button onClick={() => window.location.href = `tel:${phone}`}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
+                      title="Call">
+                      <Phone size={12} />
+                    </button>
+                    <button onClick={() => window.open(`https://wa.me/${cleanPhone}`, "_blank")}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(37,211,102,0.1)", color: "#25d366" }}
+                      title="WhatsApp">
+                      <MessageCircle size={12} />
+                    </button>
+                    <button onClick={() => window.location.href = `sms:${phone}`}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(139,92,246,0.1)", color: "#8b5cf6" }}
+                      title="SMS">
+                      <MessageSquare size={12} />
+                    </button>
+                  </>
+                )}
+                {row.fu_status === "pending" && (
+                  <>
+                    <button onClick={() => complete(row.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}
+                      title="Complete">
+                      <CheckCircle2 size={12} />
+                    </button>
+                    <button onClick={() => setDeleteTarget({ item: row, type: "follow_up" })}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
+                      title="Cancel">
+                      <XCircle size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          }},
         ]}
+      />
+
+      {/* ── Cancel Confirmation Dialog ── */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Cancel Follow-up"
+        message="Are you sure you want to mark this follow-up as missed?"
+        confirmLabel="Mark Missed"
+        variant="warning"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       <AppDialog isOpen={modal} onClose={() => setModal(false)} title="New Follow-up">

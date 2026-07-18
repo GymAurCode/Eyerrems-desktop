@@ -1,348 +1,149 @@
-"""Reminder & Notification API Routes."""
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import PlainTextResponse
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.security import decode_access_token
 from app.core.websocket_manager import ws_manager
 from app.models.auth import User
-from app.models.reminders import (
-    Notification, NotificationLog, Reminder,
-    ReminderAssignment, ReminderSettings, ReminderTemplate,
-)
 from app.schemas.reminders import (
-    NotificationLogOut, NotificationOut,
-    ReminderCreate, ReminderDashboard, ReminderOut,
-    ReminderSettingsOut, ReminderSettingsUpdate,
-    ReminderUpdate, SnoozeRequest,
-    TemplateCreate, TemplateOut, TemplateUpdate,
+    ApplyTemplateRequest,
+    BulkActionRequest,
+    NotificationLogOut,
+    ReminderCreate,
+    ReminderDashboardOut,
+    ReminderOut,
+    ReminderUpdate,
+    RecoveryOut,
+    SchedulerStatusOut,
+    SnoozeRequest,
+    TemplateCreate,
+    TemplateOut,
 )
+from app.services import reminder_service as svc
+from app.services.reminder_scheduler import get_scheduler_status
 
 router = APIRouter()
+log = logging.getLogger("reminders-routes")
 
 
-# â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-def _compute_next_fire(reminder: Reminder) -> None:
-    """Set initial next_fire_at considering pre_alert_minutes."""
-    fire_at = reminder.due_time - timedelta(minutes=reminder.pre_alert_minutes)
-    reminder.next_fire_at = fire_at
-
-
-def _reminder_out(r: Reminder) -> ReminderOut:
-    assigned = [
-        {"id": a.user.id, "full_name": a.user.full_name, "email": a.user.email}
-        for a in r.assignments
-        if a.user
-    ]
-    data = ReminderOut.model_validate(r)
-    data.assigned_users = assigned  # type: ignore[assignment]
-    return data
-
-
-# â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/dashboard", response_model=ReminderDashboard)
-def reminder_dashboard(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    now   = datetime.utcnow()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end   = today_start + timedelta(days=1)
-    upcoming_end = today_start + timedelta(days=7)
-
-    base_q = (
-        db.query(Reminder)
-        .options(joinedload(Reminder.assignments).joinedload(ReminderAssignment.user))
-        .filter(
-            Reminder.status.in_(["pending", "snoozed"]),
-            (Reminder.created_by == current_user.id) |
-            Reminder.assignments.any(ReminderAssignment.user_id == current_user.id),
-        )
-    )
-
-    today_reminders = base_q.filter(
-        Reminder.due_time >= today_start,
-        Reminder.due_time < today_end,
-    ).order_by(Reminder.due_time).all()
-
-    overdue_reminders = base_q.filter(
-        Reminder.due_time < today_start,
-    ).order_by(Reminder.due_time).all()
-
-    upcoming_reminders = base_q.filter(
-        Reminder.due_time >= today_end,
-        Reminder.due_time < upcoming_end,
-    ).order_by(Reminder.due_time).all()
-
-    unread_count = (
-        db.query(Notification)
-        .filter(Notification.user_id == current_user.id, Notification.is_read == False)
-        .count()
-    )
-
-    return ReminderDashboard(
-        today_count=len(today_reminders),
-        upcoming_count=len(upcoming_reminders),
-        overdue_count=len(overdue_reminders),
-        unread_notifications=unread_count,
-        today=[_reminder_out(r) for r in today_reminders],
-        overdue=[_reminder_out(r) for r in overdue_reminders],
-        upcoming=[_reminder_out(r) for r in upcoming_reminders],
-    )
+def _reminder_to_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "user_id": r.user_id,
+        "title": r.title,
+        "description": r.description,
+        "category": r.category,
+        "remind_at": r.remind_at,
+        "priority": r.priority,
+        "repeat": r.repeat,
+        "status": r.status,
+        "reminder_before": r.reminder_before,
+        "notification_sent": r.notification_sent,
+        "snoozed_until": r.snoozed_until,
+        "completed_at": r.completed_at,
+        "template_id": r.template_id,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at,
+    }
 
 
-# â”€â”€ Notifications â€” MUST be before /{reminder_id} to avoid 422 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/notifications/me", response_model=list[NotificationOut])
-def my_notifications(
-    is_read: Optional[bool] = Query(None),
-    module_name: Optional[str] = Query(None),
-    limit: int = Query(50, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    q = db.query(Notification).filter(Notification.user_id == current_user.id)
-    if is_read is not None:
-        q = q.filter(Notification.is_read == is_read)
-    if module_name:
-        q = q.filter(Notification.module_name == module_name)
-    return q.order_by(Notification.created_at.desc()).limit(limit).all()
-
-
-@router.get("/notifications/unread-count")
-def unread_count(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+@router.websocket("/ws")
+async def reminders_ws(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001)
+        return
+    payload = decode_access_token(token)
+    if not payload:
+        await websocket.close(code=4001)
+        return
+    user_id_str = payload.get("sub", "")
+    from app.models.auth import User as UserModel
+    import logging as _logging
+    _log = _logging.getLogger("reminders-routes")
+    user = None
     try:
-        count = (
-            db.query(Notification)
-            .filter(Notification.user_id == current_user.id, Notification.is_read == False)
-            .count()
-        )
+        db = next(get_db())
+        user = db.query(UserModel).filter(UserModel.email == user_id_str).first()
     except Exception:
-        count = 0
-        db.rollback()
-    return {"count": count}
+        db = None
+    finally:
+        if db:
+            db.close()
+    if not user:
+        await websocket.close(code=4001)
+        return
+    uid = user.id
+    await ws_manager.connect(websocket, uid)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, uid)
+    except Exception:
+        await websocket.close(code=1011)
+        ws_manager.disconnect(websocket, uid)
 
 
-@router.post("/notifications/mark-all-read")
-def mark_all_read(
+@router.get("/dashboard", response_model=ReminderDashboardOut)
+def dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    now = datetime.utcnow()
-    db.query(Notification).filter(
-        Notification.user_id == current_user.id, Notification.is_read == False
-    ).update({"is_read": True, "read_at": now})
-    db.commit()
-    return {"ok": True}
-
-
-@router.post("/notifications/{notif_id}/read", response_model=NotificationOut)
-def mark_read(
-    notif_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    n = db.query(Notification).filter(
-        Notification.id == notif_id, Notification.user_id == current_user.id
-    ).first()
-    if not n:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    n.is_read = True
-    n.read_at = datetime.utcnow()
-    if n.log:
-        n.log.read_at = n.read_at
-        n.log.status = "clicked"
-    db.commit()
-    db.refresh(n)
-    return n
-
-
-@router.delete("/notifications/{notif_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_notification(
-    notif_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    n = db.query(Notification).filter(
-        Notification.id == notif_id, Notification.user_id == current_user.id
-    ).first()
-    if not n:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    db.delete(n)
-    db.commit()
-
-
-# â”€â”€ Notification Logs â€” MUST be before /{reminder_id} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/logs", response_model=list[NotificationLogOut])
-def notification_logs(
-    limit: int = Query(100, le=500),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Staff", "Accountant")),
-):
-    return (
-        db.query(NotificationLog)
-        .filter(NotificationLog.user_id == current_user.id)
-        .order_by(NotificationLog.triggered_at.desc())
-        .limit(limit)
-        .all()
+    data = svc.get_dashboard(db, current_user.id)
+    return ReminderDashboardOut(
+        upcoming_24h=[ReminderOut.model_validate(r) for r in data["upcoming_24h"]],
+        overdue=[ReminderOut.model_validate(r) for r in data["overdue"]],
+        today_total=data["today_total"],
+        today_completed=data["today_completed"],
+        today_pending=data["today_pending"],
     )
 
 
-# â”€â”€ Templates â€” MUST be before /{reminder_id} to avoid 422 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/templates", response_model=list[TemplateOut])
-def list_templates(
+@router.get("/recovery", response_model=RecoveryOut)
+def recovery(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return svc.get_recovery_data(db, current_user.id)
+
+
+@router.get("/scheduler-status", response_model=SchedulerStatusOut)
+def scheduler_status(
     _: User = Depends(get_current_user),
 ):
-    return db.query(ReminderTemplate).filter(ReminderTemplate.is_active == True).all()
+    return get_scheduler_status()
 
 
-@router.post("/templates", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
-def create_template(
-    body: TemplateCreate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
-):
-    t = ReminderTemplate(**body.model_dump())
-    db.add(t)
-    db.commit()
-    db.refresh(t)
-    return t
-
-
-@router.patch("/templates/{template_id}", response_model=TemplateOut)
-def update_template(
-    template_id: int,
-    body: TemplateUpdate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
-):
-    t = db.query(ReminderTemplate).filter(ReminderTemplate.id == template_id).first()
-    if not t:
-        raise HTTPException(status_code=404, detail="Template not found")
-    for field, val in body.model_dump(exclude_none=True).items():
-        setattr(t, field, val)
-    db.commit()
-    db.refresh(t)
-    return t
-
-
-@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_template(
-    template_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
-):
-    t = db.query(ReminderTemplate).filter(ReminderTemplate.id == template_id).first()
-    if not t:
-        raise HTTPException(status_code=404, detail="Template not found")
-    db.delete(t)
-    db.commit()
-
-
-# â”€â”€ User Settings â€” MUST be before /{reminder_id} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/settings/me", response_model=ReminderSettingsOut)
-def get_my_settings(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    s = db.query(ReminderSettings).filter(ReminderSettings.user_id == current_user.id).first()
-    if not s:
-        s = ReminderSettings(user_id=current_user.id)
-        db.add(s)
-        db.commit()
-        db.refresh(s)
-    return s
-
-
-@router.patch("/settings/me", response_model=ReminderSettingsOut)
-def update_my_settings(
-    body: ReminderSettingsUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    s = db.query(ReminderSettings).filter(ReminderSettings.user_id == current_user.id).first()
-    if not s:
-        s = ReminderSettings(user_id=current_user.id)
-        db.add(s)
-        db.flush()
-    for field, val in body.model_dump(exclude_none=True).items():
-        setattr(s, field, val)
-    db.commit()
-    db.refresh(s)
-    return s
-
-
-# â”€â”€ Reminders CRUD â€” /{reminder_id} MUST come LAST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@router.get("/", response_model=list[ReminderOut])
+@router.get("", response_model=list[ReminderOut])
 def list_reminders(
-    module_name: Optional[str] = Query(None),
-    record_id: Optional[int] = Query(None),
-    status_filter: Optional[str] = Query(None, alias="status"),
-    priority: Optional[str] = Query(None),
+    filter_by: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    sort_by: str = Query("remind_at"),
+    sort_dir: str = Query("asc"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = (
-        db.query(Reminder)
-        .options(joinedload(Reminder.assignments).joinedload(ReminderAssignment.user))
-        .filter(
-            (Reminder.created_by == current_user.id) |
-            Reminder.assignments.any(ReminderAssignment.user_id == current_user.id)
-        )
-    )
-    if module_name:
-        q = q.filter(Reminder.module_name == module_name)
-    if record_id:
-        q = q.filter(Reminder.record_id == record_id)
-    if status_filter:
-        q = q.filter(Reminder.status == status_filter)
-    if priority:
-        q = q.filter(Reminder.priority == priority)
-    return [_reminder_out(r) for r in q.order_by(Reminder.due_time).all()]
+    reminders = svc.list_reminders(db, current_user.id, filter_by, search, sort_by, sort_dir)
+    return [ReminderOut.model_validate(r) for r in reminders]
 
 
-@router.post("/", response_model=ReminderOut, status_code=status.HTTP_201_CREATED)
-async def create_reminder(
+@router.post("", response_model=ReminderOut, status_code=status.HTTP_201_CREATED)
+def create_reminder(
     body: ReminderCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    reminder = Reminder(
-        title=body.title,
-        description=body.description,
-        module_name=body.module_name,
-        record_id=body.record_id,
-        due_time=body.due_time,
-        recurrence=body.recurrence,
-        cron_expr=body.cron_expr,
-        priority=body.priority,
-        pre_alert_minutes=body.pre_alert_minutes,
-        template_id=body.template_id,
-        created_by=current_user.id,
-    )
-    _compute_next_fire(reminder)
-    db.add(reminder)
-    db.flush()
-
-    for uid in set(body.assigned_user_ids):
-        db.add(ReminderAssignment(reminder_id=reminder.id, user_id=uid))
-
-    db.commit()
-    db.refresh(reminder)
-    return _reminder_out(reminder)
+    r = svc.create_reminder(db, current_user.id, body.model_dump())
+    return ReminderOut.model_validate(r)
 
 
 @router.get("/{reminder_id}", response_model=ReminderOut)
@@ -351,42 +152,24 @@ def get_reminder(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    r = (
-        db.query(Reminder)
-        .options(joinedload(Reminder.assignments).joinedload(ReminderAssignment.user))
-        .filter(Reminder.id == reminder_id)
-        .first()
-    )
+    r = svc.get_reminder(db, current_user.id, reminder_id)
     if not r:
         raise HTTPException(status_code=404, detail="Reminder not found")
-    return _reminder_out(r)
+    return ReminderOut.model_validate(r)
 
 
-@router.patch("/{reminder_id}", response_model=ReminderOut)
+@router.put("/{reminder_id}", response_model=ReminderOut)
 def update_reminder(
     reminder_id: int,
     body: ReminderUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    r = svc.update_reminder(db, current_user.id, reminder_id, data)
     if not r:
         raise HTTPException(status_code=404, detail="Reminder not found")
-
-    for field, val in body.model_dump(exclude_none=True, exclude={"assigned_user_ids"}).items():
-        setattr(r, field, val)
-
-    if body.assigned_user_ids is not None:
-        db.query(ReminderAssignment).filter(ReminderAssignment.reminder_id == r.id).delete()
-        for uid in set(body.assigned_user_ids):
-            db.add(ReminderAssignment(reminder_id=r.id, user_id=uid))
-
-    if body.due_time or body.pre_alert_minutes is not None:
-        _compute_next_fire(r)
-
-    db.commit()
-    db.refresh(r)
-    return _reminder_out(r)
+    return ReminderOut.model_validate(r)
 
 
 @router.delete("/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -395,27 +178,8 @@ def delete_reminder(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
-    if not r:
+    if not svc.delete_reminder(db, current_user.id, reminder_id):
         raise HTTPException(status_code=404, detail="Reminder not found")
-    db.delete(r)
-    db.commit()
-
-
-@router.post("/{reminder_id}/complete", response_model=ReminderOut)
-def complete_reminder(
-    reminder_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Reminder not found")
-    r.status = "completed"
-    r.next_fire_at = None
-    db.commit()
-    db.refresh(r)
-    return _reminder_out(r)
 
 
 @router.post("/{reminder_id}/snooze", response_model=ReminderOut)
@@ -425,15 +189,107 @@ def snooze_reminder(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    r = svc.snooze_reminder(db, current_user.id, reminder_id, body.minutes)
     if not r:
         raise HTTPException(status_code=404, detail="Reminder not found")
-    r.status = "snoozed"
-    r.snoozed_until = body.snooze_until
-    r.next_fire_at = body.snooze_until
-    db.commit()
-    db.refresh(r)
-    return _reminder_out(r)
+    return ReminderOut.model_validate(r)
 
 
+@router.post("/{reminder_id}/complete", response_model=ReminderOut)
+def complete_reminder(
+    reminder_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    r = svc.complete_reminder(db, current_user.id, reminder_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return ReminderOut.model_validate(r)
 
+
+@router.post("/{reminder_id}/cancel", response_model=ReminderOut)
+def cancel_reminder(
+    reminder_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    r = svc.cancel_reminder(db, current_user.id, reminder_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return ReminderOut.model_validate(r)
+
+
+@router.post("/bulk")
+def bulk_action(
+    body: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    affected = svc.bulk_action(db, current_user.id, body.ids, body.action)
+    return {"affected": affected}
+
+
+@router.get("/templates/list", response_model=list[TemplateOut])
+def list_templates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return [TemplateOut.model_validate(t) for t in svc.list_templates(db, current_user.id)]
+
+
+@router.post("/templates", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
+def create_template(
+    body: TemplateCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    t = svc.create_template(db, current_user.id, body.model_dump())
+    return TemplateOut.model_validate(t)
+
+
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not svc.delete_template(db, current_user.id, template_id):
+        raise HTTPException(status_code=404, detail="Template not found")
+
+
+@router.post("/templates/{template_id}/apply", response_model=ReminderOut, status_code=status.HTTP_201_CREATED)
+def apply_template(
+    template_id: int,
+    body: ApplyTemplateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    r = svc.apply_template(db, current_user.id, template_id, body.remind_at, body.variables)
+    if not r:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return ReminderOut.model_validate(r)
+
+
+@router.get("/notifications/logs", response_model=list[NotificationLogOut])
+def get_logs(
+    reminder_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    limit: int = Query(200, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return svc.get_logs(db, current_user.id, reminder_id, status, search, limit)
+
+
+@router.get("/notifications/logs/export", response_class=PlainTextResponse)
+def export_logs_csv(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    csv = svc.export_logs_csv(db, current_user.id)
+    return PlainTextResponse(
+        content=csv,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=notification_logs.csv"},
+    )

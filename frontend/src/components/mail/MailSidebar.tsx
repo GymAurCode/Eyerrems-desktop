@@ -20,14 +20,11 @@ export default function MailSidebar({ accounts, activeFolder, stats, onFolderCha
   // Safety guard — ensure accounts is always an array
   const safeAccounts = Array.isArray(accounts) ? accounts : [];
   return (
-    <aside className="w-48 shrink-0 flex flex-col border-r border-theme bg-sidebar overflow-y-auto">
+    <aside className="w-48 shrink-0 flex flex-col border-r border-theme overflow-y-auto">
       {/* Header */}
       <div className="h-12 flex items-center gap-2 px-4 border-b border-theme shrink-0">
-        <div
-          className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-          style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
-        >
-          <Mail size={12} className="text-white" />
+        <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-hover">
+          <Mail size={12} className="text-muted" />
         </div>
         <span className="text-sm font-semibold text-primary">Mail</span>
       </div>
@@ -38,7 +35,7 @@ export default function MailSidebar({ accounts, activeFolder, stats, onFolderCha
           <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Account</p>
           {safeAccounts.map((acc) => (
             <div key={acc.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md">
-              <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
+              <div className="w-5 h-5 rounded-full bg-hover flex items-center justify-center text-muted text-[9px] font-bold shrink-0">
                 {acc.display_name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
@@ -62,20 +59,14 @@ export default function MailSidebar({ accounts, activeFolder, stats, onFolderCha
               onClick={() => onFolderChange(key)}
               className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? "bg-blue-500/10 text-blue-500 font-medium"
+                  ? "bg-hover text-primary font-medium"
                   : "text-muted hover:bg-hover hover:text-primary"
               }`}
             >
               <Icon size={15} />
               <span className="flex-1 text-left">{label}</span>
               {count > 0 && (
-                <span
-                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                    key === "inbox" && count > 0
-                      ? "bg-blue-500 text-white"
-                      : "bg-hover text-muted"
-                  }`}
-                >
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-hover text-muted">
                   {count > 99 ? "99+" : count}
                 </span>
               )}

@@ -4,6 +4,7 @@ import {
   CheckCircle2, XCircle, Clock, Trash2, ChevronDown,
 } from "lucide-react";
 import { Activity, ActivityType, crmApi } from "../../lib/crmApi";
+import { ConfirmDialog } from "../actions";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,7 @@ type Props = {
 
 export default function ActivityTimeline({ activities, onRefresh }: Props) {
   const [filter, setFilter] = useState<ActivityType | "all">("all");
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const filtered = filter === "all"
     ? activities
@@ -210,10 +212,11 @@ export default function ActivityTimeline({ activities, onRefresh }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this activity?")) return;
+  const handleDelete = async () => {
+    if (deleteTargetId === null) return;
     try {
-      await crmApi.deleteActivity(id);
+      await crmApi.deleteActivity(deleteTargetId);
+      setDeleteTargetId(null);
       onRefresh();
     } catch {
       // silently fail
@@ -264,12 +267,22 @@ export default function ActivityTimeline({ activities, onRefresh }: Props) {
                 key={a.id}
                 activity={a}
                 onStatusChange={handleStatusChange}
-                onDelete={handleDelete}
+                onDelete={(id) => setDeleteTargetId(id)}
               />
             ))}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Delete Activity"
+        message="Delete this activity? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }

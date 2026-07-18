@@ -2,6 +2,8 @@ import { useState } from "react";
 import { CheckCircle, XCircle, Loader, Trash2, Plus, Mail } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { api } from "../../lib/api";
+import { ConfirmDialog } from "../actions";
+import { useNotifStore } from "../../store/notifications";
 import type { EmailAccount } from "../../store/mail";
 
 type Props = {
@@ -90,10 +92,10 @@ type FieldProps = {
   placeholder?: string;
 };
 
-function Field({ label, value, onChange, type = "text", placeholder }: FieldProps) {
+function Field({ label, value, onChange, type = "text", placeholder, required }: FieldProps & { required?: boolean }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-secondary mb-1">{label}</label>
+      <label className="block text-xs font-medium text-secondary mb-1">{label}{required && <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>}</label>
       <input
         type={type}
         value={value}
@@ -117,6 +119,8 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
   const [testResult, setTestResult] = useState<TestResult>(null);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const applyPreset = (key: string) => {
     const preset = PRESETS[key];
@@ -167,19 +171,26 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Remove this email account? All synced emails will be deleted.")) return;
-    setDeletingId(id);
+    setDeleteTarget(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget);
     try {
-      await api.delete(`/mail/accounts/${id}`);
+      await api.delete(`/mail/accounts/${deleteTarget}`);
       onSaved();
+      pushToast({ title: "Success", message: "Email account removed", type: "success" });
     } catch {
-      // ignore
+      pushToast({ title: "Error", message: "Failed to remove email account", type: "error" });
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
   return (
+    <>
     <AppDialog isOpen={true} title="Email Account Settings" subtitle="Manage your email accounts" size="lg" icon={<Mail size={16} />} onClose={onClose}
       footer={
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
@@ -320,6 +331,7 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
                   value={form.email_address}
                   onChange={(v) => setForm((f) => ({ ...f, email_address: v, username: v }))}
                   placeholder="you@company.com"
+                  required
                 />
               </div>
 
@@ -337,6 +349,7 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
                   onChange={(v) => setForm((f) => ({ ...f, password: v }))}
                   type="password"
                   placeholder="••••••••"
+                  required
                 />
               </div>
 
@@ -434,5 +447,15 @@ export default function AccountSetupModal({ accounts, onClose, onSaved }: Props)
             </div>
           )}
     </AppDialog>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Remove Email Account"
+        message="Remove this email account? All synced emails will be deleted."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 }

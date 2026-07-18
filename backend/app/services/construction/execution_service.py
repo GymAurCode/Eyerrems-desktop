@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.construction import ConstructionExpense, DailyProgress
 from app.models.finance import Account, Expense, Journal, JournalEntry
 from app.schemas.construction import (
-    ConstructionExpenseCreate, DailyProgressCreate, DailyProgressUpdate,
+    ConstructionExpenseCreate, ConstructionExpenseUpdate, DailyProgressCreate, DailyProgressUpdate,
 )
 
 
@@ -134,3 +134,22 @@ class ExecutionService:
             .order_by(ConstructionExpense.date.desc())
             .all()
         )
+
+    @staticmethod
+    def update_expense(db: Session, expense_id: int, payload: ConstructionExpenseUpdate) -> ConstructionExpense:
+        obj = db.query(ConstructionExpense).filter(ConstructionExpense.id == expense_id).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail="Expense not found")
+        for k, v in payload.model_dump(exclude_none=True).items():
+            setattr(obj, k, v)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @staticmethod
+    def delete_expense(db: Session, expense_id: int) -> None:
+        obj = db.query(ConstructionExpense).filter(ConstructionExpense.id == expense_id).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail="Expense not found")
+        db.delete(obj)
+        db.commit()

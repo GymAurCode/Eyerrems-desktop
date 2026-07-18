@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { X, Building2, MapPin, Tag, Layers, Paperclip, Plus, ChevronDown, ChevronRight } from "lucide-react";
-import { propApi, PropertyDetail as PD, Location, Amenity, Floor, Unit } from "../../lib/propertyApi";
+import { X, Paperclip, Plus, ChevronDown, ChevronRight, Trash2, Save } from "lucide-react";
+import { propApi, PropertyDetail as PD, Location, Amenity } from "../../lib/propertyApi";
 import { uploadsUrl } from "../../lib/config";
-import AppDialog from "../ui/AppDialog";
 
 type Props = { propertyId: number; onClose: () => void };
 
@@ -11,21 +10,30 @@ const STATUS_COLOR: Record<string, string> = {
   reserved: "#6366f1", maintenance: "#94a3b8",
 };
 
+interface DraftUnit {
+  tempId: number;
+  unit_number: string;
+  status: string;
+  size: string;
+  rent_amount: string;
+}
+
+interface DraftFloor {
+  tempId: number;
+  floor_number: string;
+  units: DraftUnit[];
+}
+
+let draftIdCounter = 0;
+
 export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
   const [prop, setProp]           = useState<PD | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [amenities, setAmenities] = useState<Amenity[]>([]);
   const [expanded, setExpanded]   = useState<Set<number>>(new Set());
+  const [saving, setSaving]       = useState(false);
 
-  // Add floor/unit modals
-  const [floorOpen, setFloorOpen]   = useState(false);
-  const [floorNum, setFloorNum]     = useState("");
-  const [unitOpen, setUnitOpen]     = useState(false);
-  const [unitFloor, setUnitFloor]   = useState<number | null>(null);
-  const [unitNum, setUnitNum]       = useState("");
-  const [unitStatus, setUnitStatus] = useState("available");
-  const [unitSize, setUnitSize]     = useState("");
-  const [unitRent, setUnitRent]     = useState("");
+  const [draftFloors, setDraftFloors] = useState<DraftFloor[]>([]);
 
   const load = async () => {
     try {
@@ -40,7 +48,6 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
       setProp(pd || null);
       setLocations(Array.isArray(locs) ? locs : []);
       setAmenities(Array.isArray(ams) ? ams : []);
-      // expand all floors by default
       if (pd?.floors) {
         setExpanded(new Set(pd.floors.map((f: any) => f.id)));
       }
@@ -56,19 +63,75 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
   const toggleFloor = (id: number) =>
     setExpanded((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
-  const addFloor = async () => {
-    if (!floorNum) return;
-    await propApi.createFloor({ property_id: propertyId, floor_number: Number(floorNum) });
-    setFloorNum(""); setFloorOpen(false); await load();
+  const addDraftFloor = () => {
+    setDraftFloors((prev) => [
+      ...prev,
+      { tempId: --draftIdCounter, floor_number: "", units: [] },
+    ]);
   };
 
-  const addUnit = async () => {
-    if (!unitFloor || !unitNum) return;
-    await propApi.createUnit({
-      floor_id: unitFloor, unit_number: unitNum, status: unitStatus,
-      size: unitSize || null, rent_amount: unitRent ? Number(unitRent) : null,
-    });
-    setUnitNum(""); setUnitSize(""); setUnitRent(""); setUnitOpen(false); await load();
+  const updateDraftFloor = (tempId: number, floor_number: string) => {
+    setDraftFloors((prev) =>
+      prev.map((f) => (f.tempId === tempId ? { ...f, floor_number } : f))
+    );
+  };
+
+  const removeDraftFloor = (tempId: number) => {
+    setDraftFloors((prev) => prev.filter((f) => f.tempId !== tempId));
+  };
+
+  const addDraftUnit = (floorTempId: number) => {
+    setDraftFloors((prev) =>
+      prev.map((f) =>
+        f.tempId === floorTempId
+          ? { ...f, units: [...f.units, { tempId: --draftIdCounter, unit_number: "", status: "available", size: "", rent_amount: "" }] }
+          : f
+      )
+    );
+  };
+
+  const updateDraftUnit = (floorTempId: number, unitTempId: number, field: keyof DraftUnit, value: string) => {
+    setDraftFloors((prev) =>
+      prev.map((f) =>
+        f.tempId === floorTempId
+          ? { ...f, units: f.units.map((u) => (u.tempId === unitTempId ? { ...u, [field]: value } : u)) }
+          : f
+      )
+    );
+  };
+
+  const removeDraftUnit = (floorTempId: number, unitTempId: number) => {
+    setDraftFloors((prev) =>
+      prev.map((f) =>
+        f.tempId === floorTempId
+          ? { ...f, units: f.units.filter((u) => u.tempId !== unitTempId) }
+          : f
+      )
+    );
+  };
+
+  const saveDrafts = async () => {
+    setSaving(true);
+    try {
+      for (const df of draftFloors) {
+        if (!df.floor_number) continue;
+        const floorRes = await propApi.createFloor({ property_id: propertyId, floor_number: Number(df.floor_number) });
+        const floorId = floorRes.id;
+        for (const du of df.units) {
+          if (!du.unit_number) continue;
+          await propApi.createUnit({
+            floor_id: floorId, unit_number: du.unit_number, status: du.status,
+            size: du.size || null, rent_amount: du.rent_amount ? Number(du.rent_amount) : null,
+          });
+        }
+      }
+      setDraftFloors([]);
+      await load();
+    } catch {
+      alert("Failed to save floors and units");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,6 +145,8 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
     await propApi.uploadAttachment(propertyId, file);
     e.target.value = ""; await load();
   };
+
+  const hasDrafts = draftFloors.length > 0;
 
   if (!prop) {
     return (
@@ -103,38 +168,6 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-30 bg-black/40" />
-
-      {/* Add Floor Modal — outside drawer so z-50 is not clipped */}
-      <AppDialog isOpen={floorOpen} onClose={() => setFloorOpen(false)} title="Add Floor">
-        <div className="space-y-3">
-          <input className="input-dark w-full px-4 py-3 text-sm" type="number"
-            value={floorNum} onChange={(e) => setFloorNum(e.target.value)} placeholder="Floor number (e.g. 1)" />
-          <button className="btn-property w-full py-3 text-sm" type="button" onClick={() => void addFloor()}>
-            Add Floor
-          </button>
-        </div>
-      </AppDialog>
-
-      {/* Add Unit Modal — outside drawer */}
-      <AppDialog isOpen={unitOpen} onClose={() => setUnitOpen(false)} title="Add Unit">
-        <div className="space-y-3">
-          <input className="input-dark w-full px-4 py-3 text-sm" value={unitNum}
-            onChange={(e) => setUnitNum(e.target.value)} placeholder="Unit number (e.g. 101)" />
-          <input className="input-dark w-full px-4 py-3 text-sm" value={unitSize}
-            onChange={(e) => setUnitSize(e.target.value)} placeholder="Size (e.g. 850 sqft)" />
-          <input className="input-dark w-full px-4 py-3 text-sm" type="number" value={unitRent}
-            onChange={(e) => setUnitRent(e.target.value)} placeholder="Monthly rent (AED)" />
-          <select className="select-dark w-full px-4 py-3 text-sm" value={unitStatus}
-            onChange={(e) => setUnitStatus(e.target.value)}>
-            {["available","reserved","rented","sold","maintenance"].map((s) => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            ))}
-          </select>
-          <button className="btn-property w-full py-3 text-sm" type="button" onClick={() => void addUnit()}>
-            Add Unit
-          </button>
-        </div>
-      </AppDialog>
 
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 w-full max-w-2xl z-40 flex flex-col overflow-hidden animate-slide-up"
@@ -220,12 +253,23 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold text-primary">Floors &amp; Units</p>
-              <button type="button" onClick={() => setFloorOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">
-                <Plus size={12} /> Add Floor
-              </button>
+              <div className="flex items-center gap-2">
+                {hasDrafts && (
+                  <button type="button" onClick={saveDrafts} disabled={saving}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ background: "var(--accent-primary, #f6ce3a)", color: "#000" }}>
+                    <Save size={13} /> {saving ? "Saving..." : "Save"}
+                  </button>
+                )}
+                <button type="button" onClick={addDraftFloor}
+                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">
+                  <Plus size={12} /> Add Floor
+                </button>
+              </div>
             </div>
-            {prop.floors.length === 0 && (
+
+            {/* Existing floors */}
+            {prop.floors.length === 0 && !hasDrafts && (
               <p className="text-xs text-muted py-4 text-center">No floors yet.</p>
             )}
             {prop.floors.map((floor) => (
@@ -244,42 +288,66 @@ export default function PropertyDetailDrawer({ propertyId, onClose }: Props) {
                   </span>
                   <span className="text-xs text-muted">{floor.units.length} units</span>
                 </button>
+              </div>
+            ))}
 
-                {expanded.has(floor.id) && (
-                  <div style={{ borderTop: "1px solid var(--border)" }}>
-                    {floor.units.map((unit) => {
-                      const uc = STATUS_COLOR[unit.status] ?? "#94a3b8";
-                      return (
-                        <div key={unit.id} className="flex items-center justify-between px-5 py-2.5 transition-colors"
-                          style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg-sm)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-muted">{unit.tid}</span>
-                            <span className="text-sm text-primary">Unit {unit.unit_number}</span>
-                            {unit.size && <span className="text-xs text-muted">{unit.size}</span>}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {unit.rent_amount && (
-                              <span className="text-xs text-muted">AED {Number(unit.rent_amount).toLocaleString()}/mo</span>
-                            )}
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                              style={{ background: `${uc}18`, color: uc }}>
-                              {unit.status}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <button type="button"
-                      onClick={() => { setUnitFloor(floor.id); setUnitOpen(true); }}
-                      className="w-full flex items-center gap-2 px-5 py-2.5 text-xs text-blue-400 transition-colors"
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                      <Plus size={12} /> Add Unit
+            {/* Draft floors */}
+            {draftFloors.map((df) => (
+              <div key={df.tempId} className="mb-3 rounded-xl overflow-hidden"
+                style={{ border: "2px dashed var(--accent-primary, #f6ce3a)" }}>
+                <div className="flex items-center gap-2 px-4 py-3"
+                  style={{ background: "rgba(246,206,58,0.05)", borderBottom: "1px solid var(--border)" }}>
+                  <input className="flex-1 bg-transparent text-sm font-medium outline-none"
+                    style={{ color: "var(--text-primary)" }}
+                    value={df.floor_number}
+                    onChange={(e) => updateDraftFloor(df.tempId, e.target.value)}
+                    placeholder="Floor number (e.g. 1)"
+                  />
+                  <button type="button" onClick={() => removeDraftFloor(df.tempId)}
+                    className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                {/* Draft units */}
+                {df.units.map((du) => (
+                  <div key={du.tempId} className="flex items-center gap-2 px-5 py-2.5 flex-wrap"
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                    <input className="bg-transparent text-xs outline-none w-20"
+                      style={{ color: "var(--text-primary)" }}
+                      value={du.unit_number} onChange={(e) => updateDraftUnit(df.tempId, du.tempId, "unit_number", e.target.value)}
+                      placeholder="Unit #"
+                    />
+                    <input className="bg-transparent text-xs outline-none w-24"
+                      style={{ color: "var(--text-secondary)" }}
+                      value={du.size} onChange={(e) => updateDraftUnit(df.tempId, du.tempId, "size", e.target.value)}
+                      placeholder="Size"
+                    />
+                    <input className="bg-transparent text-xs outline-none w-28"
+                      style={{ color: "var(--text-secondary)" }}
+                      type="number" value={du.rent_amount}
+                      onChange={(e) => updateDraftUnit(df.tempId, du.tempId, "rent_amount", e.target.value)}
+                      placeholder="Rent (AED)"
+                    />
+                    <select className="bg-transparent text-xs outline-none"
+                      style={{ color: "var(--text-secondary)" }}
+                      value={du.status}
+                      onChange={(e) => updateDraftUnit(df.tempId, du.tempId, "status", e.target.value)}>
+                      {["available","reserved","rented","sold","maintenance"].map((s) => (
+                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => removeDraftUnit(df.tempId, du.tempId)}
+                      className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
+                      <Trash2 size={12} />
                     </button>
                   </div>
-                )}
+                ))}
+
+                <button type="button" onClick={() => addDraftUnit(df.tempId)}
+                  className="w-full flex items-center gap-2 px-5 py-2.5 text-xs text-blue-400 hover:bg-blue-500/5 transition-colors">
+                  <Plus size={12} /> Add Unit
+                </button>
               </div>
             ))}
           </div>

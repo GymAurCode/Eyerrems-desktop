@@ -5,6 +5,8 @@ import {
   CreditCard, RefreshCw, Calendar, DollarSign, TrendingUp,
 } from "lucide-react";
 import { crmApi, Deal, InstallmentPlan, Installment } from "../../lib/crmApi";
+import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 import { StatusBadge, MonoId } from "../../components/detail";
 
 type RuleRow = {
@@ -114,6 +116,8 @@ export default function InstallmentPlanBuilder() {
   const [error, setError] = useState("");
 
   // Form state
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [totalAmount, setTotalAmount] = useState("");
   const [downPayment, setDownPayment] = useState("");
   const [rules, setRules] = useState<RuleRow[]>([
@@ -138,6 +142,21 @@ export default function InstallmentPlanBuilder() {
     };
     void load();
   }, [id]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      if (type === "installment_rule") {
+        setRules(rules.filter(r => r.id !== item.id));
+        pushToast({ title: "Rule Removed", message: "Installment rule has been removed", type: "success" });
+      }
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to remove", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   // Calculations
   const remaining = useMemo(() => {
@@ -199,6 +218,7 @@ export default function InstallmentPlanBuilder() {
         })),
         installments: [],
       });
+      pushToast({ title: "Plan Created", message: "Installment plan has been created", type: "success" });
       navigate(`/crm/deals/${deal.id}`);
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to create plan");
@@ -410,6 +430,16 @@ export default function InstallmentPlanBuilder() {
           <AlertCircle size={14} /> {error}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete this ${deleteTarget?.type}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Actions */}
       <div className="flex items-center justify-end gap-3">

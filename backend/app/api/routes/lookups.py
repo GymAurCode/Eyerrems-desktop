@@ -14,6 +14,83 @@ from app.models.lookup import LookupValue
 router = APIRouter()
 log = logging.getLogger("rems.lookups")
 
+# Maps each lookup category to (table_name, column_name) pairs that store its values.
+# Usage: for a lookup value "apartment" in category "property_type", count rows in
+# the listed tables where the column equals "apartment".
+CATEGORY_TO_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "property_type":         [("leads", "preferred_property_type"), ("properties", "category")],
+    "property_status":       [("properties", "status")],
+    "unit_type":             [("units", "unit_type"), ("town_units", "unit_type"), ("leads", "unit_preference")],
+    "furnishing_status":     [("units", "furnishing_status")],
+    "tenant_status":         [],
+    "id_type":               [],
+    "nationality":           [("contacts", "nationality"), ("employees", "nationality")],
+    "lease_type":            [("leases", "payment_frequency"), ("tenant_leases", "rent_cycle")],
+    "lease_status":          [("leases", "status"), ("tenant_leases", "status")],
+    "payment_method":        [("leases", "payment_method"), ("lease_payments", "payment_method"),
+                              ("tenant_payments", "payment_method"), ("expenses", "payment_method"),
+                              ("payrolls", "payment_method")],
+    "lead_status":           [("leads", "status")],
+    "lead_source":           [("leads", "source")],
+    "priority":              [("maintenance_records", "priority")],
+    "client_status":         [("clients", "status")],
+    "dealer_status":         [],
+    "employee_status":       [("employees", "employment_status")],
+    "department":            [],
+    "employment_type":       [("employees", "employment_type")],
+    "maintenance_category":  [("maintenance_records", "category")],
+    "maintenance_status":    [("maintenance_records", "status")],
+    "maintenance_priority":  [("maintenance_records", "priority")],
+    "expense_category":      [],
+    "invoice_status":        [("invoices", "status")],
+    "document_status":       [("attachments", "document_status")],
+    "booking_status":        [("bookings", "status")],
+    "unit_status":           [("units", "status"), ("town_units", "status")],
+    "deal_status":           [("deals", "status")],
+    "down_payment_status":   [("bookings", "down_payment_status")],
+    "commission_type":       [("dealers", "commission_type")],
+    "client_role":           [("contacts", "role")],
+    "gender":                [("employees", "gender")],
+    "payment_status":        [("payments", "payment_status"), ("expenses", "payment_status"),
+                              ("sale_instalments", "status")],
+    "account_type":          [("accounts", "account_type")],
+    "installment_type":      [("installments", "type")],
+    "listing_status":        [("properties", "listing_status")],
+    "operational_status":    [("properties", "operational_status")],
+    "size_unit":             [("properties", "size_unit"), ("units", "area_unit"), ("town_units", "size_unit")],
+    "owner_type":            [("properties", "owner_type")],
+    "regulatory_authority":  [("properties", "regulatory_authority")],
+    "unit_ownership":        [],
+    "contact_type":          [("contacts", "role")],
+    "payment_frequency":     [("leases", "payment_frequency"), ("tenant_leases", "rent_cycle")],
+}
+
+
+def _compute_usage(db: Session, category: str, values: list[str]) -> dict[str, int]:
+    """Return {value_string: count} for how many rows reference each lookup value."""
+    if not values:
+        return {}
+    columns = CATEGORY_TO_COLUMNS.get(category, [])
+    if not columns:
+        return {}
+
+    result: dict[str, int] = {v: 0 for v in values}
+    for table, col in columns:
+        try:
+            placeholders = ", ".join([f":v{i}" for i in range(len(values))])
+            params = {f"v{i}": v for i, v in enumerate(values)}
+            rows = db.execute(
+                text(f"SELECT {col}, COUNT(*) AS cnt FROM {table} WHERE {col} IN ({placeholders}) GROUP BY {col}"),
+                params,
+            ).fetchall()
+            for row in rows:
+                val = str(row[0])
+                if val in result:
+                    result[val] += row[1]
+        except Exception:
+            log.debug("Skipping usage query for %s.%s (table may not exist)", table, col)
+    return result
+
 
 def _serialize(lv: LookupValue) -> dict:
     return {
@@ -33,6 +110,7 @@ def get_lookup_values(
     category: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    include_usage: bool = Query(False, description="Include usage count for each value"),
 ):
     """Get all active values for a dropdown category."""
     items = (
@@ -41,13 +119,19 @@ def get_lookup_values(
         .order_by(LookupValue.sort_order.asc(), LookupValue.label.asc())
         .all()
     )
-    return [_serialize(item) for item in items]
+    serialized = [_serialize(item) for item in items]
+    if include_usage:
+        usage = _compute_usage(db, category, [item["value"] for item in serialized])
+        for item in serialized:
+            item["usage_count"] = usage.get(item["value"], 0)
+    return serialized
 
 
 @router.get("")
 def list_all_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    include_usage: bool = Query(False, description="Include usage count for each value"),
 ):
     """Get all categories grouped with their values — for Advance Options page."""
     items = (
@@ -75,7 +159,15 @@ def list_all_categories(
         cat = item.category
         if cat not in grouped:
             grouped[cat] = []
-        grouped[cat].append(_serialize(item))
+        serialized = _serialize(item)
+        grouped[cat].append(serialized)
+
+    if include_usage:
+        for cat, vals in grouped.items():
+            usage = _compute_usage(db, cat, [v["value"] for v in vals])
+            for v in vals:
+                v["usage_count"] = usage.get(v["value"], 0)
+
     return grouped
 
 
@@ -118,6 +210,30 @@ def create_lookup_value(
 class SeedDefaultsResponse(BaseModel):
     inserted: int
     message: str
+
+
+class SeedPreviewItem(BaseModel):
+    category: str
+    label: str
+    value: str
+    sort_order: int
+    is_default: bool
+
+
+@router.get("/seed-defaults", response_model=list[SeedPreviewItem])
+def get_seed_defaults():
+    """Return all seed default values so the frontend can preview them."""
+    from app.core.seed_lookups import SEED_DATA
+    return [
+        SeedPreviewItem(
+            category=row[0],
+            label=row[1],
+            value=row[2],
+            sort_order=row[3],
+            is_default=row[4] if len(row) > 4 else False,
+        )
+        for row in SEED_DATA
+    ]
 
 
 @router.post("/seed-defaults")

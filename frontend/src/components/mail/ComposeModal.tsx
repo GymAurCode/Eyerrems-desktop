@@ -185,7 +185,7 @@ export default function ComposeModal({ accounts, defaultAccountId, replyTo, onCl
 
         {/* To */}
         <div className="flex items-center gap-2 py-2">
-          <span className="text-xs text-muted w-12 shrink-0">To</span>
+          <span className="text-xs text-muted w-12 shrink-0">To <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></span>
           <input
             type="text"
             value={to}

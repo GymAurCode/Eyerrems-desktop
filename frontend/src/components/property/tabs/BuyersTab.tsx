@@ -11,6 +11,8 @@ import AddBuyerDialog from "../dialogs/AddBuyerDialog";
 import BuyerProfileDialog from "../dialogs/BuyerProfileDialog";
 import LogInteractionDialog from "../dialogs/LogInteractionDialog";
 import AddRoleDialog from "../dialogs/AddRoleDialog";
+import ConfirmDialog from "../../actions/ConfirmDialog";
+import { useNotifStore } from "../../../store/notifications";
 
 type Props = { refresh: number; onRefresh: () => void };
 
@@ -74,6 +76,9 @@ export default function BuyersTab({ refresh, onRefresh }: Props) {
   const [commOpen, setCommOpen]                 = useState(false);
   const [commContactId, setCommContactId]       = useState(0);
 
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
+
   const [addRoleOpen, setAddRoleOpen]           = useState(false);
   const [addRoleContactId, setAddRoleContactId] = useState(0);
   const [addRoleCurrentRole, setAddRoleCurrentRole] = useState("");
@@ -119,6 +124,7 @@ export default function BuyersTab({ refresh, onRefresh }: Props) {
   // ── Archive ──
   const archiveContact = async (contact: Contact) => {
     await propApi.updateContact(contact.id, { archived: true });
+    pushToast({ title: "Archived", message: `${contact.name} archived`, type: "success" });
     refreshTable();
   };
 
@@ -181,7 +187,7 @@ export default function BuyersTab({ refresh, onRefresh }: Props) {
     },
     {
       key: "archive", label: "Archive Contact", icon: Archive,
-      onClick: (row: Contact) => { if (confirm("Archive this contact?")) archiveContact(row); },
+      onClick: (row: Contact) => setDeleteTarget(row),
     },
     {
       key: "print", label: "Print", icon: Printer,
@@ -252,6 +258,22 @@ export default function BuyersTab({ refresh, onRefresh }: Props) {
         contactId={addRoleContactId}
         currentRole={addRoleCurrentRole}
         onSaved={() => refreshTable()}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Archive ${deleteTarget?.name ?? ""}`}
+        message={`Are you sure you want to archive ${deleteTarget?.name ?? "this contact"}? They can be restored later.`}
+        confirmLabel="Archive"
+        variant="warning"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await propApi.updateContact(deleteTarget.id, { archived: true });
+          pushToast({ title: "Archived", message: `${deleteTarget.name} archived`, type: "success" });
+          setDeleteTarget(null);
+          refreshTable();
+        }}
+        onCancel={() => setDeleteTarget(null)}
       />
     </>
   );

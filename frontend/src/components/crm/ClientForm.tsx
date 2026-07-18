@@ -4,6 +4,7 @@ import { FormField, ReadOnlyField } from "./FormField";
 import { crmApi, Client, Dealer } from "../../lib/crmApi";
 import AttachmentsButton from "../attachments/AttachmentsButton";
 import { useLookup } from "../../hooks/useLookup";
+import { formatCNIC } from "../../lib/cnic";
 
 const CNIC_RE  = /^\d{5}-\d{7}-\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,6 +32,10 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
   const formId  = useId();
   const editing = !!initial;
   const { options: CLIENT_STATUS_OPTS } = useLookup('client_status');
+  const statusOptions = CLIENT_STATUS_OPTS.length > 0 ? CLIENT_STATUS_OPTS
+    : [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
+       { value: "lead", label: "Lead" }, { value: "prospect", label: "Prospect" },
+       { value: "closed", label: "Closed" }];
 
   const [name, setName]         = useState("");
   const [phone, setPhone]       = useState("");
@@ -137,7 +142,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
             <FormField label="Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-                {CLIENT_STATUS_OPTS.map(opt => (
+                {statusOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
@@ -159,7 +164,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
             <FormField label="Status">
               <select className="select-dark w-full px-3 py-2 text-sm" value={status}
                 onChange={(e) => setStatus(e.target.value)}>
-                {CLIENT_STATUS_OPTS.map(opt => (
+                {statusOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
@@ -195,7 +200,7 @@ export default function ClientForm({ open, onClose, onSaved, initial, leadPrefil
 
           <FormField label="CNIC" error={errors.cnic}>
             <input className="input-dark w-full px-3 py-2 text-sm" value={cnic}
-              onChange={(e) => setCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+              onChange={(e) => setCnic(formatCNIC(e.target.value))} placeholder="XXXXX-XXXXXXX-X" />
           </FormField>
 
           <FormField label="Address" span="full">

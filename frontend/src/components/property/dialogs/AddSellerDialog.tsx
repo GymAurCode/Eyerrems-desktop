@@ -2,6 +2,7 @@ import { useEffect, useState, FormEvent } from "react";
 import { AlertTriangle, Plus, Upload, X } from "lucide-react";
 import AppDialog from "../../ui/AppDialog";
 import { propApi, Contact } from "../../../lib/propertyApi";
+import { formatCNIC } from "../../../lib/cnic";
 
 interface AddSellerDialogProps {
   isOpen: boolean;
@@ -251,7 +252,7 @@ export default function AddSellerDialog({ isOpen, onClose, onSaved, editContact 
         <SectionLabel title="Personal Information" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           <div className="md:col-span-2">
-            <label className="block text-xs text-muted mb-1">Full Name *</label>
+            <label className="block text-xs text-muted mb-1">Full Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="dialog-input w-full px-3 py-2.5 text-sm" value={name}
               onChange={(e) => setName(e.target.value)} required placeholder="Contact name" />
           </div>
@@ -284,7 +285,7 @@ export default function AddSellerDialog({ isOpen, onClose, onSaved, editContact 
               <div>
                 <label className="block text-xs text-muted mb-1">CNIC Number (00000-0000000-0)</label>
                 <input className="dialog-input w-full px-3 py-2.5 text-sm" value={cnic}
-                  onChange={(e) => setCnic(e.target.value)} placeholder="e.g. 12345-6789012-3" />
+                  onChange={(e) => setCnic(formatCNIC(e.target.value))} placeholder="e.g. 12345-6789012-3" />
               </div>
               <div>
                 <label className="block text-xs text-muted mb-1">Date of Birth</label>
@@ -337,7 +338,7 @@ export default function AddSellerDialog({ isOpen, onClose, onSaved, editContact 
               onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Phone *</label>
+            <label className="block text-xs text-muted mb-1">Phone <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="dialog-input w-full px-3 py-2.5 text-sm" value={phone}
               onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 1234567" />
           </div>

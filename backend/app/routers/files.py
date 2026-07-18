@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from typing import Optional
 
@@ -11,6 +12,7 @@ from app.api.deps import get_current_user, get_db
 from app.models.file_attachment import FileAttachment
 
 router = APIRouter(prefix="/api/files", tags=["files"])
+log = logging.getLogger("rems.files")
 
 ALLOWED_TYPES = {
     "application/pdf",
@@ -39,6 +41,15 @@ async def upload_file(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    log.info("=== /api/files/upload request received ===")
+    log.info("module=%s, record_type=%s, record_id=%s, document_type=%s, description=%s, expiry_date=%s",
+             module, record_type, record_id, document_type, description, expiry_date)
+    log.info("file filename=%s, content_type=%s, size=%s",
+             file.filename, file.content_type, file.size)
+
+    if not record_id or not record_id.strip():
+        raise HTTPException(status_code=400, detail="record_id is required and cannot be empty")
+
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
@@ -93,6 +104,8 @@ async def upload_file(
         db.commit()
         db.refresh(attachment)
 
+        log.info("File uploaded successfully: id=%s, name=%s", attachment.id, attachment.file_name)
+
         return JSONResponse(
             status_code=200,
             content={
@@ -104,6 +117,7 @@ async def upload_file(
 
     except Exception as e:
         db.rollback()
+        log.error("Cloudinary upload failed: %s", str(e), exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Upload failed: {str(e)}",

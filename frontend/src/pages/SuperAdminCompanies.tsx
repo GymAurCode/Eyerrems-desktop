@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Plus, Edit2, Trash2, Pause, Play, Calendar, AlertTriangle } from "lucide-react";
 import { DataTable } from "../components/data-table";
+import { ConfirmDialog } from "../components/actions";
+import { useNotifStore } from "../store/notifications";
 
 interface Company {
   id: number;
@@ -45,6 +47,8 @@ export default function SuperAdminCompanies() {
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     fetchCompanies();
@@ -75,12 +79,20 @@ export default function SuperAdminCompanies() {
   };
 
   const handleDelete = async (companyId: number) => {
-    if (!window.confirm("Are you sure? This will delete the company and all its data.")) return;
+    setDeleteTarget(companyId);
+  };
+
+  const executeDelete = async () => {
+    if (deleteTarget === null) return;
     try {
-      await api.delete(`/superadmin/companies/${companyId}`);
-      setCompanies((prev) => prev.filter((c) => c.id !== companyId));
+      await api.delete(`/superadmin/companies/${deleteTarget}`);
+      setCompanies((prev) => prev.filter((c) => c.id !== deleteTarget));
+      pushToast({ title: "Success", message: "Company deleted", type: "success" });
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to delete company");
+      pushToast({ title: "Error", message: "Failed to delete company", type: "error" });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -186,6 +198,16 @@ export default function SuperAdminCompanies() {
           searchable={false}
           emptyTitle="No companies found"
         />
+
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          title="Delete Company"
+          message="Are you sure? This will delete the company and all its data."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={executeDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     </div>
   );
@@ -243,7 +265,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Company Info */}
           <div>
-            <label className="block text-sm font-medium mb-2">Company Name</label>
+            <label className="block text-sm font-medium mb-2">Company Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="text"
               value={formData.name}
@@ -255,7 +277,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Slug</label>
+            <label className="block text-sm font-medium mb-2">Slug <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="text"
               value={formData.slug}
@@ -268,7 +290,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
+              <label className="block text-sm font-medium mb-2">Email <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input
                 type="email"
                 value={formData.email}
@@ -318,7 +340,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Expires (days)</label>
+              <label className="block text-sm font-medium mb-2">Expires (days) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input
                 type="number"
                 value={formData.expiry_days}
@@ -335,7 +357,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
           <h3 className="font-semibold text-lg">Admin User</h3>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Admin Email</label>
+            <label className="block text-sm font-medium mb-2">Admin Email <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="email"
               value={formData.admin_user.email}
@@ -352,7 +374,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Admin Full Name</label>
+            <label className="block text-sm font-medium mb-2">Admin Full Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="text"
               value={formData.admin_user.name}
@@ -369,7 +391,7 @@ function CompanyCreateModal({ onClose, onSuccess }: CompanyCreateModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Admin Password</label>
+            <label className="block text-sm font-medium mb-2">Admin Password <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input
               type="password"
               value={formData.admin_user.password}

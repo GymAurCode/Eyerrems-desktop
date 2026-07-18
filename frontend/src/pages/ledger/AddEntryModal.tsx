@@ -133,12 +133,12 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
               {/* Date + Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label style={labelStyle}>Entry Date *</label>
+                  <label style={labelStyle}>Entry Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                   <input type="datetime-local" value={form.entry_date}
                     onChange={e => set("entry_date", e.target.value)} className="dialog-input" required />
                 </div>
                 <div>
-                  <label style={labelStyle}>Entry Type *</label>
+                  <label style={labelStyle}>Entry Type <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                   <select value={form.entry_type} onChange={e => set("entry_type", e.target.value)} className="dialog-select">
                     {entryTypes.map(t => (
                       <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</option>
@@ -149,7 +149,7 @@ export default function AddEntryModal({ type, entityId, entityName, entryTypes, 
 
               {/* Description */}
               <div>
-                <label style={labelStyle}>Description *</label>
+                <label style={labelStyle}>Description <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                 <input type="text" value={form.description}
                   onChange={e => set("description", e.target.value)}
                   placeholder="Enter transaction description…"

@@ -12,6 +12,7 @@ import {
 } from "../../lib/financeApi";
 import { formatCurrency } from "../../lib/currency";
 import { useAuthStore } from "../../store/auth";
+import { useNotifStore } from "../../store/notifications";
 
 interface CommissionWorkflowProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface CommissionWorkflowProps {
 
 export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: CommissionWorkflowProps) {
   const isAdmin = useAuthStore((s) => s.isAdmin());
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const [dealers, setDealers] = useState<Awaited<ReturnType<typeof crmApi.getDealers>>>([]);
   const [loadingDealers, setLoadingDealers] = useState(false);
@@ -180,6 +182,7 @@ export default function CommissionWorkflow({ isOpen, onClose, onSuccess }: Commi
         reference: reference || undefined,
         description: description || undefined,
       });
+      pushToast({ title: "Commission Created", message: `Commission #${commission.id} recorded successfully`, type: "success" });
       // Sync commission earned to finance
       syncApi.commissionEarned({
         deal_id: dealId ? Number(dealId) : null,

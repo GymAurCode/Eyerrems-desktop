@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useDataStore } from "../store/useDataStore";
+import { setAuthReady } from "../lib/api";
 
 const FETCH_ALL: (keyof import("../store/useDataStore").DataState & `fetch${string}`)[] = [
   "fetchProperties",
@@ -92,18 +93,22 @@ async function runBatchConcurrently(
   }
 }
 
-export function useAppBootstrap() {
+export function useAppBootstrap(token?: string | null, ready = false) {
   useEffect(() => {
-    runBatchConcurrently(FETCH_ALL, 4);
-  }, []);
+    if (!token || !ready) return;
+    runBatchConcurrently(FETCH_ALL, 4).finally(() => {
+      setAuthReady(true);
+    });
+  }, [token, ready]);
 }
 
-export function useBackgroundRefresh(intervalMs = 5 * 60 * 1000) {
+export function useBackgroundRefresh(token?: string | null, intervalMs = 5 * 60 * 1000) {
   useEffect(() => {
+    if (!token) return;
     const interval = setInterval(() => {
       const store = useDataStore.getState();
       Promise.allSettled(REFRESH_ALL.map((key) => (store as any)[key]()));
     }, intervalMs);
     return () => clearInterval(interval);
-  }, [intervalMs]);
+  }, [token, intervalMs]);
 }

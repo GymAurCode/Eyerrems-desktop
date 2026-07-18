@@ -355,12 +355,11 @@ export default function ReportRunner() {
     setResult(null);
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token')
-      const API_BASE_URL = (window as any).API_BASE_URL || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 30000)
 
       const response = await fetch(
-        `${API_BASE_URL}/reports/${reportKey}`,
+        `/reports/${reportKey}`,
         {
           method: 'POST',
           headers: {

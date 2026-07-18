@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Upload, Paperclip, X, User } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
@@ -8,6 +8,7 @@ import FileUpload from "../ui/FileUpload";
 import { crmApi, Client } from "../../lib/crmApi";
 import { attachmentApi } from "../../lib/attachmentApi";
 import { useLookup } from "../../hooks/useLookup";
+import { formatCNIC } from "../../lib/cnic";
 
 const CNIC_RE  = /^\d{5}-\d{7}-\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,6 +39,10 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
   const formId = useId();
   const editing = !!initial;
   const { options: CLIENT_STATUS_OPTS } = useLookup("client_status");
+  const statusOptions = CLIENT_STATUS_OPTS.length > 0 ? CLIENT_STATUS_OPTS
+    : [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
+       { value: "lead", label: "Lead" }, { value: "prospect", label: "Prospect" },
+       { value: "closed", label: "Closed" }];
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -55,6 +60,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
   const [propertyId, setPropertyId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<Record<string, File>>({});
+  const fileUploadRef = useRef<any>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -127,6 +133,13 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
       const uploads = Object.entries(files).map(([key, file]) =>
         attachmentApi.upload("client", recordId, file, key, "PENDING"),
       );
+
+      const pendingFiles = fileUploadRef.current?.getPendingFiles() || [];
+      pendingFiles.forEach((entry: { file: File; documentType: string | null }) => {
+        uploads.push(attachmentApi.upload("client", recordId, entry.file, entry.documentType || "General", "PENDING"));
+      });
+      fileUploadRef.current?.clearPending();
+
       await Promise.allSettled(uploads);
 
       onSaved(client);
@@ -193,7 +206,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
               <FormField label="Status">
                 <select className="dialog-select w-full" value={status}
                   onChange={(e) => setStatus(e.target.value)}>
-                  {CLIENT_STATUS_OPTS.map(opt => (
+                  {statusOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
@@ -219,7 +232,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
               <FormField label="Status">
                 <select className="dialog-select w-full" value={status}
                   onChange={(e) => setStatus(e.target.value)}>
-                  {CLIENT_STATUS_OPTS.map(opt => (
+                  {statusOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
@@ -259,7 +272,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
             </FormField>
             <FormField label="CNIC" error={errors.cnic}>
               <input className="dialog-input w-full" value={cnic}
-                onChange={(e) => setCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+                onChange={(e) => setCnic(formatCNIC(e.target.value))} placeholder="XXXXX-XXXXXXX-X" />
             </FormField>
           </FormRow>
         </FormSection>
@@ -287,7 +300,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
             </FormField>
             <FormField label="CNIC" error={errors.next_of_kin_cnic}>
               <input className="dialog-input w-full" value={nextOfKinCnic}
-                onChange={(e) => setNextOfKinCnic(e.target.value)} placeholder="XXXXX-XXXXXXX-X" />
+                onChange={(e) => setNextOfKinCnic(formatCNIC(e.target.value))} placeholder="XXXXX-XXXXXXX-X" />
             </FormField>
           </FormRow>
           <FormField label="Phone">
@@ -337,7 +350,7 @@ export default function ClientFormDialog({ open, onClose, onSaved, initial, lead
           </FormRow>
 
           <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-            <FileUpload module="crm" recordType="client" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["CNIC Front", "CNIC Back", "Passport", "Proof of Income", "Bank Statement", "Other"]} />
+            <FileUpload ref={fileUploadRef} module="crm" recordType="client" recordId={initial?.id ? String(initial.id) : ""} documentTypes={["CNIC Front", "CNIC Back", "Passport", "Proof of Income", "Bank Statement", "Other"]} />
           </div>
         </FormSection>
       </form>

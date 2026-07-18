@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, registerLogoutCallback, getAuthToken, setAuthToken } from "../lib/api";
+import { api, registerLogoutCallback, getAuthToken, setAuthToken, setAuthReady } from "../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -165,9 +165,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isSuperAdmin,
         _bootstrapFetchedAt: null,
       });
-      if (!isSuperAdmin) {
-        await useAuthStore.getState().fetchMe();
-      }
+      // User data is loaded by App's bootstrap()/fetchMe() via the [token] useEffect.
+      // DO NOT call fetchMe() here — it races with bootstrap() from App.tsx and can
+      // trigger logout() if either request transiently fails, clearing the token for
+      // all subsequent requests.
     }
   },
   loginSuperAdmin: async (email, password) => {
@@ -304,6 +305,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: () => {
     setAuthToken(null);
+    setAuthReady(false);
     try {
       localStorage.removeItem("company_id");
       sessionStorage.removeItem("company_id");

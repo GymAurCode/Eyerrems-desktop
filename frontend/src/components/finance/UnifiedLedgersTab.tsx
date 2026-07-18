@@ -13,7 +13,7 @@ import {
   type Account,
   type LedgerResponse,
 } from "../../lib/financeApi";
-import { ledgerApi } from "../../lib/ledgerApi";
+import { ledgerApi } from "../../lib/financeApi";
 import GeneralLedger from "./GeneralLedger";
 import ClientLedger from "../../pages/ledger/ClientLedger";
 import DealerLedger from "../../pages/ledger/DealerLedger";

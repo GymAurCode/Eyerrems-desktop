@@ -9,12 +9,14 @@ export function DialogCancelButton({ onClick, label = "Cancel", disabled }) {
         borderRadius: "8px",
         fontSize: "13px",
         fontWeight: 500,
-        border: "0.5px solid var(--dialog-cancel-border, #CBD5E1)",
-        background: "var(--dialog-cancel-bg, #FFFFFF)",
-        color: "var(--dialog-cancel-color, #64748B)",
+        border: "1px solid var(--btn-glass-secondary-border, rgba(246,206,58,0.2))",
+        background: "var(--btn-glass-secondary-bg, rgba(246,206,58,0.06))",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        color: "var(--btn-glass-secondary-text, #D4A017)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
-        transition: "all 0.12s ease",
+        transition: "all 0.15s ease",
         display: "inline-flex",
         alignItems: "center",
         gap: "6px",
@@ -22,12 +24,14 @@ export function DialogCancelButton({ onClick, label = "Cancel", disabled }) {
       }}
       onMouseEnter={(e) => {
         if (!disabled) {
-          e.currentTarget.style.background = "var(--dialog-cancel-hover-bg, #F1F5F9)";
+          e.currentTarget.style.background = "var(--btn-glass-secondary-hover-bg, rgba(246,206,58,0.12))";
+          e.currentTarget.style.borderColor = "var(--btn-glass-secondary-hover-border, rgba(246,206,58,0.4))";
         }
       }}
       onMouseLeave={(e) => {
         if (!disabled) {
-          e.currentTarget.style.background = "var(--dialog-cancel-bg, #FFFFFF)";
+          e.currentTarget.style.background = "var(--btn-glass-secondary-bg, rgba(246,206,58,0.06))";
+          e.currentTarget.style.borderColor = "var(--btn-glass-secondary-border, rgba(246,206,58,0.2))";
         }
       }}
     >
@@ -45,9 +49,6 @@ export function DialogSubmitButton({
   type = "button",
 }) {
   const isDanger = variant === "danger";
-  const accentColor = isDanger
-    ? "#EF4444"
-    : "var(--accent-color, var(--module-primary, #6366F1))";
 
   return (
     <button
@@ -59,27 +60,55 @@ export function DialogSubmitButton({
         borderRadius: "8px",
         fontSize: "13px",
         fontWeight: 500,
-        border: "none",
-        background: disabled || loading ? "#94A3B8" : accentColor,
-        color: "#FFFFFF",
+        border: isDanger
+          ? "1px solid rgba(239,68,68,0.25)"
+          : "1px solid var(--btn-glass-primary-border, rgba(246,206,58,0.25))",
+        background: disabled || loading
+          ? "rgba(148,163,184,0.1)"
+          : isDanger
+            ? "rgba(239,68,68,0.12)"
+            : "var(--btn-glass-primary-bg, rgba(246,206,58,0.12))",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        color: disabled || loading
+          ? "#94A3B8"
+          : isDanger
+            ? "#f87171"
+            : "var(--btn-glass-primary-text, #D4A017)",
         cursor: disabled || loading ? "not-allowed" : "pointer",
         opacity: disabled || loading ? 0.6 : 1,
         display: "inline-flex",
         alignItems: "center",
         gap: "7px",
-        transition: "all 0.12s ease",
+        transition: "all 0.15s ease",
         minWidth: "90px",
         justifyContent: "center",
         lineHeight: 1,
       }}
       onMouseEnter={(e) => {
         if (!disabled && !loading) {
-          e.currentTarget.style.opacity = "0.9";
+          e.currentTarget.style.background = isDanger
+            ? "rgba(239,68,68,0.2)"
+            : "var(--btn-glass-primary-hover-bg, rgba(246,206,58,0.2))";
+          e.currentTarget.style.borderColor = isDanger
+            ? "rgba(239,68,68,0.5)"
+            : "var(--btn-glass-primary-hover-border, rgba(246,206,58,0.5))";
+          if (!isDanger) {
+            e.currentTarget.style.boxShadow = "0 0 24px rgba(246,206,58,0.1)";
+          }
         }
       }}
       onMouseLeave={(e) => {
         if (!disabled && !loading) {
-          e.currentTarget.style.opacity = "1";
+          e.currentTarget.style.background = isDanger
+            ? "rgba(239,68,68,0.12)"
+            : "var(--btn-glass-primary-bg, rgba(246,206,58,0.12))";
+          e.currentTarget.style.borderColor = isDanger
+            ? "rgba(239,68,68,0.25)"
+            : "var(--btn-glass-primary-border, rgba(246,206,58,0.25))";
+          if (!isDanger) {
+            e.currentTarget.style.boxShadow = "none";
+          }
         }
       }}
     >
@@ -89,8 +118,8 @@ export function DialogSubmitButton({
             style={{
               width: "14px",
               height: "14px",
-              border: "2px solid rgba(255,255,255,0.3)",
-              borderTopColor: "white",
+              border: "2px solid rgba(212,160,23,0.2)",
+              borderTopColor: "#D4A017",
               borderRadius: "50%",
               animation: "spin 0.7s linear infinite",
               flexShrink: 0,

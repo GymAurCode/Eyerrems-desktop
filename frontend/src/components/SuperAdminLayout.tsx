@@ -7,9 +7,15 @@ function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const theme = useUIStore((s) => s.theme);
 
   return (
-    <div className="app-shell flex h-screen overflow-hidden bg-base" data-theme={theme}>
+    <div className="app-shell flex h-screen overflow-hidden bg-base gap-4" data-theme={theme}>
       <SuperAdminSidebar />
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 my-4 mr-4 rounded-xl overflow-hidden"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--bg-surface)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        }}
+      >
         <SuperAdminTopbar />
         <main className="flex-1 overflow-y-auto bg-base">{children}</main>
       </div>
@@ -30,8 +36,13 @@ function SuperAdminSidebar() {
 
   return (
     <aside
-      className="h-screen sticky top-0 flex flex-col shrink-0 border-r border-theme bg-sidebar sidebar transition-[width] duration-250 ease-in-out overflow-hidden"
-      style={{ width: open ? "224px" : "60px" }}
+      className="flex flex-col shrink-0 overflow-hidden rounded-xl my-4 ml-4 bg-sidebar sidebar transition-[width] duration-250 ease-in-out"
+      style={{
+        width: open ? "224px" : "60px",
+        height: "calc(100vh - 2rem)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+      }}
     >
       {/* Logo */}
       <div className="h-14 flex items-center border-b border-theme px-3.5 shrink-0">

@@ -20,6 +20,8 @@ import { TableColumn, TableAction } from "../../components/data-table/types";
 import { useLookup } from "../../hooks/useLookup";
 import ModuleTabs from "../../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../../config/moduleColors";
+import ConfirmDialog from "../../components/actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 
 // ── Badges matching standard design systems ──────────────────────────────────
 
@@ -66,6 +68,7 @@ function BlockFormModal({
   const [workType, setWorkType] = useState("");
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     if (open) {
@@ -93,8 +96,10 @@ function BlockFormModal({
       };
       if (initial?.id) {
         await townApi.updateBlock(initial.id, payload);
+        pushToast({ title: "Block updated", message: `"${name.trim()}" has been updated.`, type: "success" });
       } else {
         await townApi.createBlock(payload);
+        pushToast({ title: "Block created", message: `"${name.trim()}" has been created.`, type: "success" });
       }
       onSaved();
       onClose();
@@ -238,6 +243,7 @@ function TownUnitFormModal({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     if (open) {
@@ -329,8 +335,10 @@ function TownUnitFormModal({
 
       if (initial?.id) {
         await townApi.updateUnit(initial.id, payload);
+        pushToast({ title: "Unit updated", message: `Unit ${unitNumber.trim()} has been updated.`, type: "success" });
       } else {
         await townApi.createUnit(payload);
+        pushToast({ title: "Unit created", message: `Unit ${unitNumber.trim()} has been created.`, type: "success" });
       }
       onSaved();
       onClose();
@@ -1118,6 +1126,26 @@ export default function TownDetail() {
   const [deleteBlock, setDeleteBlock]         = useState<Block | null>(null);
   const [deleteUnitOpen, setDeleteUnitOpen]   = useState(false);
   const [deleteUnit, setDeleteUnit]           = useState<TownUnit | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      if (deleteTarget.type === "block") {
+        await townApi.deleteBlock(deleteTarget.item.id);
+        pushToast({ title: "Block deleted", message: `Block "${deleteTarget.item.name}" has been deleted.`, type: "success" });
+      } else if (deleteTarget.type === "unit") {
+        await townApi.deleteUnit(deleteTarget.item.id);
+        pushToast({ title: "Unit deleted", message: `Unit #${deleteTarget.item.unit_number} has been deleted.`, type: "success" });
+      }
+      setDeleteTarget(null);
+      await loadAll();
+      if (deleteTarget.type === "unit" && activeTab === "units") fetchUnitsList();
+    } catch {
+      setDeleteTarget(null);
+    }
+  };
 
   const loadAll = async () => {
     if (!id) return;
@@ -1511,10 +1539,10 @@ export default function TownDetail() {
                         key={block.id}
                         block={block}
                         onEditBlock={openEditBlock}
-                        onDeleteBlock={(b) => { setDeleteBlock(b); setDeleteBlockOpen(true); }}
+                        onDeleteBlock={(b) => setDeleteTarget({ item: b, type: "block" })}
                         onAddUnit={openAddUnit}
                         onEditUnit={openEditUnit}
-                        onDeleteUnit={(u) => { setDeleteUnit(u); setDeleteUnitOpen(true); }}
+                        onDeleteUnit={(u) => setDeleteTarget({ item: u, type: "unit" })}
                         onViewUnit={openViewUnit}
                       />
                     ))}
@@ -1600,29 +1628,24 @@ export default function TownDetail() {
         unit={viewUnit}
       />
 
-      <ConfirmDeleteModal
-        open={deleteBlockOpen}
-        onClose={() => setDeleteBlockOpen(false)}
-        label={`Delete block "${deleteBlock?.name}"? All plots inside will also be deleted. This cannot be undone.`}
-        onConfirm={async () => {
-          if (deleteBlock) await townApi.deleteBlock(deleteBlock.id);
-          await loadAll();
-        }}
+      <ConfirmDialog
+        open={deleteTarget?.type === "block"}
+        title="Delete Block"
+        message={`Permanently delete block "${deleteTarget?.item?.name}" and all its plots? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
       
-      <ConfirmDeleteModal
-        open={deleteUnitOpen}
-        onClose={() => setDeleteUnitOpen(false)}
-        label={`Delete unit #${deleteUnit?.unit_number}? This cannot be undone.`}
-        onConfirm={async () => {
-          if (deleteUnit) {
-            // Check if plot_id is populated or standalone unit id is used
-            const targetId = deleteUnit.id;
-            await townApi.deleteUnit(targetId);
-          }
-          await loadAll();
-          if (activeTab === "units") fetchUnitsList();
-        }}
+      <ConfirmDialog
+        open={deleteTarget?.type === "unit"}
+        title="Delete Unit"
+        message={`Permanently delete unit #${deleteTarget?.item?.unit_number}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

@@ -22,8 +22,8 @@ def dashboard_stats(
         db.query(func.count(Unit.id))
         .filter(
             or_(
-                func.lower(Unit.status).in_(["sold", "rented"]),
-                Unit.status.in_(["Sold", "Rented"]),
+                func.lower(Unit.status).in_(["sold", "rented", "occupied"]),
+                Unit.status.in_(["Sold", "Rented", "Occupied"]),
             )
         )
         .scalar()

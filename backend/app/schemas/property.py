@@ -159,8 +159,14 @@ class PropertyOut(BaseModel):
     asking_price: Decimal | None = None
     commission_pct: Decimal | None = None
     income_gl_account_id: int | None = None
+    income_gl_account_name: str | None = None
+    income_gl_account_code: str | None = None
     expense_gl_account_id: int | None = None
+    expense_gl_account_name: str | None = None
+    expense_gl_account_code: str | None = None
     asset_gl_account_id: int | None = None
+    asset_gl_account_name: str | None = None
+    asset_gl_account_code: str | None = None
     cost_centre: str | None = None
     dealer_id: int | None
     year_built: int | None
@@ -726,7 +732,7 @@ class PropertySaleOut(BaseModel):
     sale_date: date | None = None
     transfer_date: date | None = None
     transfer_deed_number: str | None = None
-    sale_stage: str
+    sale_stage: str | None = None
     status: str | None = None
     cancellation_reason: str | None = None
     notes: str | None = None

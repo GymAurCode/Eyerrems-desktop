@@ -15,7 +15,7 @@ from app.models.auth import User
 from app.models.hr import (
     AllowanceType, Attendance, Branch, DeductionType, Department,
     Employee, Holiday, Leave, LeaveBalance, LeaveType, Payroll,
-    Position, SalaryStructure,
+    Position, SalaryStructure, ShiftTemplate,
 )
 from app.schemas.hr import (
     AllowanceTypeCreate, AllowanceTypeResponse,
@@ -30,6 +30,7 @@ from app.schemas.hr import (
     PayrollResponse, PayrollUpdate,
     PositionCreate, PositionResponse, PositionUpdate,
     SalaryStructureCreate, SalaryStructureResponse, SalaryStructureUpdate,
+    ShiftTemplateCreate, ShiftTemplateResponse, ShiftTemplateUpdate,
 )
 from app.services.hr import AttendanceService, LeaveService, PayrollService
 
@@ -309,6 +310,110 @@ def update_branch(
     db.commit()
     db.refresh(branch)
     return branch
+
+
+# ==================== SHIFT TEMPLATES ====================
+
+@router.get("/shift-templates", response_model=List[ShiftTemplateResponse])
+def list_shift_templates(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+):
+    q = db.query(ShiftTemplate)
+    if active_only:
+        q = q.filter(ShiftTemplate.is_active.is_(True))
+    return q.order_by(ShiftTemplate.shift_name).all()
+
+
+@router.post("/shift-templates", response_model=ShiftTemplateResponse, status_code=201)
+def create_shift_template(
+    payload: ShiftTemplateCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin")),
+):
+    if db.query(ShiftTemplate).filter(ShiftTemplate.shift_name == payload.shift_name).first():
+        raise HTTPException(400, "Shift template name already exists")
+    now = datetime.utcnow()
+    st = ShiftTemplate(**payload.model_dump(), created_at=now, updated_at=now)
+    db.add(st)
+    db.commit()
+    db.refresh(st)
+    log_action(
+        db=db, module="hr", action="CREATE",
+        record_id=str(st.id), record_label=f"Shift Template: {st.shift_name}",
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
+        new_data={k: str(v) for k, v in st.__dict__.items() if not k.startswith('_')},
+    )
+    log_activity(
+        db=db, user=current_user, action="create", module="hr",
+        record_type="shift_template", record_id=st.id,
+        record_label=f"Shift Template: {st.shift_name}",
+        new_values={k: str(v) for k, v in st.__dict__.items() if not k.startswith('_')},
+    )
+    db.commit()
+    return st
+
+
+@router.put("/shift-templates/{shift_id}", response_model=ShiftTemplateResponse)
+def update_shift_template(
+    shift_id: int,
+    payload: ShiftTemplateUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin")),
+):
+    st = db.query(ShiftTemplate).filter(ShiftTemplate.id == shift_id).first()
+    if not st:
+        raise HTTPException(404, "Shift template not found")
+    old_data = {k: str(v) for k, v in st.__dict__.items() if not k.startswith('_')}
+    for k, v in payload.model_dump(exclude_none=True).items():
+        setattr(st, k, v)
+    st.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(st)
+    new_data = {k: str(v) for k, v in st.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="UPDATE",
+        record_id=str(shift_id), record_label=f"Shift Template: {st.shift_name}",
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
+        old_data=old_data, new_data=new_data,
+    )
+    log_activity(
+        db=db, user=current_user, action="update", module="hr",
+        record_type="shift_template", record_id=shift_id,
+        record_label=f"Shift Template: {st.shift_name}",
+        old_values=old_data, new_values=new_data,
+    )
+    db.commit()
+    return st
+
+
+@router.delete("/shift-templates/{shift_id}", status_code=204)
+def delete_shift_template(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin")),
+):
+    st = db.query(ShiftTemplate).filter(ShiftTemplate.id == shift_id).first()
+    if not st:
+        raise HTTPException(404, "Shift template not found")
+    old_data = {k: str(v) for k, v in st.__dict__.items() if not k.startswith('_')}
+    log_action(
+        db=db, module="hr", action="DELETE",
+        record_id=str(shift_id), record_label=f"Shift Template: {st.shift_name}",
+        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
+        old_data=old_data,
+    )
+    log_activity(
+        db=db, user=current_user, action="delete", module="hr",
+        record_type="shift_template", record_id=shift_id,
+        record_label=f"Shift Template: {st.shift_name}",
+        old_values={"id": str(shift_id)},
+    )
+    db.commit()
+    st.is_active = False
+    st.updated_at = datetime.utcnow()
+    db.commit()
 
 
 # ==================== EMPLOYEES ====================
@@ -1310,3 +1415,14 @@ def create_deduction_type(
     )
     db.commit()
     return dt
+
+
+@router.get("/stats")
+def hr_stats(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("Admin")),
+):
+    total_employees = db.query(Employee).filter(
+        Employee.is_active.is_(True)
+    ).count()
+    return {"total": total_employees}

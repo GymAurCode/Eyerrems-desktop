@@ -99,10 +99,10 @@ class ErrorTracker {
       this.errors = this.errors.slice(-50);
     }
 
-    // Notify listeners
+    // Notify listeners (deferred to avoid state updates during React render phase)
     this.listeners.forEach(listener => {
       try {
-        listener(this.errors);
+        setTimeout(() => listener(this.errors), 0);
       } catch (e) {
         this.originalConsoleError('Error tracker listener failed:', e);
       }

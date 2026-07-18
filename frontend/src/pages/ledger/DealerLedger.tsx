@@ -5,12 +5,12 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { Briefcase, ArrowLeft, Plus, Search } from "lucide-react";
 import DataTable from "../../components/data-table/DataTable";
 import type { TableColumn } from "../../components/data-table/types";
-import {
-  ledgerApi,
-  type DealerLedgerListItem,
-  type DealerLedgerEntry,
-  type DealerLedgerResponse,
-  type DealerLedgerEntryCreate,
+import { ledgerApi } from "../../lib/financeApi";
+import type {
+  DealerLedgerListItem,
+  DealerLedgerEntry,
+  DealerLedgerResponse,
+  DealerLedgerEntryCreate,
 } from "../../lib/ledgerApi";
 import { formatCurrency } from "../../lib/currency";
 import LedgerTable, { type LedgerRow } from "./LedgerTable";

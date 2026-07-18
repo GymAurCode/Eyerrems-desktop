@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, memo, useMemo, useCallback, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText } from "lucide-react";
+import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText, MessageCircle, AlertTriangle, UserX, Building2, FileBarChart } from "lucide-react";
 import ReportModal from "../components/reports/ReportModal";
 import { useLookup } from "../hooks/useLookup";
 import { QuickRowActions, printRecord } from "../components/actions";
@@ -18,7 +18,11 @@ import Payments from "./crm/Payments";
 import { api } from "../lib/api";
 import { AppTable, removeEmptyParams } from "../components/data-table";
 import ModuleTabs from "../components/ui/ModuleTabs";
+import AppDialog from "../components/ui/AppDialog";
+import { DialogCancelButton, DialogSubmitButton } from "../components/ui/DialogButtons";
 import { MODULE_COLORS } from "../config/moduleColors";
+import { useNotifStore } from "../store/notifications";
+import ConfirmDialog from "../components/actions/ConfirmDialog";
 
 const TABS = ["Dashboard", "Leads", "Clients", "Dealers", "Deals", "Bookings", "Follow Ups", "Site Visits", "Payments"];
 
@@ -79,6 +83,9 @@ const LeadsTab = memo(function LeadsTab({ leads, leadsLoading, leadsErr, leadsTo
 
   const leadActions = useMemo(() => [
     { key: "view", label: "View", icon: Eye, onClick: (row: Lead) => navigate(`/crm/leads/${row.lead_id}`) },
+    { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, onClick: (row: Lead) => {
+      if (row.phone) window.open(`https://web.whatsapp.com/send?phone=${row.phone.replace(/[^0-9]/g, "")}`, "_blank");
+    }},
     { key: "print", label: "Print", icon: Printer, onClick: (row: Lead) => printRecord(`Lead ${row.lead_id}`, [
       { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
     ]) }
@@ -172,7 +179,19 @@ interface DealersTabProps {
   onEdit: (dealer: Dealer) => void;
 }
 
+interface DeleteConflict {
+  dealer: Dealer;
+  leads: { id: number; lead_id: string; name: string }[];
+  clients: { id: number; client_id: string; name: string }[];
+  deals: { id: number; deal_title: string | null; status: string }[];
+}
+
 const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersErr, dealersTotal, dealersParams, navigate, onRefresh, onPageChange, onFilterChange, onEdit }: DealersTabProps) {
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteConflict, setDeleteConflict] = useState<DeleteConflict | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: string; item: any } | null>(null);
+
   const dealerColumns = useMemo(() => [
     { key: "dealer_id", label: "Dealer ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "name", label: "Name", sortable: true, className: "font-medium" },
@@ -181,31 +200,160 @@ const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersEr
     { key: "commission_rate", label: "Commission", render: (val: any, row: Dealer) => row.commission_rate ? `${row.commission_rate}${row.commission_type === "percentage" ? "%" : " (fixed)"}` : "—" }
   ], []);
 
+  const handleDeleteDealer = (row: Dealer) => {
+    setDeleteTarget({ type: "dealer", item: row });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { type, item } = deleteTarget;
+    try {
+      if (type === "dealer") {
+        await crmApi.deleteDealer(item.id);
+        pushToast({ title: "Success", message: "Dealer deleted successfully", type: "success" });
+      }
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      setDeleteTarget(null);
+      if (err?.response?.status === 409) {
+        const detail = err.response.data?.detail;
+        if (detail?.leads || detail?.clients || detail?.deals || detail?.properties || detail?.bookings || detail?.commissions) {
+          setDeleteConflict({ dealer: item, leads: detail.leads ?? [], clients: detail.clients ?? [], deals: detail.deals ?? [] });
+          return;
+        }
+      }
+      const msg = err?.response?.data?.detail ?? "Failed to delete dealer";
+      pushToast({ title: "Error", message: msg, priority: "urgent" });
+    }
+  };
+
+  const handleForceDelete = async () => {
+    if (!deleteConflict) return;
+    setDeleting(true);
+    try {
+      await crmApi.deleteDealer(deleteConflict.dealer.id, true);
+      setDeleteConflict(null);
+      pushToast({ title: "Success", message: "Dealer deleted successfully", type: "success" });
+      onRefresh();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail ?? "Failed to force delete dealer";
+      pushToast({ title: "Error", message: msg, priority: "urgent" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const dealerActions = useMemo(() => [
     { key: "view", label: "View", icon: Eye, onClick: (row: Dealer) => navigate(`/crm/dealers/${row.id}`) },
     { key: "edit", label: "Edit", icon: Edit2, onClick: (row: Dealer) => onEdit(row), permission: "crm:manage" },
     { key: "print", label: "Print", icon: Printer, onClick: (row: Dealer) => printRecord(`Dealer ${row.dealer_id}`, [
       { label: "Name", value: row.name }, { label: "Company", value: row.company ?? "—" },
-    ]) }
-  ], [navigate, onEdit]);
+    ]) },
+    { key: "delete", label: "Delete", icon: Trash2, onClick: (row: Dealer) => handleDeleteDealer(row), variant: "danger" }
+  ], [navigate, onEdit, onRefresh]);
 
   return (
-    <AppTable
-      storageKey="rems_crm_dealers_table"
-      title="Dealers"
-      subtitle="Manage agent/dealer partnerships and commission structures"
-      data={dealers}
-      columns={dealerColumns}
-      rowActions={dealerActions}
-      loading={dealersLoading}
-      error={dealersErr}
-      onRetry={onRefresh}
-      pagination={{ page: dealersParams.page, pageSize: dealersParams.pageSize, total: dealersTotal }}
-      onPageChange={onPageChange}
-      onFilterChange={onFilterChange}
-      showTypeFilter={false}
-      showStatusFilter={false}
-    />
+    <>
+      <AppTable
+        storageKey="rems_crm_dealers_table"
+        title="Dealers"
+        subtitle="Manage agent/dealer partnerships and commission structures"
+        data={dealers}
+        columns={dealerColumns}
+        rowActions={dealerActions}
+        loading={dealersLoading}
+        error={dealersErr}
+        onRetry={onRefresh}
+        pagination={{ page: dealersParams.page, pageSize: dealersParams.pageSize, total: dealersTotal }}
+        onPageChange={onPageChange}
+        onFilterChange={onFilterChange}
+        showTypeFilter={false}
+        showStatusFilter={false}
+      />
+
+      {deleteConflict && (
+        <AppDialog
+          isOpen={true}
+          title="Cannot Delete Dealer"
+          subtitle={`${deleteConflict.dealer.name} (${deleteConflict.dealer.dealer_id})`}
+          size="md"
+          icon={<AlertTriangle size={18} />}
+          onClose={() => setDeleteConflict(null)}
+          footer={
+            <>
+              <DialogCancelButton onClick={() => setDeleteConflict(null)} label="Cancel" disabled={deleting} />
+              <DialogSubmitButton onClick={handleForceDelete} label="Unassign All & Delete"
+                loading={deleting} variant="danger" />
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            This dealer is assigned to the following records. Unassign them to proceed.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "4px" }}>
+            {deleteConflict.leads.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  <UserX size={14} /> Leads ({deleteConflict.leads.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {deleteConflict.leads.map(l => (
+                    <div key={l.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px" }}>
+                      <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{l.lead_id}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{l.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {deleteConflict.clients.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  <Building2 size={14} /> Clients ({deleteConflict.clients.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {deleteConflict.clients.map(c => (
+                    <div key={c.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px" }}>
+                      <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{c.client_id}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{c.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {deleteConflict.deals.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  <FileBarChart size={14} /> Deals ({deleteConflict.deals.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {deleteConflict.deals.map(d => (
+                    <div key={d.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+                      <span style={{ color: "var(--text-primary)", flex: 1 }}>{d.deal_title ?? "Untitled"}</span>
+                      <Badge status={d.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </AppDialog>
+      )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={deleteTarget?.type === "dealer" ? "Delete Dealer" : "Delete"}
+        message={
+          deleteTarget?.type === "dealer"
+            ? `Are you sure you want to delete dealer "${deleteTarget?.item?.name || deleteTarget?.item?.id}"? This action cannot be undone.`
+            : "Are you sure?"
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 });
 
@@ -441,10 +589,14 @@ const MemoCRMPage = memo(function CRMPage() {
   const doSearch = useCallback(async () => {
     if (!searchQ.trim()) return;
     try {
-      const res = await crmApi.search(searchQ.trim());
-      if (res.client) navigate(`/crm/clients/${res.client.client_id}`);
+      const results = await crmApi.searchClients(searchQ.trim());
+      if (results.length > 0) {
+        navigate(`/crm/clients/${results[0].client_id}`);
+      } else {
+        alert("No clients found for: " + searchQ);
+      }
     } catch {
-      alert("No results found for: " + searchQ);
+      alert("Search failed. Please try again.");
     }
   }, [searchQ, navigate]);
 
@@ -473,21 +625,24 @@ const MemoCRMPage = memo(function CRMPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <input className="input-dark px-3 py-2 text-sm w-56" placeholder="Search TRX-YYYY-XXXX"
+            <input className="input-dark px-3 py-2 text-sm w-64" placeholder="Search client by name, CNIC, phone, or ID"
               value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && doSearch()} />
             <button onClick={doSearch} className="btn-primary px-3 py-2 text-sm">
               <Search size={14} />
             </button>
           </div>
-          <button type="button" onClick={() => {
+          {tab === 1 && <button type="button" onClick={() => navigate("/spreadsheet")} className="btn-ghost flex items-center gap-2 px-4 py-2.5 text-sm">
+            <FileText size={15} /> Spreadsheet
+          </button>}
+          {tab !== 0 && <button type="button" onClick={() => {
             if (tab === 1) setLeadModal(true);
             else if (tab === 2) setClientModal(true);
             else if (tab === 3) setDealerModal(true);
             else if (tab === 4) setDealModal(true);
           }} className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm">
             <Plus size={15} /> New
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -568,6 +723,7 @@ const MemoCRMPage = memo(function CRMPage() {
           setLeadModal(false);
           setLeads((prev) => [lead, ...prev]);
           setLeadsTotal((t) => t + 1);
+          pushToast({ title: "Lead Created", message: `Lead "${lead.name}" added successfully`, type: "success" });
         }}
       />
       <ClientFormDialog

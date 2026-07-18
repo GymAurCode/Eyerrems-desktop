@@ -107,13 +107,33 @@ def search_units(
         like = f"%{search.strip()}%"
         q = q.filter(
             or_(
-                Unit.unit_no.ilike(like),
+                Unit.unit_number.ilike(like),
                 Unit.unit_type.ilike(like),
-                Unit.title.ilike(like),
+                Unit.status.ilike(like),
             )
         )
-    q = q.order_by(Unit.unit_no.asc())
-    return _paginated_response(q, page, Unit, "unit_no", "unit_type")
+    q = q.order_by(Unit.unit_number.asc())
+    return _units_paginated_response(q, page, Unit)
+
+
+def _units_paginated_response(query, page: int, model):
+    """Like _paginated_response but also returns unit status."""
+    total = query.count()
+    total_pages = max(1, ceil(total / PAGE_SIZE))
+    offset = (page - 1) * PAGE_SIZE
+    rows = query.offset(offset).limit(PAGE_SIZE).all()
+
+    items = []
+    for r in rows:
+        label = getattr(r, "unit_number", "")
+        subtext = getattr(r, "status", "")
+        items.append({
+            "id": r.id,
+            "label": str(label),
+            "subtext": str(subtext).replace("_", " ").title() if subtext else "Available",
+            "status": getattr(r, "status", "available"),
+        })
+    return {"items": items, "totalPages": total_pages}
 
 
 # ── Tenants ─────────────────────────────────────────────────────────────────────

@@ -1,3 +1,5 @@
+import { FormLabel } from "../ui/FormLabel";
+
 /** Reusable labeled form field wrapper. */
 export function FormField({
   label, required, error, children, span,
@@ -12,10 +14,10 @@ export function FormField({
   const spanClass = span === "full" ? "col-span-full" : span === "2" ? "col-span-2" : span === "3" ? "col-span-3" : "";
   return (
     <div className={`flex flex-col gap-1 ${spanClass}`}>
-      <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+      <FormLabel className="text-xs font-medium" required={required}
+        style={{ color: "var(--text-secondary)" }}>
         {label}
-        {required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
+      </FormLabel>
       {children}
       {error && (
         <p className="text-xs text-red-400 flex items-center gap-1 mt-0.5">

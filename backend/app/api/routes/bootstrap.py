@@ -24,7 +24,7 @@ from app.models.auth import User
 from app.models.crm import Client, Deal, Dealer, Lead
 from app.models.finance import Account, Expense, Payment
 from app.models.property import Property, Unit
-from app.models.reminders import Notification
+from app.models.reminders import NotificationLog, Reminder
 
 router = APIRouter()
 log = logging.getLogger("rems.bootstrap")
@@ -105,8 +105,8 @@ def _build_bootstrap(user: User, db: Session) -> dict:
         occupied_units   = (
             db.query(func.count(Unit.id))
             .filter(or_(
-                func.lower(Unit.status).in_(["sold", "rented"]),
-                Unit.status.in_(["Sold", "Rented"]),
+                func.lower(Unit.status).in_(["sold", "rented", "occupied"]),
+                Unit.status.in_(["Sold", "Rented", "Occupied"]),
             ))
             .scalar() or 0
         )
@@ -200,11 +200,12 @@ def _build_bootstrap(user: User, db: Session) -> dict:
     events.sort(key=lambda e: e["timestamp"], reverse=True)
     activity = events[:limit]
 
-    # ── Unread notification count ─────────────────────────────────────────────
+    # ── Recent notification logs count ─────────────────────────────────────────
     try:
         unread_count = (
-            db.query(func.count(Notification.id))
-            .filter(Notification.user_id == user.id, Notification.is_read == False)
+            db.query(func.count(NotificationLog.id))
+            .join(Reminder, NotificationLog.reminder_id == Reminder.id)
+            .filter(Reminder.user_id == user.id, NotificationLog.user_action.is_(None))
             .scalar() or 0
         )
     except Exception:

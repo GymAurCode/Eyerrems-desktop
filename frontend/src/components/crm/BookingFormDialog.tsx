@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Upload, Paperclip, X, Calendar, Clock, FileText } from "lucide-react";
+import ConfirmDialog from "../actions/ConfirmDialog";
+import { useNotifStore } from "../../store/notifications";
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
 import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
@@ -39,9 +41,12 @@ export default function BookingFormDialog({ open, onClose, onSaved, prefillClien
   const [nomineeCnic, setNomineeCnic] = useState("");
   const [notes, setNotes] = useState("");
 
+  const fileUploadRef = useRef<any>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; type: string } | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const reset = () => {
     setClientId(prefillClientId ?? null);
@@ -63,6 +68,18 @@ export default function BookingFormDialog({ open, onClose, onSaved, prefillClien
     if (!propPrice && !finalPrice) {
     }
   }, [unitId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { item, type } = deleteTarget;
+      pushToast({ title: "Deleted", message: `${type} has been deleted`, type: "success" });
+    } catch (e: any) {
+      pushToast({ title: "Error", message: e?.response?.data?.detail ?? "Failed to delete", priority: "urgent" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   const handleUnitChange = (opt: AsyncSelectOption | null) => {
     setUnitId(opt ? Number(opt.id) : null);
@@ -115,6 +132,7 @@ export default function BookingFormDialog({ open, onClose, onSaved, prefillClien
       };
 
       const booking = await bookingApi.create(payload);
+      pushToast({ title: "Booking Created", message: "Booking has been created successfully", type: "success" });
 
       syncApi.bookingToken({
         booking_id: booking.id,
@@ -128,6 +146,12 @@ export default function BookingFormDialog({ open, onClose, onSaved, prefillClien
       if (receiptFile) {
         await attachmentApi.upload("booking", booking.id, receiptFile, "Token Receipt", "COMPLETED");
       }
+
+      const pendingFiles = fileUploadRef.current?.getPendingFiles() || [];
+      pendingFiles.forEach((entry: { file: File; documentType: string | null }) => {
+        attachmentApi.upload("booking", booking.id, entry.file, entry.documentType || "General", "PENDING");
+      });
+      fileUploadRef.current?.clearPending();
 
       onSaved(booking);
       onClose();
@@ -339,9 +363,19 @@ export default function BookingFormDialog({ open, onClose, onSaved, prefillClien
         </FormSection>
 
         <div className="pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-          <FileUpload module="crm" recordType="booking" recordId="" compact documentTypes={["Token Receipt", "Booking Form", "CNIC", "Other"]} />
+          <FileUpload ref={fileUploadRef} module="crm" recordType="booking" recordId="" compact documentTypes={["Token Receipt", "Booking Form", "CNIC", "Other"]} />
         </div>
       </form>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete this ${deleteTarget?.type}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AppDialog>
   );
 }

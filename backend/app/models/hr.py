@@ -64,12 +64,36 @@ class Branch(Base):
     country = Column(String(100), nullable=True)
     phone = Column(String(50), nullable=True)
     email = Column(String(255), nullable=True)
+    contact_person = Column(String(200), nullable=True)
+    timezone = Column(String(50), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
     # Relationships
     employees = relationship("Employee", back_populates="branch")
+
+
+class ShiftTemplate(Base):
+    """Shift/Duty Time Template"""
+    __tablename__ = "shift_templates"
+
+    id = Column(Integer, primary_key=True)
+    shift_name = Column(String(255), nullable=False, unique=True)
+    start_time = Column(String(10), nullable=False)  # Format: HH:MM (24h)
+    end_time = Column(String(10), nullable=False)    # Format: HH:MM (24h)
+    break_duration = Column(Integer, nullable=False, default=60)  # Minutes
+    grace_period_minutes = Column(Integer, nullable=False, default=10)
+    half_day_threshold_hours = Column(Numeric(4, 1), nullable=False, default=4.0)
+    full_day_required_hours = Column(Numeric(4, 1), nullable=False, default=8.0)
+    weekly_off_days = Column(String(50), nullable=True)  # Comma-separated: "Sat,Sun"
+    is_flexible = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    employees = relationship("Employee", back_populates="shift_template")
 
 
 class Employee(Base):
@@ -110,6 +134,7 @@ class Employee(Base):
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     position_id = Column(Integer, ForeignKey("positions.id"), nullable=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    shift_template_id = Column(Integer, ForeignKey("shift_templates.id"), nullable=True)
     manager_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Reporting manager
     
     joining_date = Column(Date, nullable=False)
@@ -119,6 +144,7 @@ class Employee(Base):
     resignation_date = Column(Date, nullable=True)
     termination_date = Column(Date, nullable=True)
     termination_reason = Column(Text, nullable=True)
+    exit_date = Column(Date, nullable=True)
     
     # System fields
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Link to auth system
@@ -132,6 +158,7 @@ class Employee(Base):
     department = relationship("Department", foreign_keys=[department_id], back_populates="employees")
     position = relationship("Position", foreign_keys=[position_id], back_populates="employees")
     branch = relationship("Branch", foreign_keys=[branch_id], back_populates="employees")
+    shift_template = relationship("ShiftTemplate", back_populates="employees")
     manager = relationship(
         "Employee",
         foreign_keys=[manager_id],
@@ -228,6 +255,7 @@ class Attendance(Base):
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    shift_template_id = Column(Integer, ForeignKey("shift_templates.id"), nullable=True)
     attendance_date = Column(Date, nullable=False)
     
     # Check-in/out times
@@ -257,6 +285,7 @@ class Attendance(Base):
 
     # Relationships
     employee = relationship("Employee", back_populates="attendances")
+    shift = relationship("ShiftTemplate")
     approver = relationship("User", foreign_keys=[approved_by])
     corrector = relationship("User", foreign_keys=[corrected_by])
 
@@ -272,8 +301,11 @@ class LeaveType(Base):
     days_per_year = Column(Integer, nullable=False, default=0)  # 0 = unlimited
     is_paid = Column(Boolean, nullable=False, default=True)
     requires_approval = Column(Boolean, nullable=False, default=True)
+    requires_document = Column(Boolean, nullable=False, default=False)
     carry_forward = Column(Boolean, nullable=False, default=False)
     max_carry_forward = Column(Integer, nullable=True)  # Max days that can be carried
+    gender_specific = Column(String(20), nullable=True)  # Male, Female, or null
+    applicable_after_probation = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
@@ -421,8 +453,12 @@ class Holiday(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     holiday_date = Column(Date, nullable=False, unique=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     description = Column(Text, nullable=True)
     is_recurring = Column(Boolean, nullable=False, default=True)  # Repeats yearly
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    branch = relationship("Branch")

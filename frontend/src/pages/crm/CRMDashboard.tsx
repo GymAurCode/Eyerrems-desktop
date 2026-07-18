@@ -11,52 +11,20 @@ import {
 } from "recharts";
 import { useCrmDashboardStore } from "../../store/crmDashboard";
 import { DealerPerformance, RecentActivityItem } from "../../lib/crmApi";
+import StatCard from "../../components/ui/StatCard";
 
 const KPI_CARDS = [
-  { key: "total_leads", label: "Total Leads", icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
-  { key: "new_leads", label: "New Leads", icon: UserPlus, color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
-  { key: "active_clients", label: "Active Clients", icon: UserCheck, color: "#10b981", bg: "rgba(16,185,129,0.08)" },
-  { key: "total_deals", label: "Total Deals", icon: TrendingUp, color: "#f59e0b", bg: "rgba(245,158,11,0.08)" },
-  { key: "won_deals", label: "Won Deals", icon: Award, color: "#10b981", bg: "rgba(16,185,129,0.08)" },
-  { key: "lost_deals", label: "Lost Deals", icon: XCircle, color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
-  { key: "total_bookings", label: "Bookings", icon: CalendarCheck, color: "#6366f1", bg: "rgba(99,102,241,0.08)" },
-  { key: "revenue", label: "Revenue", icon: DollarSign, color: "#10b981", bg: "rgba(16,185,129,0.08)", prefix: "PKR " },
-  { key: "pending_revenue", label: "Pending Revenue", icon: Clock, color: "#f59e0b", bg: "rgba(245,158,11,0.08)", prefix: "PKR " },
-  { key: "overdue_installments", label: "Overdue Installments", icon: AlertTriangle, color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
+  { key: "total_leads", label: "Total Leads", icon: Users, color: "#3b82f6", prefix: "" },
+  { key: "new_leads", label: "New Leads", icon: UserPlus, color: "#8b5cf6", prefix: "" },
+  { key: "active_clients", label: "Active Clients", icon: UserCheck, color: "#10b981", prefix: "" },
+  { key: "total_deals", label: "Total Deals", icon: TrendingUp, color: "#f59e0b", prefix: "" },
+  { key: "won_deals", label: "Won Deals", icon: Award, color: "#10b981", prefix: "" },
+  { key: "lost_deals", label: "Lost Deals", icon: XCircle, color: "#ef4444", prefix: "" },
+  { key: "total_bookings", label: "Bookings", icon: CalendarCheck, color: "#6366f1", prefix: "" },
+  { key: "revenue", label: "Revenue", icon: DollarSign, color: "#10b981", prefix: "PKR " },
+  { key: "pending_revenue", label: "Pending Revenue", icon: Clock, color: "#f59e0b", prefix: "PKR " },
+  { key: "overdue_installments", label: "Overdue Installments", icon: AlertTriangle, color: "#ef4444", prefix: "" },
 ];
-
-function StatCard({ item, value }: { item: typeof KPI_CARDS[0]; value: number }) {
-  const Icon = item.icon;
-  const display = item.prefix ? `${item.prefix}${value?.toLocaleString?.() ?? 0}` : (value ?? 0).toLocaleString();
-  return (
-    <div className="rounded-xl p-4 transition-all hover:scale-[1.02]" style={{ background: item.bg, border: `1px solid ${item.color}25` }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: item.color }}>{item.label}</span>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${item.color}15` }}>
-          <Icon size={14} style={{ color: item.color }} />
-        </div>
-      </div>
-      <p className="text-xl font-bold" style={{ color: item.color }}>{display}</p>
-    </div>
-  );
-}
-
-function CustomCard({ label, value, subtitle, color, bg, icon: Icon }: {
-  label: string; value: string; subtitle: string; color: string; bg: string; icon: React.ElementType;
-}) {
-  return (
-    <div className="rounded-xl p-4 transition-all hover:scale-[1.02]" style={{ background: bg, border: `1px solid ${color}25` }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}15` }}>
-          <Icon size={14} style={{ color }} />
-        </div>
-      </div>
-      <p className="text-xl font-bold" style={{ color }}>{value}</p>
-      <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{subtitle}</p>
-    </div>
-  );
-}
 
 const DONUT_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#6366f1", "#ec4899", "#84cc16", "#14b8a6"];
 
@@ -247,36 +215,16 @@ export default function CRMDashboard() {
 
       {/* ── SECTION 1: KPI CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        {KPI_CARDS.map(card => (
-          <StatCard key={card.key} item={card} value={(stats as any)?.[card.key] ?? 0} />
-        ))}
-        {/* Win Rate */}
-        <CustomCard
-          label="Win Rate"
-          value={winRate !== null ? `${winRate}%` : "\u2014"}
-          subtitle="deals won"
-          color="#8b5cf6"
-          bg="rgba(139,92,246,0.08)"
-          icon={Target}
-        />
-        {/* Avg Deal Size */}
-        <CustomCard
-          label="Avg Deal Size"
-          value={avgDealSize !== null ? `PKR ${avgDealSize.toLocaleString()}` : "\u2014"}
-          subtitle="per deal average"
-          color="#6366f1"
-          bg="rgba(99,102,241,0.08)"
-          icon={DollarSign}
-        />
-        {/* Avg Lead Age */}
-        <CustomCard
-          label="Avg Lead Age"
-          value={avgLeadAge > 0 ? `${avgLeadAge.toFixed(1)} days` : "\u2014"}
-          subtitle="avg time to convert"
-          color="#f59e0b"
-          bg="rgba(245,158,11,0.08)"
-          icon={Clock}
-        />
+        {KPI_CARDS.map(card => {
+          const val = (stats as any)?.[card.key] ?? 0;
+          const display = card.prefix ? `${card.prefix}${val?.toLocaleString?.() ?? 0}` : (val ?? 0).toLocaleString();
+          return (
+            <StatCard key={card.key} label={card.label} value={display} icon={card.icon} iconBg={`${card.color}15`} iconColor={card.color} />
+          );
+        })}
+        <StatCard label="Win Rate" value={winRate !== null ? `${winRate}%` : "\u2014"} icon={Target} iconBg="rgba(139,92,246,0.15)" iconColor="#8b5cf6" sub="deals won" />
+        <StatCard label="Avg Deal Size" value={avgDealSize !== null ? `PKR ${avgDealSize.toLocaleString()}` : "\u2014"} icon={DollarSign} iconBg="rgba(99,102,241,0.15)" iconColor="#6366f1" sub="per deal average" />
+        <StatCard label="Avg Lead Age" value={avgLeadAge > 0 ? `${avgLeadAge.toFixed(1)} days` : "\u2014"} icon={Clock} iconBg="rgba(245,158,11,0.15)" iconColor="#f59e0b" sub="avg time to convert" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

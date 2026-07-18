@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Plus, X, Check, Trash2, Search, Loader2, RefreshCw } from "lucide-react";
-import { lookupApi, LookupValue } from "../lib/lookupApi";
+import { Plus, X, Check, Trash2, Search, Loader2, RefreshCw, Eye } from "lucide-react";
+import { lookupApi, LookupValue, SeedPreviewItem } from "../lib/lookupApi";
 import { invalidateLookupCache } from "../hooks/useLookup";
 import AppDialog from "../components/ui/AppDialog";
+import { useNotifStore } from "../store/notifications";
 import { DataTable } from "../components/data-table";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -74,6 +75,7 @@ export default function AdvanceOptionsPage() {
   const [categories, setCategories] = useState<Record<string, LookupValue[]>>({});
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const pushToast = useNotifStore((s) => s.pushToast);
   const [newRows, setNewRows] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,12 +85,14 @@ export default function AdvanceOptionsPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [seedPreview, setSeedPreview] = useState<SeedPreviewItem[]>([]);
+  const [seedPreviewLoaded, setSeedPreviewLoaded] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await lookupApi.getAll();
+      const data = await lookupApi.getAll(true);
       setCategories(data);
     } catch (e) {
       setLoadError("Failed to load options. Check your connection and try again.");
@@ -99,6 +103,7 @@ export default function AdvanceOptionsPage() {
 
   useEffect(() => {
     fetchAll();
+    lookupApi.getSeedDefaults().then(setSeedPreview).catch(() => {}).finally(() => setSeedPreviewLoaded(true));
   }, [fetchAll]);
 
   useEffect(() => {
@@ -128,10 +133,15 @@ export default function AdvanceOptionsPage() {
     [categories, selectedCategory],
   );
   const filteredCategories = useMemo(
-    () =>
-      Object.keys(categories).filter((cat) =>
+    () => {
+      const allKeys = new Set([
+        ...Object.keys(categories),
+        ...Object.keys(CATEGORY_LABELS),
+      ]);
+      return Array.from(allKeys).filter((cat) =>
         (CATEGORY_LABELS[cat] ?? cat).toLowerCase().includes(searchTerm.toLowerCase()),
-      ),
+      );
+    },
     [categories, searchTerm],
   );
 
@@ -145,6 +155,7 @@ export default function AdvanceOptionsPage() {
         is_default: data.is_default,
         is_active: data.is_active,
       });
+      pushToast({ title: "Success", message: "Value updated", type: "success" });
     } else {
       await lookupApi.create({
         category: selectedCategory,
@@ -153,6 +164,7 @@ export default function AdvanceOptionsPage() {
         sort_order: data.sort_order,
         is_default: data.is_default,
       });
+      pushToast({ title: "Success", message: "Value created", type: "success" });
     }
     invalidateLookupCache(selectedCategory);
     await fetchAll();
@@ -162,10 +174,11 @@ export default function AdvanceOptionsPage() {
     if (!deleteTarget) return;
     try {
       await lookupApi.remove(deleteTarget.id);
+      pushToast({ title: "Success", message: `"${deleteTarget.label}" deleted`, type: "success" });
       invalidateLookupCache(selectedCategory!);
       await fetchAll();
     } catch {
-      // ignore
+      pushToast({ title: "Error", message: "Failed to delete value", type: "error" });
     } finally {
       setDeleteTarget(null);
     }
@@ -290,6 +303,18 @@ export default function AdvanceOptionsPage() {
           </button>
         );
       }},
+      { key: "usage_count", label: "Used In", align: "center" as const, width: 64, render: (val: any, row: any) => {
+        if (row._isNew) return <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>—</span>;
+        const count = Number(val) || 0;
+        return (
+          <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{
+            background: count > 0 ? "rgba(59,130,246,0.12)" : "transparent",
+            color: count > 0 ? "#3b82f6" : "var(--text-tertiary)",
+          }}>
+            {count > 0 ? `${count} record${count === 1 ? "" : "s"}` : "none"}
+          </span>
+        );
+      }},
       { key: "actions", label: "Actions", align: "center" as const, render: (val: any, row: any) => {
         const st = editStatesRef.current[row._key];
         const saving = st?.saving;
@@ -352,7 +377,9 @@ export default function AdvanceOptionsPage() {
         {filteredCategories.map((cat) => {
           const vals = categories[cat] ?? [];
           const label = CATEGORY_LABELS[cat] ?? cat;
-          const active = vals.filter((v) => v.is_active).length;
+          const active = vals.filter((v) => v.is_active);
+          const displayVals = active.slice(0, 3);
+          const remaining = active.length - 3;
           return (
             <button
               key={cat}
@@ -365,18 +392,29 @@ export default function AdvanceOptionsPage() {
                 border: selectedCategory === cat ? "1px solid var(--border)" : "1px solid transparent",
               }}
             >
-              <div className="flex items-center justify-between">
-                <span>{label}</span>
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: "rgba(59,130,246,0.12)",
-                    color: "#3b82f6",
-                  }}
-                >
-                  {active}
-                </span>
+              <div className="mb-1">
+                <span className="font-medium">{label}</span>
               </div>
+              {displayVals.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {displayVals.map((v) => (
+                    <span
+                      key={v.id}
+                      className="text-[10px] px-1.5 py-0.5 rounded"
+                      style={{
+                        background: "var(--bg-surface)",
+                        color: "var(--text-secondary)",
+                        border: "1px solid var(--border-subtle, var(--border))",
+                      }}
+                    >
+                      {v.label}
+                    </span>
+                  ))}
+                  {remaining > 0 && (
+                    <span className="text-[10px] text-muted">+{remaining} more</span>
+                  )}
+                </div>
+              )}
             </button>
           );
         })}
@@ -404,20 +442,6 @@ export default function AdvanceOptionsPage() {
             >
               <RefreshCw size={14} />
               Retry
-            </button>
-          </div>
-        ) : Object.keys(categories).length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>No lookup options found. Seed default values to get started.</p>
-            <button
-              type="button"
-              onClick={handleSeedDefaults}
-              disabled={seeding}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-              style={{ background: "#3b82f6", color: "#fff" }}
-            >
-              {seeding ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              {seeding ? "Seeding..." : "Add Default Values"}
             </button>
           </div>
         ) : !selectedCategory ? (
@@ -463,6 +487,46 @@ export default function AdvanceOptionsPage() {
                 }}
               >
                 {seedMessage}
+              </div>
+            )}
+
+            {currentValues.length === 0 && seedPreviewLoaded && (
+              <div
+                className="mb-4 rounded-lg p-3"
+                style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}
+              >
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Eye size={14} style={{ color: "#3b82f6" }} />
+                  <span className="text-xs font-medium" style={{ color: "#3b82f6" }}>
+                    Default Values Available
+                  </span>
+                </div>
+                <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+                  The following defaults will be added when you click "Add Default Values":
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {seedPreview
+                    .filter((s) => s.category === selectedCategory)
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((s, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded"
+                        style={{
+                          background: s.is_default
+                            ? "rgba(34,197,94,0.12)"
+                            : "var(--bg-surface)",
+                          color: s.is_default ? "#22c55e" : "var(--text-primary)",
+                          border: s.is_default
+                            ? "1px solid rgba(34,197,94,0.3)"
+                            : "1px solid var(--border)",
+                        }}
+                      >
+                        {s.label}
+                        {s.is_default && <span className="text-[10px] opacity-70">default</span>}
+                      </span>
+                    ))}
+                </div>
               </div>
             )}
 

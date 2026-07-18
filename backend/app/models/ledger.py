@@ -43,18 +43,19 @@ class ClientLedgerEntry(Base):
 
 
 class DealerLedgerEntry(Base):
-    """Commission and payout tracking for dealers."""
+    """Commission, payout, and lead-cost tracking for dealers."""
     __tablename__ = "dealer_ledger_entries"
 
     id               = Column(Integer, primary_key=True)
     tid              = Column(String(20), unique=True, nullable=False)
     dealer_id        = Column(Integer, ForeignKey("dealers.id", ondelete="CASCADE"),  nullable=False, index=True)
     deal_id          = Column(Integer, ForeignKey("deals.id",   ondelete="SET NULL"), nullable=True)
+    lead_id          = Column(Integer, ForeignKey("leads.id",   ondelete="SET NULL"), nullable=True)
     journal_id       = Column(Integer, ForeignKey("journals.id", ondelete="SET NULL"), nullable=True)
     entry_date       = Column(DateTime, nullable=False, index=True)
     description      = Column(String(500), nullable=False)
     reference_no     = Column(String(100), nullable=True)
-    # commission | payout | adjustment | bonus | penalty
+    # commission | payout | adjustment | bonus | penalty | lead_cost
     entry_type       = Column(String(50), nullable=False)
     commission_rate  = Column(Numeric(7, 4), nullable=True)    # e.g. 0.0250 = 2.5%
     gross_commission = Column(Numeric(14, 2), nullable=True)
@@ -67,8 +68,9 @@ class DealerLedgerEntry(Base):
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    dealer     = relationship("Dealer",  foreign_keys=[dealer_id])
+    dealer     = relationship("Dealer",  foreign_keys=[dealer_id], back_populates="ledger_entries")
     deal       = relationship("Deal",    foreign_keys=[deal_id])
+    lead       = relationship("Lead",    foreign_keys=[lead_id])
     journal    = relationship("Journal", foreign_keys=[journal_id])
     created_by = relationship("User",    foreign_keys=[created_by_user_id])
 

@@ -1,6 +1,7 @@
 """Audit log helpers — every entry is scoped to a company schema."""
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -63,13 +64,14 @@ def log_action(
         db.execute(
             text("""
                 INSERT INTO audit_logs
-                    (module, action, record_id, record_label, changed_by, changed_by_role,
+                    (id, module, action, record_id, record_label, changed_by, changed_by_role,
                      old_data, new_data, diff, ip_address, created_at)
                 VALUES
-                    (:module, :action, :record_id, :record_label, :changed_by, :changed_by_role,
+                    (:id, :module, :action, :record_id, :record_label, :changed_by, :changed_by_role,
                      :old_data, :new_data, :diff, :ip_address, NOW())
             """),
             {
+                "id": str(uuid.uuid4()),
                 "module": module,
                 "action": action,
                 "record_id": str(record_id),
@@ -82,9 +84,10 @@ def log_action(
                 "ip_address": ip_address,
             },
         )
-        db.commit()
+        db.flush()
         log.info("audit_logs: %s %s %s | %s", action, module, record_id, record_label)
     except Exception as e:
+        db.rollback()
         log.error("audit_logs INSERT failed for %s %s %s: %s", action, module, record_id, e, exc_info=True)
 
 

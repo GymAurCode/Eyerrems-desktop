@@ -26,7 +26,7 @@ export default function Dialog({
 }) {
   const dims = DIALOG_SIZES[size] || DIALOG_SIZES.md;
 
-  const accent = accentColor || "var(--module-primary, #6366F1)";
+  const accent = accentColor || "var(--accent-primary, #f6ce3a)";
 
   // Try to read module color from context if available
   const moduleColorStyle = useMemo(() => {

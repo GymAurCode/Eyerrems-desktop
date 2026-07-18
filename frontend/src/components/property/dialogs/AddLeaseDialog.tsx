@@ -8,6 +8,7 @@ import FileUpload from "../../ui/FileUpload";
 import { propApi, Property, Unit, Lease } from "../../../lib/propertyApi";
 import { tenantApi, Tenant } from "../../../lib/tenantApi";
 import { syncApi } from "../../../lib/financeApi";
+import { useNotifStore } from "../../../store/notifications";
 
 interface AddLeaseDialogProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const [propId, setPropId] = useState<number | "">("");
   const [unitId, setUnitId] = useState<number | "">("");
@@ -65,7 +67,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
     if (!isOpen) return;
     reset();
     propApi.getProperties().then(r => setProperties(Array.isArray(r) ? r : []));
-    tenantApi.list().then(r => setTenants(Array.isArray(r) ? r : []));
+    tenantApi.list().then(r => setTenants(Array.isArray(r) ? r : [])).catch(() => {});
   }, [isOpen]);
 
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
         setTenantId(data.id);
         setTenantName(data.name);
       }
+      pushToast({ title: "Created", message: `Tenant ${data.name} created`, type: "success" });
       setShowNewTenant(false); setNewTenantName(""); setNewTenantPhone("");
     } catch {}
   };
@@ -151,6 +154,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
       };
 
       const createdLease = await propApi.createLease(payload);
+      pushToast({ title: "Created", message: "Lease created successfully", type: "success" });
 
       // Sync security deposit to finance
       if (securityDeposit && Number(securityDeposit) > 0) {
@@ -241,7 +245,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Unit <span style={{ color: "#ef4444" }}>*</span>
+                Unit <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <select className="dialog-select" value={unitId}
                 onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : "")}>
@@ -251,7 +255,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Tenant <span style={{ color: "#ef4444" }}>*</span>
+                Tenant <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               {showNewTenant ? (
                 <div className="flex items-center gap-2">
@@ -295,14 +299,14 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Start Date <span style={{ color: "#ef4444" }}>*</span>
+                Start Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input type="date" className="dialog-input" value={startDate}
                 onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                End Date <span style={{ color: "#ef4444" }}>*</span>
+                End Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input type="date" className="dialog-input" value={endDate}
                 onChange={(e) => setEndDate(e.target.value)} />
@@ -316,7 +320,7 @@ export default function AddLeaseDialog({ isOpen, onClose, onSaved }: AddLeaseDia
             )}
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Rent Amount (Rs/month) <span style={{ color: "#ef4444" }}>*</span>
+                Rent Amount (Rs/month) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input type="number" className="dialog-input" value={monthlyRent}
                 onChange={(e) => setMonthlyRent(e.target.value)} />

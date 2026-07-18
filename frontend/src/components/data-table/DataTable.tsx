@@ -94,7 +94,7 @@ export default function DataTable<T = any>({
   selectable = false,
   selectedRows = [],
   onSelectionChange,
-  getRowId = (row: T) => (row as any).id,
+  getRowId = (row: T) => (row as any)?.id,
   filters = [],
   filterValues,
   onFilterChange,
@@ -136,7 +136,8 @@ export default function DataTable<T = any>({
 
   // Filter & sort data (client-side)
   const filteredData = useMemo(() => {
-    let result = [...data];
+    const safeData = Array.isArray(data) ? data : [];
+    let result = [...safeData];
 
     // Apply search filter
     if (searchValue.trim()) {
@@ -357,11 +358,12 @@ export default function DataTable<T = any>({
             <tbody>
               {displayData.map((row, index) => {
                 const rowId = getRowId(row);
-                const isSelected = selectedRows.some(s => String(getRowId(s)) === String(rowId));
+                const key = rowId != null ? rowId : index;
+                const isSelected = selectedRows.some(s => getRowId(s) === rowId);
 
                 return (
                   <TableRow
-                    key={rowId}
+                    key={key}
                     row={row}
                     index={index}
                     columns={columns}

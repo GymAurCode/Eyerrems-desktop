@@ -32,7 +32,7 @@ export default function AttachmentPanel({
     try {
       setLoading(true);
       const data = await attachmentApi.list(module, recordId);
-      setAttachments(data.data ?? []);
+      setAttachments(Array.isArray(data) ? data : data?.data ?? []);
     } catch {
       pushToast({ title: "Error", message: "Failed to load attachments", priority: "high" });
     } finally {

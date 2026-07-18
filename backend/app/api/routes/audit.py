@@ -21,11 +21,11 @@ MODULE_FILTERS = [
 @router.get("/logs")
 def list_audit_logs(
     module: str = Query(None, description="Filter by module name"),
-    action: str = Query(None, regex="^(CREATE|UPDATE|DELETE)?$"),
+    action: str = Query(None, pattern="^(CREATE|UPDATE|DELETE)?$"),
     changed_by: str = Query(None, description="Filter by user email/name"),
     date_from: str = Query(None, description="ISO date string"),
     date_to: str = Query(None, description="ISO date string"),
-    period: str = Query(None, regex="^(today|week|month|year)?$"),
+    period: str = Query(None, pattern="^(today|week|month|year)?$"),
     record_id: str = Query(None, description="Filter by record UUID"),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),

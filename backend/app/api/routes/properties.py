@@ -812,10 +812,22 @@ def _generate_rent_schedule(lease: Lease) -> list[dict]:
     return schedule
 
 
-def _update_unit_occupancy(unit_id: int, status: str, db: Session) -> None:
+def _update_unit_occupancy(
+    unit_id: int, status: str, db: Session,
+    tenant_name: str | None = None,
+    lease_end: date | None = None,
+) -> None:
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if unit:
         unit.status = status
+        if status in ("occupied", "rented"):
+            if tenant_name:
+                unit.current_tenant_name = tenant_name
+            if lease_end:
+                unit.lease_end_date = lease_end
+        elif status == "available":
+            unit.current_tenant_name = None
+            unit.lease_end_date = None
         db.flush()
 
 
@@ -916,7 +928,9 @@ async def create_lease(
         db.add(LeasePdc(lease_id=lease.id, cheque_no=p.cheque_no, amount=p.amount, due_date=p.due_date))
 
     # Mark unit as occupied
-    _update_unit_occupancy(payload.unit_id, "rented", db)
+    _update_unit_occupancy(payload.unit_id, "rented", db,
+        tenant_name=payload.tenant_name,
+        lease_end=payload.end_date)
 
     db.commit()
     db.refresh(lease)

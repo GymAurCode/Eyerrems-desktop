@@ -269,23 +269,23 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if company[5] and company[5] < datetime.now(timezone.utc):
         raise HTTPException(status_code=403, detail="License expired. Contact your administrator.")
 
-    # Resolve integer company_id for SQLite tenant session resolution
-    from app.models.company import Company
-    schema_name = company[6]  # "company_default" etc.
-    slug = schema_name.removeprefix("company_") if schema_name and schema_name.startswith("company_") else schema_name
-    orm_company = (db.query(Company).filter(Company.slug == slug).first()) if slug else None
-    company_id_int = orm_company.id if orm_company else None
+    company_uuid = str(company[0])
+
+    # Derive company slug from schema_name for tenant DB resolution
+    schema_name = company[6] or ""
+    company_slug = schema_name.replace("company_", "") if schema_name else ""
 
     token = create_access_token(
         subject=payload.email,
-        company_id=str(company_id_int or company[0]),
+        company_id=company_uuid,
         is_super_admin=False,
+        extra_payload={"company_slug": company_slug},
     )
 
     return AuthToken(
         access_token=token,
         role="company_admin",
-        company_id=str(company[0]),
+        company_id=company_uuid,
         company_name=company[1],
     )
 

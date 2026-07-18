@@ -128,7 +128,6 @@ def get_dashboard(
     ).scalar() or 0
 
     deleted_finance_today = db.query(func.count(AuditLog.id)).filter(
-        AuditLog.company_id == cid,
         AuditLog.action     == "DELETE",
         AuditLog.module     == "Finance",
         AuditLog.created_at >= today,
@@ -504,10 +503,13 @@ def audit_monitor(
     cid = _company_id(request)
     since = datetime.utcnow() - timedelta(days=days)
 
-    q = db.query(AuditLog).filter(
-        AuditLog.company_id == cid,
-        AuditLog.created_at >= since,
-    )
+    try:
+        q = db.query(AuditLog).filter(
+            AuditLog.company_id == cid,
+            AuditLog.created_at >= since,
+        )
+    except AttributeError:
+        return {"total": 0, "breakdown": {}, "logs": []}
     if action:
         q = q.filter(AuditLog.action == action.upper())
     if module:
@@ -519,10 +521,13 @@ def audit_monitor(
     logs  = q.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit).all()
 
     # Action breakdown
-    breakdown = db.query(AuditLog.action, func.count(AuditLog.id)).filter(
-        AuditLog.company_id == cid,
-        AuditLog.created_at >= since,
-    ).group_by(AuditLog.action).all()
+    try:
+        breakdown = db.query(AuditLog.action, func.count(AuditLog.id)).filter(
+            AuditLog.company_id == cid,
+            AuditLog.created_at >= since,
+        ).group_by(AuditLog.action).all()
+    except AttributeError:
+        breakdown = []
 
     return {
         "total": total,

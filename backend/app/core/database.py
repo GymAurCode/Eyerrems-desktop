@@ -37,9 +37,11 @@ def get_db(request: Request = None):
     """
     db = None
     company_id = None
+    company_slug = None
 
     if request:
         company_id = getattr(request.state, "company_id", None)
+        company_slug = getattr(request.state, "company_slug", None)
 
         # If not already determined, try to decode from Authorization header
         if company_id is None:
@@ -51,7 +53,9 @@ def get_db(request: Request = None):
                     payload = decode_access_token(token)
                     if payload:
                         company_id = payload.get("company_id")
+                        company_slug = payload.get("company_slug") or company_slug
                         request.state.company_id = company_id
+                        request.state.company_slug = company_slug
                 except Exception as e:
                     log.debug(f"[DB] Could not decode token in get_db: {e}")
 
@@ -66,7 +70,6 @@ def get_db(request: Request = None):
                 pass
 
     if company_id is None:
-        # Use master database for global admin or system requests
         db = tenant_manager.get_master_session()
         log.debug("[DB] Resolved master database session")
     else:
@@ -77,8 +80,6 @@ def get_db(request: Request = None):
             if company_info:
                 _, SessionClass = get_schema_engine(company_info["schema_name"])
                 db = SessionClass()
-                # Resolve master UUID → tenant integer PK so routes can query
-                # Company.id / *_company_id FK columns without type mismatch.
                 resolved = False
                 try:
                     row = db.execute(
@@ -91,7 +92,6 @@ def get_db(request: Request = None):
                 except Exception:
                     log.debug(f"[DB] master_id column not available")
                 if not resolved:
-                    # Fallback: match by slug (which equals schema_name during provisioning)
                     try:
                         slug_row = db.execute(
                             text("SELECT id FROM companies WHERE slug = :slug"),
@@ -107,16 +107,20 @@ def get_db(request: Request = None):
                 # Fallback to SQLite tenant
                 numeric_id = int(company_id) if isinstance(company_id, (int, str)) and str(company_id).isdigit() else None
                 db = tenant_manager.get_tenant_session_by_id(numeric_id)
+                if db is None and company_slug:
+                    db = tenant_manager.get_tenant_session(company_slug)
                 if db is None:
                     log.warning(f"[DB] Could not resolve tenant. Falling back to master.")
                     db = tenant_manager.get_master_session()
                 else:
-                    log.debug(f"[DB] Resolved SQLite tenant session for company ID {company_id}")
+                    log.debug(f"[DB] Resolved SQLite tenant session for company '{company_slug or company_id}'")
         except Exception as e:
             log.warning(f"[DB] Schema-based tenant resolution failed ({e}), falling back to SQLite.")
             try:
                 numeric_id = int(company_id) if isinstance(company_id, (int, str)) and str(company_id).isdigit() else None
                 db = tenant_manager.get_tenant_session_by_id(numeric_id)
+                if db is None and company_slug:
+                    db = tenant_manager.get_tenant_session(company_slug)
             except Exception:
                 db = None
             if db is None:

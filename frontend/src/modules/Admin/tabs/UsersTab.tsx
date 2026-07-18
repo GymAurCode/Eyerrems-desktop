@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../lib/api";
 import AppDialog from "../../../components/ui/AppDialog";
+import { ConfirmDialog } from "../../../components/actions";
+import { useNotifStore } from "../../../store/notifications";
 import {
   Users, Plus, Pencil, Trash2, Save, AlertCircle, Key, Copy, CheckCircle, Eye, EyeOff, RefreshCw,
 } from "lucide-react";
@@ -75,6 +77,13 @@ export default function UsersTab() {
   const [showPass, setShowPass] = useState(false);
 
   const [permRole, setPermRole] = useState<Role | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
+
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "resetPassword" | "forceLogout";
+    user: UserRow;
+    newPwd?: string;
+  } | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -144,11 +153,20 @@ export default function UsersTab() {
 
   const resetPassword = async (u: UserRow) => {
     const newPwd = generatePassword();
-    if (!confirm(`Reset password for ${u.full_name}? New temporary password will be shown.`)) return;
+    setConfirmAction({ type: "resetPassword", user: u, newPwd });
+  };
+
+  const executeResetPassword = async () => {
+    if (!confirmAction) return;
+    const { user, newPwd } = confirmAction;
     try {
-      await api.post(`/api/rbac/users/${u.id}/reset-password`, { new_password: newPwd });
-      alert(`Temporary password: ${newPwd}\n\nShare this securely with the user.`);
-    } catch { alert("Failed to reset password"); }
+      await api.post(`/api/rbac/users/${user.id}/reset-password`, { new_password: newPwd! });
+      pushToast({ title: "Success", message: `Password reset for ${user.full_name}. Temporary: ${newPwd}`, type: "success" });
+    } catch {
+      pushToast({ title: "Error", message: "Failed to reset password", type: "error" });
+    } finally {
+      setConfirmAction(null);
+    }
   };
 
   const toggleActivate = async (u: UserRow) => {
@@ -163,9 +181,20 @@ export default function UsersTab() {
   };
 
   const forceLogout = async (u: UserRow) => {
-    if (!confirm(`Force logout ${u.full_name}?`)) return;
-    try { await api.post(`/api/rbac/users/${u.id}/force-logout`); }
-    catch { /* ignore */ }
+    setConfirmAction({ type: "forceLogout", user: u });
+  };
+
+  const executeForceLogout = async () => {
+    if (!confirmAction) return;
+    const { user } = confirmAction;
+    try {
+      await api.post(`/api/rbac/users/${user.id}/force-logout`);
+      pushToast({ title: "Success", message: `${user.full_name} logged out`, type: "success" });
+    } catch {
+      pushToast({ title: "Error", message: "Failed to force logout", type: "error" });
+    } finally {
+      setConfirmAction(null);
+    }
   };
 
   const openUserPerms = async (u: UserRow) => {
@@ -303,15 +332,15 @@ export default function UsersTab() {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Full Name <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Full Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input autoFocus className="input-dark w-full px-4 py-2.5 text-sm" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Email <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Email <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark w-full px-4 py-2.5 text-sm" type="email" placeholder="john@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5 text-muted">Role <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium mb-1.5 text-muted">Role <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <select value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)} className="input-dark w-full px-4 py-2.5 text-sm">
                 <option value="">— Choose a role —</option>
                 {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -377,6 +406,21 @@ export default function UsersTab() {
           </div>
         </div>
       </AppDialog>
+
+      {/* Confirm Action */}
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.type === "resetPassword" ? "Reset Password" : "Force Logout"}
+        message={
+          confirmAction?.type === "resetPassword"
+            ? `Reset password for ${confirmAction?.user.full_name}? A temporary password will be shown.`
+            : `Force logout ${confirmAction?.user.full_name}?`
+        }
+        confirmLabel={confirmAction?.type === "resetPassword" ? "Reset" : "Logout"}
+        variant="warning"
+        onConfirm={confirmAction?.type === "resetPassword" ? executeResetPassword : executeForceLogout}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }

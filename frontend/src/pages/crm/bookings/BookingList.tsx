@@ -6,11 +6,11 @@ import {
   ArrowRight, User, Building2, Timer, Eye, Printer, FileText,
 } from "lucide-react";
 import ReportModal from "../../../components/reports/ReportModal";
+import { api } from "../../../lib/api";
 import { bookingApi, BookingListItem, BookingStats } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
 import BookingFormDialog from "../../../components/crm/BookingFormDialog";
 import AppTable from "../../../components/data-table/AppTable";
-import { api } from "../../../lib/api";
 import { printRecord } from "../../../components/actions";
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -174,16 +174,16 @@ export default function BookingList() {
     setLoading(true);
     setError(null);
     try {
-      const sanitized = {
+      const sanitized: Record<string, any> = {
         limit: p.pageSize,
         offset: (p.page - 1) * p.pageSize,
-        search: p.search,
-        filter: p.filter,
-        startDate: p.startDate,
-        endDate: p.endDate,
         status: statusFilter !== "all" ? statusFilter : undefined,
       };
-      
+      if (p.search) sanitized.search = p.search;
+      if (p.filter) sanitized.filter = p.filter;
+      if (p.startDate) sanitized.startDate = p.startDate;
+      if (p.endDate) sanitized.endDate = p.endDate;
+
       const [bRes, sRes] = await Promise.all([
         api.get<any>("/crm/bookings", { params: sanitized }),
         bookingApi.stats(),

@@ -15,6 +15,7 @@ from app.api.routes.construction import router as construction_router
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.crm import router as crm_router
+from app.api.routes.client_pipeline import router as client_pipeline_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.finance import router as finance_router
 from app.api.routes.finance_operations import router as finance_ops_router
@@ -39,14 +40,17 @@ from app.api.routes.attachments import router as attachments_router
 from app.routers.files import router as files_router
 from app.routers.rbac_auth import router as rbac_auth_router
 from app.routers.rbac_admin import router as rbac_admin_router
+from app.api.routes.spreadsheet import router as spreadsheet_router
 from app.api.routes.lookups import router as lookups_router
 from app.api.routes.async_select import router as async_select_router
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
+from app.models.audit import AuditLog  # ensure audit_logs table is registered with Base.metadata
 from app.core.master_db import sync_attachments_table
 from app.core.tenant_middleware import TenantMiddleware
-from app.services.reminder_scheduler import start_scheduler, stop_scheduler
+from app.services.reminder_scheduler import start_scheduler as start_reminder_scheduler, stop_scheduler as stop_reminder_scheduler
+from app.services.booking_scheduler import register_booking_expiry_job
 from app.services.mail.mail_sync_scheduler import register_mail_sync_job
 from app.services.crm.followup_scheduler import register_followup_job
 
@@ -102,7 +106,8 @@ app.include_router(activity_router,   prefix="/activity",   tags=["activity"])
 app.include_router(audit_router,     prefix="/audit",      tags=["audit"])
 app.include_router(dashboard_router,  prefix="/dashboard",  tags=["dashboard"])
 app.include_router(properties_router, prefix="/properties", tags=["properties"])
-app.include_router(crm_router,        prefix="/crm",        tags=["crm"])
+app.include_router(crm_router,              prefix="/crm",        tags=["crm"])
+app.include_router(client_pipeline_router,  prefix="/crm",        tags=["client-pipeline"])
 app.include_router(finance_router,    prefix="/finance",    tags=["finance"])
 app.include_router(finance_ops_router, prefix="/finance",   tags=["finance-operations"])
 app.include_router(settings_router,   prefix="/settings",   tags=["settings"])
@@ -131,6 +136,7 @@ app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(superadmin_router)
 app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
 app.include_router(files_router)
+app.include_router(spreadsheet_router)
 app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
 
@@ -215,25 +221,129 @@ def on_startup():
                     try:
                         with tenant_engine.connect() as conn:
                             conn.execute(text("SET lock_timeout = '5s'"))
-                            # Check if old audit_logs table exists with company_id column
                             import sqlalchemy as sa
                             insp = sa.inspect(tenant_engine)
-                            cols = [c["name"] for c in insp.get_columns("audit_logs")]
-                            if "company_id" in cols:
-                                conn.execute(text("DROP TABLE IF EXISTS audit_logs CASCADE"))
-                                conn.commit()
-                                print(f"[REMS] Dropped old audit_logs in schema '{schema_name}'")
-                    except Exception:
-                        pass
-                    Base.metadata.create_all(bind=tenant_engine)
+                            if "audit_logs" in insp.get_table_names():
+                                cols = [c["name"] for c in insp.get_columns("audit_logs")]
+                                if "company_id" in cols:
+                                    conn.execute(text("DROP TABLE IF EXISTS audit_logs CASCADE"))
+                                    conn.commit()
+                                    print(f"[REMS] Dropped old audit_logs in schema '{schema_name}'")
+                    except Exception as exc:
+                        print(f"[REMS] audit_logs migration check failed for '{schema_name}': {exc}")
+                    try:
+                        Base.metadata.create_all(bind=tenant_engine)
+                    except Exception as exc:
+                        print(f"[REMS] create_all failed for '{schema_name}': {exc}")
                     # Migrate attachment columns for existing tables
                     sync_attachments_table(tenant_engine)
                     # Ensure master_id column exists (used for UUID → integer PK resolution)
+                    # Also add any missing columns that ORM models expect but older schemas lack
                     with tenant_engine.connect() as conn:
                         conn.execute(text("SET lock_timeout = '5s'"))
                         conn.execute(
                             text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)")
                         )
+                        for col, col_type in {
+                            "payment_type": "VARCHAR(30)",
+                            "source": "VARCHAR(20)",
+                            "source_id": "INTEGER",
+                            "posted_to_finance": "BOOLEAN DEFAULT false",
+                            "finance_journal_id": "INTEGER",
+                            "notes": "VARCHAR(500)",
+                            "party_cnic": "VARCHAR(50)",
+                            "party_address": "TEXT",
+                            "method_fields": "JSON",
+                            "external_transaction_id": "VARCHAR(100)",
+                            "received_by": "VARCHAR(255)",
+                            "branch": "VARCHAR(100)",
+                            "cash_counter": "VARCHAR(100)",
+                            "completed_at": "TIMESTAMP",
+                            "reversed_at": "TIMESTAMP",
+                            "refunded_at": "TIMESTAMP",
+                            "cancelled_at": "TIMESTAMP",
+                            "deleted_at": "TIMESTAMP",
+                            "created_by_user_id": "INTEGER",
+                            "company_id": "INTEGER",
+                        }.items():
+                            conn.execute(
+                                text(f"ALTER TABLE payments ADD COLUMN IF NOT EXISTS {col} {col_type}")
+                            )
+                        for col, col_type in {
+                            "vendor_name": "VARCHAR(255)",
+                            "invoice_bill_no": "VARCHAR(100)",
+                            "payment_method": "VARCHAR(30)",
+                            "payment_status": "VARCHAR(20)",
+                            "paid_from_account_id": "INTEGER",
+                            "receipt_path": "VARCHAR(500)",
+                            "property_id": "INTEGER",
+                            "department": "VARCHAR(100)",
+                            "is_recurring": "BOOLEAN DEFAULT false",
+                            "recurring_frequency": "VARCHAR(20)",
+                            "next_due_date": "TIMESTAMP",
+                            "recurring_end_date": "TIMESTAMP",
+                            "approval_status": "VARCHAR(20) DEFAULT 'submitted'",
+                            "approved_by": "INTEGER",
+                            "approved_at": "TIMESTAMP",
+                            "subtotal": "NUMERIC(14,2) DEFAULT 0",
+                            "tax_amount": "NUMERIC(14,2) DEFAULT 0",
+                            "discount_amount": "NUMERIC(14,2) DEFAULT 0",
+                            "adjustment": "NUMERIC(14,2) DEFAULT 0",
+                        }.items():
+                            conn.execute(
+                                text(f"ALTER TABLE expenses ADD COLUMN IF NOT EXISTS {col} {col_type}")
+                            )
+                        for col, col_type in {
+                            "client_id": "INTEGER",
+                            "client_name": "VARCHAR(255)",
+                            "reference": "VARCHAR(100)",
+                            "paid_amount": "NUMERIC(12,2) DEFAULT 0",
+                            "remaining_amount": "NUMERIC(12,2) DEFAULT 0",
+                        }.items():
+                            conn.execute(
+                                text(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {col_type}")
+                            )
+                        for col, col_type in {
+                            "buyer_contact_id":   "INTEGER",
+                            "seller_contact_id":  "INTEGER",
+                            "token_amount":       "NUMERIC(12,2)",
+                            "token_date":         "DATE",
+                            "payment_type":       "VARCHAR(30)",
+                            "bank_name":          "VARCHAR(120)",
+                            "loan_amount":        "NUMERIC(12,2)",
+                            "approval_date":      "DATE",
+                            "commission_pct":     "NUMERIC(5,2)",
+                            "commission_amount":  "NUMERIC(12,2)",
+                            "commission_paid_to": "VARCHAR(120)",
+                            "stamp_duty":         "NUMERIC(12,2)",
+                            "registration_fee":   "NUMERIC(12,2)",
+                            "agreement_date":     "DATE",
+                            "transfer_date":      "DATE",
+                            "transfer_deed_number": "VARCHAR(100)",
+                            "sale_stage":         "VARCHAR(30)",
+                            "cancellation_reason": "TEXT",
+                        }.items():
+                            conn.execute(
+                                text(f"ALTER TABLE property_sales ADD COLUMN IF NOT EXISTS {col} {col_type}")
+                            )
+                        for tbl, cols in {
+                            "leads": {
+                                "preferred_project": "VARCHAR(120)",
+                                "lead_cost": "NUMERIC(14,2)",
+                                "investor_type": "VARCHAR(20)",
+                            },
+                            "dealers": {
+                                "cost_per_lead": "NUMERIC(14,2)",
+                                "monthly_target": "NUMERIC(12,2)",
+                            },
+                        }.items():
+                            for col, col_type in cols.items():
+                                try:
+                                    conn.execute(
+                                        text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}")
+                                    )
+                                except Exception:
+                                    pass  # column likely already exists or table missing
                         conn.execute(
                             text("""
                                 UPDATE companies c
@@ -276,6 +386,77 @@ def on_startup():
             mdb.close()
     except Exception as e:
         print(f"[REMS] Company schema repair skipped: {e}")
+
+    # ── Repair missing tables in existing SQLite company databases ────────────
+    try:
+        import os
+        from sqlalchemy import create_engine
+        from app.core.database import Base
+        from app.core.tenant_manager import DATABASES_DIR
+
+        for f in os.listdir(str(DATABASES_DIR)):
+            if f.startswith("company_") and f.endswith(".db"):
+                db_path = os.path.join(str(DATABASES_DIR), f)
+                db_url = f"sqlite:///{db_path}"
+                tenant_engine = create_engine(db_url)
+                try:
+                    Base.metadata.create_all(bind=tenant_engine)
+                    with tenant_engine.connect() as conn:
+                        import sqlalchemy as sa
+                        insp = sa.inspect(tenant_engine)
+                        pay_cols = [c["name"] for c in insp.get_columns("payments")] if "payments" in insp.get_table_names() else []
+                        for col, col_type in {
+                            "payment_type": "VARCHAR(30) DEFAULT 'against_invoice'",
+                            "source": "VARCHAR(20)",
+                            "source_id": "INTEGER",
+                            "posted_to_finance": "BOOLEAN DEFAULT 0",
+                            "finance_journal_id": "INTEGER",
+                            "method_fields": "JSON",
+                            "external_transaction_id": "VARCHAR(100)",
+                            "received_by": "VARCHAR(255)",
+                            "party_cnic": "VARCHAR(50)",
+                            "party_address": "TEXT",
+                            "branch": "VARCHAR(100)",
+                            "cash_counter": "VARCHAR(100)",
+                            "completed_at": "DATETIME",
+                            "reversed_at": "DATETIME",
+                            "refunded_at": "DATETIME",
+                            "cancelled_at": "DATETIME",
+                            "deleted_at": "DATETIME",
+                            "created_by_user_id": "INTEGER",
+                            "company_id": "INTEGER",
+                        }.items():
+                            if col not in pay_cols:
+                                try:
+                                    conn.execute(text(f"ALTER TABLE payments ADD COLUMN {col} {col_type}"))
+                                except Exception:
+                                    pass  # column likely already exists
+                        # CRM table missing columns
+                        for tbl, cols in {
+                            "leads": ["preferred_project", "lead_cost", "investor_type"],
+                            "dealers": ["cost_per_lead", "monthly_target"],
+                        }.items():
+                            if tbl in insp.get_table_names():
+                                tbl_cols = [c["name"] for c in insp.get_columns(tbl)]
+                                col_types = {
+                                    "preferred_project": "VARCHAR(120)",
+                                    "lead_cost": "NUMERIC(14,2)",
+                                    "investor_type": "VARCHAR(20)",
+                                    "cost_per_lead": "NUMERIC(14,2)",
+                                    "monthly_target": "NUMERIC(12,2)",
+                                }
+                                for col in cols:
+                                    if col not in tbl_cols:
+                                        try:
+                                            conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_types[col]}"))
+                                        except Exception:
+                                            pass
+                        conn.commit()
+                    print(f"[REMS] Verified/created tables in SQLite tenant DB '{f}'")
+                finally:
+                    tenant_engine.dispose()
+    except Exception as e:
+        print(f"[REMS] SQLite tenant schema repair skipped: {e}")
 
     # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
@@ -340,17 +521,24 @@ def on_startup():
     finally:
         db.close()
 
-    start_scheduler()
+    try:
+        import asyncio
+        loop = asyncio.new_event_loop()
+        start_reminder_scheduler(loop)
+    except Exception as e:
+        log.error("Failed to start reminder scheduler: %s", e)
+
+    from apscheduler.schedulers.background import BackgroundScheduler as _BS
+    _other_sched = _BS(timezone="UTC")
     register_mail_sync_job()
-    from app.services.reminder_scheduler import get_scheduler
-    register_followup_job(get_scheduler())
-    from app.services.booking_scheduler import register_booking_expiry_job
-    register_booking_expiry_job(get_scheduler())
+    register_followup_job(_other_sched)
+    register_booking_expiry_job(_other_sched)
+    _other_sched.start()
 
 
 @app.on_event("shutdown")
 def on_shutdown():
-    stop_scheduler()
+    stop_reminder_scheduler()
 
 
 @app.get("/health/db")

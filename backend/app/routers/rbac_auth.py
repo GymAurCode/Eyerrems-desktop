@@ -13,6 +13,17 @@ from datetime import datetime
 router = APIRouter(prefix="/api/rbac", tags=["rbac-auth"])
 
 
+def _resolve_company_id(db: Session, slug: str) -> Optional[int]:
+    """Look up company primary key (Integer) from the public schema by slug."""
+    if not slug:
+        return None
+    row = db.execute(
+        sa_text("SELECT id FROM companies WHERE slug = :slug"),
+        {"slug": slug},
+    ).fetchone()
+    return int(row[0]) if row else None
+
+
 class RoleLoginRequest(BaseModel):
     email: str
     password: str
@@ -99,25 +110,29 @@ async def role_user_login(
     db.commit()
 
     permissions = {}
-    for perm in user.role.permissions:
-        key = f"{perm.module}"
-        if perm.tab:
-            key = f"{perm.module}.{perm.tab}"
-        permissions[key] = {
-            "view": perm.can_view,
-            "add": perm.can_add,
-            "edit": perm.can_edit,
-            "delete": perm.can_delete,
-        }
+    role_name = None
+    if user.role:
+        role_name = user.role.name
+        for perm in user.role.permissions:
+            key = f"{perm.module}"
+            if perm.tab:
+                key = f"{perm.module}.{perm.tab}"
+            permissions[key] = {
+                "view": perm.can_view,
+                "add": perm.can_add,
+                "edit": perm.can_edit,
+                "delete": perm.can_delete,
+            }
 
     token_data = {
         "sub": user.email,
         "user_id": user.id,
         "user_type": "role_user",
         "role_id": user.role_id,
-        "role_name": user.role.name,
+        "role_name": role_name,
         "full_name": user.full_name,
         "company_slug": user.company_slug,
+        "company_id": str(_resolve_company_id(db, user.company_slug)) if user.company_slug else None,
         "slug_locked": user.slug_locked,
         "must_change_password": user.must_change_password,
         "permissions": permissions,
@@ -167,14 +182,14 @@ async def setup_company_slug(
     from app.core.database import get_master_db
     master_db = next(get_master_db())
     try:
-        # First try by slug column, then fallback to schema_name (backward compat)
+        # Look up the company by slug in the public schema (Integer PK)
         row = master_db.execute(
-            sa_text("SELECT id, name, slug FROM master.companies WHERE slug = :slug"),
+            sa_text("SELECT id, status FROM companies WHERE slug = :slug"),
             {"slug": slug},
         ).fetchone()
         if not row:
             row = master_db.execute(
-                sa_text("SELECT id, name, schema_name FROM master.companies WHERE schema_name = :slug"),
+                sa_text("SELECT c.id, c.status FROM companies c JOIN master.companies m ON m.slug = c.slug WHERE m.schema_name = :slug"),
                 {"slug": slug},
             ).fetchone()
     finally:
@@ -186,8 +201,50 @@ async def setup_company_slug(
             detail=f"Company '{slug}' not found. Check the slug and try again."
         )
 
+    company_id = int(row[0])
+
     user.company_slug = slug
     user.slug_locked = True
+
+    # 2. Ensure a User record exists (in the public schema) so RBAC users can
+    #    authenticate through the regular auth pipeline (get_current_user).
+    existing_user = db.execute(
+        sa_text("SELECT id FROM users WHERE email = :e"),
+        {"e": user.email},
+    ).fetchone()
+    if not existing_user:
+        admin_role = db.execute(
+            sa_text("SELECT id FROM roles WHERE name = 'Admin' ORDER BY id LIMIT 1"),
+        ).fetchone()
+        admin_role_id = int(admin_role[0]) if admin_role else None
+        db.execute(
+            sa_text("""
+                INSERT INTO users
+                    (email, full_name, hashed_password, company_id,
+                     is_super_admin, status, is_approved, is_active,
+                     approval_status, role_id)
+                VALUES
+                    (:e, :fn, :pw, :cid,
+                     FALSE, 'active', TRUE, TRUE,
+                     'approved', :rid)
+            """),
+            {
+                "e": user.email, "fn": user.full_name,
+                "pw": user.password_hash, "cid": company_id,
+                "rid": admin_role_id,
+            },
+        )
+        if admin_role_id:
+            user_row = db.execute(
+                sa_text("SELECT id FROM users WHERE email = :e"),
+                {"e": user.email},
+            ).fetchone()
+            if user_row:
+                db.execute(
+                    sa_text("INSERT INTO user_roles (user_id, role_id) VALUES (:uid, :rid)"),
+                    {"uid": user_row[0], "rid": admin_role_id},
+                )
+
     db.commit()
 
     notif = AdminNotification(
@@ -219,6 +276,7 @@ async def setup_company_slug(
         "role_name": user.role.name,
         "full_name": user.full_name,
         "company_slug": slug,
+        "company_id": str(_resolve_company_id(db, slug)) if slug else None,
         "slug_locked": True,
         "must_change_password": user.must_change_password,
         "permissions": permissions,
@@ -283,6 +341,7 @@ async def change_password(
         "role_name": user.role.name,
         "full_name": user.full_name,
         "company_slug": user.company_slug,
+        "company_id": str(_resolve_company_id(db, user.company_slug)) if user.company_slug else None,
         "slug_locked": user.slug_locked,
         "must_change_password": False,
         "permissions": permissions,

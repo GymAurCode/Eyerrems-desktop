@@ -12,6 +12,7 @@ import { printRecord } from "../../actions";
 import { SmartTable, DataTable } from "../../data-table";
 import { api } from "../../../lib/api";
 import { uploadsUrl } from "../../../lib/config";
+import { useNotifStore } from "../../../store/notifications";
 import AddLeaseDialog from "../dialogs/AddLeaseDialog";
 
 type Props = { refresh: number; onRefresh: () => void };
@@ -48,6 +49,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const [total, setTotal]           = useState(0);
   const [loading, setLoading]       = useState(false);
   const paramsRef = useRef<any>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // New lease dialog
   const [leaseOpen, setLeaseOpen] = useState(false);
@@ -162,6 +164,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
       new_start_date: renewStart, new_end_date: renewEnd,
       monthly_rent: Number(renewRent), payment_frequency: renewFreq,
     });
+    pushToast({ title: "Success", message: "Lease renewed", type: "success" });
     setRenewOpen(false);
     onRefresh();
   };
@@ -187,6 +190,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
       tenant_name: "",
       unit_name: "",
     }).catch(() => {});
+    pushToast({ title: "Success", message: "Payment recorded", type: "success" });
     setPayOpen(false);
     if (detailOpen && detailLease) openDetail(detailLease);
     refreshTable();
@@ -202,6 +206,7 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const submitTerm = async () => {
     if (!termDate || !termReason) return;
     await propApi.terminateLease(termLeaseId, { termination_date: termDate, reason: termReason, notes: termNotes || null });
+    pushToast({ title: "Success", message: "Lease terminated", type: "success" });
     setTermOpen(false);
     onRefresh();
   };
@@ -543,17 +548,17 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
       <AppDialog isOpen={renewOpen} onClose={() => setRenewOpen(false)} title="Renew Lease">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-muted mb-1">New Start Date *</label>
+            <label className="block text-xs text-muted mb-1">New Start Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={renewStart}
               onChange={(e) => setRenewStart(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">New End Date *</label>
+            <label className="block text-xs text-muted mb-1">New End Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={renewEnd}
               onChange={(e) => setRenewEnd(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Monthly Rent (Rs) *</label>
+            <label className="block text-xs text-muted mb-1">Monthly Rent (Rs) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={renewRent}
               onChange={(e) => setRenewRent(e.target.value)} />
           </div>
@@ -577,12 +582,12 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted mb-1">Amount (Rs) *</label>
+              <label className="block text-xs text-muted mb-1">Amount (Rs) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Payment Date *</label>
+              <label className="block text-xs text-muted mb-1">Payment Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
               <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={payDate}
                 onChange={(e) => setPayDate(e.target.value)} />
             </div>
@@ -619,12 +624,12 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
             This will mark the lease as terminated and make the unit available.
           </p>
           <div>
-            <label className="block text-xs text-muted mb-1">Termination Date *</label>
+            <label className="block text-xs text-muted mb-1">Termination Date <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <input className="input-dark w-full px-3 py-2.5 text-sm" type="date" value={termDate}
               onChange={(e) => setTermDate(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Reason *</label>
+            <label className="block text-xs text-muted mb-1">Reason <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
             <select className="select-dark w-full px-3 py-2.5 text-sm" value={termReason}
               onChange={(e) => setTermReason(e.target.value)}>
               <option value="">— Select reason —</option>

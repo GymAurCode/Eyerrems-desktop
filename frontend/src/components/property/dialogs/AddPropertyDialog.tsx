@@ -11,6 +11,7 @@ import AmenityPicker from "../AmenityPicker";
 import SearchableSelect from "../../ui/SearchableSelect";
 import { propApi, PropertyCategory } from "../../../lib/propertyApi";
 import { accountsApi } from "../../../lib/financeApi";
+import { useNotifStore } from "../../../store/notifications";
 
 interface AddPropertyDialogProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ const DOC_TYPES = [
 export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories }: AddPropertyDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   const [tid, setTid] = useState(""); const [tidError, setTidError] = useState(""); const [tidChecking, setTidChecking] = useState(false);
   const [address, setAddress] = useState(""); const [desc, setDesc] = useState("");
@@ -231,6 +233,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
       if (imageFile) formData.append("image", imageFile);
 
       await propApi.create(formData);
+      pushToast({ title: "Created", message: "Property created successfully", type: "success" });
       onSaved();
       onClose();
     } catch (err: any) {
@@ -297,7 +300,7 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                TID <span style={{ color: "#ef4444" }}>*</span>
+                TID <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <div className="relative">
                 <Hash size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted, #6B7280)" }} />
@@ -319,14 +322,14 @@ export default function AddPropertyDialog({ isOpen, onClose, onSaved, categories
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Address <span style={{ color: "#ef4444" }}>*</span>
+                Address <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input className="dialog-input" value={address}
                 onChange={(e) => setAddress(e.target.value)} placeholder="Full property address" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Owner Name <span style={{ color: "#ef4444" }}>*</span>
+                Owner Name <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input className="dialog-input" value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)} placeholder="Owner name" />

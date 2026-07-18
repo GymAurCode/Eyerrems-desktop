@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus, Building2, ChevronDown, ChevronRight,
   ImagePlus, X, Trash2, Hash, AlertTriangle,
-  Eye, Edit2, FileText, Upload, DollarSign, Archive
+  Eye, Edit2, FileText, Upload, DollarSign, Archive,
+  Printer
 } from "lucide-react";
 import AppDialog from "../../ui/AppDialog";
+import ConfirmDialog from "../../actions/ConfirmDialog";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
 import { propApi, Property, PropertyCategory, PropertyAttachment } from "../../../lib/propertyApi";
@@ -14,6 +16,7 @@ import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
 import { accountsApi } from "../../../lib/financeApi";
 import SearchableSelect, { SearchableOption } from "../../ui/SearchableSelect";
+import { useNotifStore } from "../../../store/notifications";
 
 type Props = { onView: (id: number) => void; refresh: number; onRefresh: () => void };
 
@@ -99,8 +102,11 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const [loading, setLoading]         = useState(false);
   const paramsRef = useRef<any>(null);
   const [open, setOpen]               = useState(false);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState("");
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   // TID
   const [tid, setTid]                 = useState("");
@@ -190,7 +196,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     paramsRef.current = params;
     setLoading(true);
     try {
-      const res = await api.get<Property[]>("/properties", {
+      const res = await api.get<Property[]>("/properties/", {
         params: {
           limit: params.pageSize,
           offset: (params.page - 1) * params.pageSize,
@@ -228,6 +234,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   useEffect(() => { void loadCategories(); }, []);
 
   const openDialog = async () => {
+    setEditingProperty(null);
     reset();
     try {
       const res = await propApi.previewTid();
@@ -238,7 +245,40 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     setOpen(true);
   };
 
+  const openEditDialog = (property: Property) => {
+    setEditingProperty(property);
+    setTid(property.tid || "");
+    setTidError("");
+    setAddress(property.address || "");
+    setDesc(property.description || "");
+    setListingStatus(property.listing_status || "available");
+    setOperationalStatus(property.operational_status || "active");
+    setCategoryName(property.category_name || "");
+    setSize(property.size ? String(property.size) : "");
+    setSizeUnit(property.size_unit || "sqft");
+    setYearBuilt(property.year_built ? String(property.year_built) : "");
+    setOwnerName(property.owner_name || "");
+    setOwnerType(property.owner_type || "Individual");
+    setCnicNtn(property.cnic_ntn || "");
+    setOwnershipPct(property.ownership_pct ? String(property.ownership_pct) : "100");
+    setTitleDeedNum(property.title_deed_number || "");
+    setRegDate(property.registration_date || "");
+    setMortgageLien(property.mortgage_lien || false);
+    setLenderName(property.lender_name || "");
+    setOutstandingAmt(property.outstanding_amount ? String(property.outstanding_amount) : "");
+    setRegAuthority(property.regulatory_authority || "");
+    setPurchasePrice(property.purchase_price ? String(property.purchase_price) : "");
+    setCurrentMarketValue(property.current_market_value ? String(property.current_market_value) : "");
+    setForSale(property.for_sale || false);
+    setAskingPrice(property.sale_price ? String(property.sale_price) : "");
+    setCommissionPct(property.commission_pct ? String(property.commission_pct) : "");
+    setCostCentre(property.cost_centre || "");
+    setError("");
+    setOpen(true);
+  };
+
   const reset = () => {
+    setEditingProperty(null);
     setTid(""); setTidError(""); setAddress(""); setDesc("");
     setListingStatus("available"); setOperationalStatus("active");
     setCategoryName(""); setSize(""); setSizeUnit("sqft"); setYearBuilt("");
@@ -272,9 +312,10 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
 
   useEffect(() => {
     if (!tid) return;
+    if (editingProperty && tid === editingProperty.tid) { setTidError(""); return; }
     const t = setTimeout(() => void checkTid(tid), 400);
     return () => clearTimeout(t);
-  }, [tid, checkTid]);
+  }, [tid, editingProperty, checkTid]);
 
   const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -388,48 +429,55 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
         amenity_ids: amenityIds,
       };
 
-      const propRes = await propApi.createProperty(payload);
-      const prop = propRes && 'data' in propRes ? (propRes as any).data : propRes;
+      if (editingProperty) {
+        await propApi.updateProperty(editingProperty.id, payload);
+        pushToast({ title: "Updated", message: `Property ${payload.tid} updated`, type: "success" });
+      } else {
+        const propRes = await propApi.createProperty(payload);
+        const prop = propRes && 'data' in propRes ? (propRes as any).data : propRes;
 
-      // Upload main image
-      if (imageFile) await propApi.uploadImage(prop.id, imageFile);
+        // Upload main image
+        if (imageFile) await propApi.uploadImage(prop.id, imageFile);
 
-      // Upload document vault files
-      for (const doc of documents) {
-        if (doc.file) {
-          try {
-            const uploadRes = await propApi.uploadAttachment(prop.id, doc.file);
-            const attachment = uploadRes && 'data' in uploadRes ? (uploadRes as any).data : uploadRes;
-            if (attachment?.id) {
-              await propApi.updateAttachmentMeta(attachment.id, {
-                document_type: doc.document_type,
-                document_name: doc.document_name,
-                expiry_date: doc.expiry_date || undefined,
-                notes: doc.notes || undefined,
-              });
+        // Upload document vault files
+        for (const doc of documents) {
+          if (doc.file) {
+            try {
+              const uploadRes = await propApi.uploadAttachment(prop.id, doc.file);
+              const attachment = uploadRes && 'data' in uploadRes ? (uploadRes as any).data : uploadRes;
+              if (attachment?.id) {
+                await propApi.updateAttachmentMeta(attachment.id, {
+                  document_type: doc.document_type,
+                  document_name: doc.document_name,
+                  expiry_date: doc.expiry_date || undefined,
+                  notes: doc.notes || undefined,
+                });
+              }
+            } catch (err) {
+              console.error("Failed to upload document:", doc.document_name, err);
             }
-          } catch (err) {
-            console.error("Failed to upload document:", doc.document_name, err);
           }
         }
-      }
 
-      // Create floors and units
-      for (const f of floors) {
-        const floorRes = await propApi.createFloor({ property_id: prop.id, floor_number: Number(f.floor_number) });
-        const floor = floorRes && 'data' in floorRes ? (floorRes as any).data : floorRes;
-        for (const u of f.units) {
-          await propApi.createUnit({
-            floor_id: floor.id, unit_number: u.unit_number,
-            size: u.size || null, rent_amount: u.rent_amount ? Number(u.rent_amount) : null, status: u.status,
-          });
+        // Create floors and units
+        for (const f of floors) {
+          const floorRes = await propApi.createFloor({ property_id: prop.id, floor_number: Number(f.floor_number) });
+          const floor = floorRes && 'data' in floorRes ? (floorRes as any).data : floorRes;
+          for (const u of f.units) {
+            await propApi.createUnit({
+              floor_id: floor.id, unit_number: u.unit_number,
+              size: u.size || null, rent_amount: u.rent_amount ? Number(u.rent_amount) : null, status: u.status,
+            });
+          }
         }
+
+        pushToast({ title: "Created", message: `Property ${payload.tid} created`, type: "success" });
       }
 
       reset(); setOpen(false); onRefresh();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof msg === "string" ? msg : "Failed to create property.");
+      setError(typeof msg === "string" ? msg : "Failed to save property.");
     } finally { setSubmitting(false); }
   };
 
@@ -444,12 +492,6 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       key: "tid",
       label: "TID",
       className: "font-mono text-xs text-blue-400"
-    },
-    {
-      key: "address",
-      label: "Address",
-      render: (val: any) => val || "—",
-      className: "text-primary font-medium"
     },
     {
       key: "listing_status",
@@ -490,7 +532,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       render: (_: any, row: Property) => {
         const total = row.floors?.reduce((s, f) => s + f.units.length, 0) || 0;
         if (total === 0) return <span className="text-muted text-xs">—</span>;
-        const rented = row.floors?.reduce((s, f) => s + f.units.filter(u => u.status === "rented").length, 0) || 0;
+        const rented = row.floors?.reduce((s, f) => s + f.units.filter(u => u.status === "rented" || u.status === "occupied").length, 0) || 0;
         const pct = Math.round((rented / total) * 100);
         const color = pct > 75 ? "#10b981" : pct > 40 ? "#f59e0b" : "#6b7280";
         return (
@@ -502,68 +544,35 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
           </div>
         );
       }
-    },
-    {
-      key: "monthly_income",
-      label: "Monthly Income",
-      render: (_: any, row: Property) => {
-        const income = row.floors?.reduce((s, f) =>
-          s + f.units.reduce((us, u) => us + (u.rent_amount || 0), 0), 0) || 0;
-        return <span className="text-secondary">{income > 0 ? formatCurrency(income) : "—"}</span>;
-      }
-    },
-    {
-      key: "owner_name",
-      label: "Owner",
-      render: (val: any, row: Property) => row.owner_name || "—",
-      className: "text-secondary"
-    },
-    {
-      key: "for_sale",
-      label: "For Sale",
-      render: (val: any, row: Property) => row.for_sale ? formatCurrency(row.sale_price) : "No",
-      className: "text-secondary"
     }
   ];
 
   const rowActions = [
     {
       key: "view",
-      label: "View Details",
+      label: "View",
       icon: Eye,
       onClick: (row: Property) => navigate(`/property/${row.id}`),
     },
     {
       key: "edit",
-      label: "Edit Property",
+      label: "Edit",
       icon: Edit2,
-      onClick: (row: Property) => navigate(`/property/${row.id}`),
+      onClick: (row: Property) => openEditDialog(row),
     },
     {
-      key: "add_unit",
-      label: "Add Unit",
-      icon: Plus,
-      onClick: (row: Property) => navigate(`/property/${row.id}`),
+      key: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (row: Property) => setDeleteTarget(row),
     },
     {
-      key: "view_leases",
-      label: "View Leases",
-      icon: FileText,
-      onClick: (row: Property) => navigate(`/property/${row.id}`),
-    },
-    {
-      key: "record_sale",
-      label: "Record Sale",
-      icon: DollarSign,
-      onClick: (row: Property) => navigate(`/property/${row.id}`),
-    },
-    {
-      key: "archive",
-      label: "Archive Property",
-      icon: Archive,
-      onClick: async (row: Property) => {
-        await propApi.updateProperty(row.id, { operational_status: "archived" } as any);
-        onRefresh();
+      key: "print",
+      label: "Print",
+      icon: Printer,
+      onClick: (row: Property) => {
+        const w = window.open(`/property/${row.id}?print=true`, "_blank");
+        if (w) w.onload = () => w.print();
       },
     },
   ];
@@ -598,7 +607,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       />
 
       {/* ── Create Property Dialog ── */}
-      <AppDialog isOpen={open} onClose={() => setOpen(false)} title="New Property" size="2xl">
+      <AppDialog isOpen={open} onClose={() => { reset(); setOpen(false); }} title={editingProperty ? `Edit ${editingProperty.tid}` : "New Property"} size="2xl">
         <form onSubmit={submit}>
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl text-xs border flex items-center gap-2"
@@ -763,7 +772,7 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
             {showForSaleFields && (
               <>
                 <div>
-                  <label className="block text-xs text-muted mb-1">Asking Price (Rs) *</label>
+                  <label className="block text-xs text-muted mb-1">Asking Price (Rs) <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span></label>
                   <input className="input-dark w-full px-3 py-2.5 text-sm" type="number" value={askingPrice}
                     onChange={(e) => setAskingPrice(e.target.value)} placeholder="Sale price" required />
                 </div>
@@ -1022,13 +1031,30 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
             <button type="submit" disabled={submitting || !!tidError}
               className="btn-property w-full py-3 text-sm flex items-center justify-center gap-2">
-              {submitting
-                ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
-                : "Create Property"}
+               {submitting
+                ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {editingProperty ? "Saving…" : "Creating…"}</>
+                : editingProperty ? "Save Changes" : "Create Property"}
             </button>
           </div>
         </form>
       </AppDialog>
+
+      {/* ── Delete Confirmation ── */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete ${deleteTarget?.tid ?? ""}`}
+        message={`Are you sure you want to delete property "${deleteTarget?.tid}"? This will permanently remove all associated data including floors, units, leases, and attachments. This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await propApi.deleteProperty(deleteTarget.id);
+          pushToast({ title: "Deleted", message: `Property ${deleteTarget.tid} deleted`, type: "success" });
+          setDeleteTarget(null);
+          onRefresh();
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </>
   );
 }

@@ -7,6 +7,8 @@ import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
 import { formatCurrency } from "../../../lib/currency";
 import AddUnitDialog from "../dialogs/AddUnitDialog";
+import ConfirmDialog from "../../actions/ConfirmDialog";
+import { useNotifStore } from "../../../store/notifications";
 
 type Props = { refresh: number };
 
@@ -48,6 +50,10 @@ export default function UnitsTab({ refresh }: Props) {
   // Add/Edit dialog
   const [open, setOpen]       = useState(false);
   const [editing, setEditing] = useState<Unit | null>(null);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<Unit | null>(null);
+  const pushToast = useNotifStore((s) => s.pushToast);
 
   useEffect(() => {
     propApi.getProperties().then((res) => {
@@ -109,6 +115,7 @@ export default function UnitsTab({ refresh }: Props) {
 
   const handleDelete = async (unit: Unit) => {
     await propApi.deleteUnit(unit.id);
+    pushToast({ title: "Deleted", message: `Unit ${unit.unit_number} deleted`, type: "success" });
     if (paramsRef.current) fetchUnits(paramsRef.current);
   };
 
@@ -240,11 +247,7 @@ export default function UnitsTab({ refresh }: Props) {
       key: "delete",
       label: "Delete Unit",
       icon: Trash2,
-      onClick: (row: Unit) => {
-        if (window.confirm(`Delete unit ${row.unit_number}?`)) {
-          handleDelete(row);
-        }
-      },
+      onClick: (row: Unit) => setDeleteTarget(row),
     },
   ];
 
@@ -396,6 +399,23 @@ export default function UnitsTab({ refresh }: Props) {
         reportType={reportModal.reportType}
         filters={reportModal.filters}
         title={reportModal.title}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete Unit ${deleteTarget?.unit_number ?? ""}`}
+        message={`Are you sure you want to delete unit ${deleteTarget?.unit_number ?? ""}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await propApi.deleteUnit(deleteTarget.id);
+          pushToast({ title: "Deleted", message: `Unit ${deleteTarget.unit_number} deleted`, type: "success" });
+          setDeleteTarget(null);
+          if (paramsRef.current) fetchUnits(paramsRef.current);
+        }}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

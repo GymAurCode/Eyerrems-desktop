@@ -1,232 +1,263 @@
 import { useEffect, useState } from "react";
-import AppDialog from "../ui/AppDialog";
-import AttachmentsButton from "../attachments/AttachmentsButton";
-import { remindersApi, type Template } from "../../lib/remindersApi";
-import type { Reminder } from "../../store/notifications";
-type ReminderCreate = Reminder;
+import { X } from "lucide-react";
+import { remindersApi } from "../../lib/remindersApi";
+import type { Reminder } from "../../lib/remindersApi";
+import { useUIStore } from "../../store/ui";
 
-type Props = {
+const CATEGORIES = [
+  { value: "", label: "None" },
+  { value: "general", label: "General" },
+  { value: "meeting", label: "Meeting" },
+  { value: "task", label: "Task" },
+  { value: "followup", label: "Follow-up" },
+  { value: "deadline", label: "Deadline" },
+  { value: "inventory", label: "Inventory" },
+];
+
+const PRIORITIES = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
+const REPEATS = [
+  { value: "none", label: "None" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+const REMIND_BEFORE = [
+  { value: 0, label: "At time" },
+  { value: 5, label: "5 min before" },
+  { value: 10, label: "10 min before" },
+  { value: 15, label: "15 min before" },
+  { value: 30, label: "30 min before" },
+  { value: 60, label: "1 hr before" },
+  { value: 120, label: "2 hrs before" },
+  { value: 1440, label: "1 day before" },
+  { value: 10080, label: "1 week before" },
+];
+
+function toLocalDatetimeString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${h}:${min}`;
+}
+
+interface Props {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
-  prefill?: Partial<ReminderCreate>;
-  editId?: number;
-};
+  editReminder?: Reminder | null;
+}
 
-const PRIORITIES = ["low", "medium", "high", "urgent"];
-const RECURRENCES = ["none", "daily", "weekly", "monthly", "custom"];
+const TEAL = "#14B8A6";
+const YELLOW = "#f6ce3a";
 
-export default function ReminderForm({ open, onClose, onSaved, prefill, editId }: Props) {
-  const [form, setForm] = useState<ReminderCreate>({
-    title: "",
-    description: "",
-    module_name: prefill?.module_name ?? "",
-    record_id: prefill?.record_id ?? null,
-    due_time: new Date(Date.now() + 3600_000).toISOString().slice(0, 16),
-    recurrence: "none",
-    priority: "medium",
-    pre_alert_minutes: 0,
-    assigned_user_ids: [],
-    ...prefill,
-  });
-  const [templates, setTemplates] = useState<Template[]>([]);
+export default function ReminderForm({ open, onClose, onSaved, editReminder }: Props) {
+  const theme = useUIStore((s) => s.theme);
+  const isDark = theme === "dark";
+  const accent = isDark ? YELLOW : TEAL;
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [remindAt, setRemindAt] = useState("");
+  const [priority, setPriority] = useState("medium");
+  const [repeat, setRepeat] = useState("none");
+  const [reminderBefore, setReminderBefore] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    remindersApi.templates()
-      .then((r) => {
-        const data = Array.isArray(r) ? r : [];
-        setTemplates(data);
-      })
-      .catch(() => setTemplates([]));
-  }, []);
-
-  useEffect(() => {
-    if (prefill) setForm((f) => ({ ...f, ...prefill }));
-  }, [prefill]);
-
-  const applyTemplate = (id: number) => {
-    const t = templates.find((x) => x.id === id);
-    if (!t) return;
-    setForm((f) => ({
-      ...f,
-      template_id: t.id,
-      title: t.title_tpl,
-      description: t.message_tpl,
-      pre_alert_minutes: t.default_pre_alert_minutes,
-    }));
-  };
+    if (open) {
+      if (editReminder) {
+        setTitle(editReminder.title);
+        setDescription(editReminder.description || "");
+        setCategory(editReminder.category || "");
+        setRemindAt(toLocalDatetimeString(new Date(editReminder.remind_at)));
+        setPriority(editReminder.priority);
+        setRepeat(editReminder.repeat);
+        setReminderBefore(editReminder.reminder_before);
+      } else {
+        const defaultTime = new Date(Date.now() + 3600000);
+        setTitle("");
+        setDescription("");
+        setCategory("");
+        setRemindAt(toLocalDatetimeString(defaultTime));
+        setPriority("medium");
+        setRepeat("none");
+        setReminderBefore(0);
+      }
+      setError("");
+    }
+  }, [open, editReminder]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim()) { setError("Title is required"); return; }
+    if (!remindAt) { setError("Date & time is required"); return; }
     setSaving(true);
     setError("");
     try {
       const payload = {
-        ...form,
-        due_time: new Date(form.due_time).toISOString(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        category: category || undefined,
+        remind_at: new Date(remindAt).toISOString(),
+        priority,
+        repeat,
+        reminder_before: reminderBefore,
       };
-      if (editId) {
-        await remindersApi.update(editId, payload);
+      if (editReminder) {
+        await remindersApi.updateReminder(editReminder.id, payload);
       } else {
-        await remindersApi.create(payload);
+        await remindersApi.createReminder(payload);
       }
       onSaved();
       onClose();
-    } catch (err: unknown) {
-      setError("Failed to save reminder.");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to save reminder");
     } finally {
       setSaving(false);
     }
   };
 
-  return (
-    <AppDialog isOpen={open} onClose={onClose} title={editId ? "Edit Reminder" : "New Reminder"}
-      subtitle="Set up task reminders and alerts"
-      size="md" accentColor="#F43F5E" accentRgb="244,63,94"
-      footer={
-        <>
-          <button type="button" onClick={onClose}
-            style={{
-              padding: "8px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 500,
-              border: "0.5px solid var(--dialog-cancel-border, #CBD5E1)",
-              background: "var(--dialog-cancel-bg, #FFFFFF)",
-              color: "var(--dialog-cancel-color, #64748B)",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "var(--dialog-cancel-hover-bg, #F1F5F9)"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "var(--dialog-cancel-bg, #FFFFFF)"}
-          >Cancel</button>
-          <button type="submit" form="reminder-form" disabled={saving}
-            style={{
-              padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 500,
-              border: "none", background: "#F43F5E", color: "#FFFFFF",
-              opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer",
-            }}
-          >{saving ? "Saving..." : editId ? "Update" : "Create"}</button>
-        </>
-      }
-    >
-      <form id="reminder-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Template picker */}
-          {templates.length > 0 && (
-            <div>
-              <label className="block text-xs text-muted mb-1">Use Template</label>
-              <select
-                className="input-field w-full text-sm"
-                onChange={(e) => applyTemplate(Number(e.target.value))}
-                defaultValue=""
-              >
-                <option value="">— Select template —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+  if (!open) return null;
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="rounded-xl p-6 w-full max-w-lg shadow-2xl"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-primary">
+            {editReminder ? "Edit Reminder" : "New Reminder"}
+          </h2>
+          <button onClick={onClose} className="p-1 rounded text-muted hover:text-primary">
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="block text-xs text-muted mb-1">Title *</label>
             <input
               required
+              maxLength={200}
               className="input-field w-full text-sm"
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-
           <div>
             <label className="block text-xs text-muted mb-1">Description</label>
             <textarea
               rows={2}
               className="input-field w-full text-sm resize-none"
-              value={form.description ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted mb-1">Due Date & Time *</label>
+              <label className="block text-xs text-muted mb-1">Date & Time *</label>
               <input
                 required
                 type="datetime-local"
                 className="input-field w-full text-sm"
-                value={form.due_time as string}
-                onChange={(e) => setForm((f) => ({ ...f, due_time: e.target.value }))}
+                value={remindAt}
+                onChange={(e) => setRemindAt(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Pre-alert (mins)</label>
-              <input
-                type="number"
-                min={0}
+              <label className="block text-xs text-muted mb-1">Category</label>
+              <select
                 className="input-field w-full text-sm"
-                value={form.pre_alert_minutes ?? 0}
-                onChange={(e) => setForm((f) => ({ ...f, pre_alert_minutes: Number(e.target.value) }))}
-              />
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-muted mb-1">Priority</label>
               <select
                 className="input-field w-full text-sm"
-                value={form.priority}
-                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
               >
                 {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Recurrence</label>
+              <label className="block text-xs text-muted mb-1">Repeat</label>
               <select
                 className="input-field w-full text-sm"
-                value={form.recurrence}
-                onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value }))}
+                value={repeat}
+                onChange={(e) => setRepeat(e.target.value)}
               >
-                {RECURRENCES.map((r) => (
-                  <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                {REPEATS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>
             </div>
           </div>
-
-          {form.recurrence === "custom" && (
-            <div>
-              <label className="block text-xs text-muted mb-1">Cron Expression</label>
-              <input
-                className="input-field w-full text-sm font-mono"
-                placeholder="e.g. 0 9 * * 1"
-                value={form.cron_expr ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, cron_expr: e.target.value }))}
-              />
-            </div>
-          )}
-
-          {(form.module_name || form.record_id) && (
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-xs text-muted mb-1">Module</label>
-                <input readOnly className="input-field w-full text-sm opacity-60" value={form.module_name ?? ""} />
-              </div>
-              <div className="w-24">
-                <label className="block text-xs text-muted mb-1">Record ID</label>
-                <input readOnly className="input-field w-full text-sm opacity-60" value={form.record_id ?? ""} />
-              </div>
-            </div>
-          )}
-
+          <div>
+            <label className="block text-xs text-muted mb-1">Remind Me</label>
+            <select
+              className="input-field w-full text-sm"
+              value={reminderBefore}
+              onChange={(e) => setReminderBefore(Number(e.target.value))}
+            >
+              {REMIND_BEFORE.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
-
           <div className="flex justify-end gap-2 pt-2">
-            <AttachmentsButton module="reminder" recordId={editId} />
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-sm font-medium"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+              style={{
+                background: isDark ? "rgba(246,206,58,0.15)" : accent,
+                color: isDark ? YELLOW : "#fff",
+                border: isDark ? "1px solid rgba(246,206,58,0.3)" : "none",
+                backdropFilter: isDark ? "blur(6px)" : "none",
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? "Saving..." : editReminder ? "Update" : "Create"}
+            </button>
           </div>
         </form>
-      </AppDialog>
+      </div>
+    </div>
   );
 }

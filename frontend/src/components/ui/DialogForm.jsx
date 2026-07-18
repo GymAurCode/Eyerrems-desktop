@@ -55,12 +55,11 @@ export function FormField({ label, required, error, hint, children, fullWidth = 
             color: "var(--dialog-field-label, #475569)",
             display: "flex",
             alignItems: "center",
-            gap: "3px",
           }}
         >
           {label}
           {required && (
-            <span style={{ color: "#EF4444", fontSize: "13px" }}>*</span>
+            <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1, marginLeft: "2px" }} aria-hidden="true">*</span>
           )}
         </label>
       )}

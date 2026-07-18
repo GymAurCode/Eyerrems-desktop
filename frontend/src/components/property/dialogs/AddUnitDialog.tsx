@@ -170,14 +170,14 @@ export default function AddUnitDialog({ isOpen, onClose, onSaved, floors, editUn
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Unit Number <span style={{ color: "#ef4444" }}>*</span>
+                Unit Number <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <input className="dialog-input" value={form.unitNumber}
                 onChange={(e) => set("unitNumber", e.target.value)} placeholder="e.g. 101" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary, #9BA3AF)" }}>
-                Floor <span style={{ color: "#ef4444" }}>*</span>
+                Floor <span style={{ color: "#EF4444", fontSize: "13px", lineHeight: 1 }} aria-hidden="true">*</span>
               </label>
               <select className="dialog-select" value={form.floorId}
                 onChange={(e) => set("floorId", e.target.value)}>

@@ -29,7 +29,9 @@ log = logging.getLogger("rems.auth")
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _is_admin(user: User) -> bool:
-    """True if user holds the 'Admin' role (company-level admin)."""
+    """True if user holds the 'Admin' role (company-level admin) or is a superadmin."""
+    if user.is_super_admin:
+        return True
     for role in user.roles:
         if role.name.lower() == "admin":
             return True
@@ -39,32 +41,31 @@ def _is_admin(user: User) -> bool:
 
 
 def _load_user(db: Session, email: str) -> User:
-    query = db.query(User).options(
-        joinedload(User.roles).joinedload(Role.permissions),
-        joinedload(User.direct_permissions),
-        joinedload(User.role).joinedload(Role.permissions),
-        joinedload(User.company),
-    )
     try:
-        return query.filter(User.email == email).first()
+        return (
+            db.query(User)
+            .options(
+                joinedload(User.roles).joinedload(Role.permissions),
+                joinedload(User.direct_permissions),
+                joinedload(User.role).joinedload(Role.permissions),
+                joinedload(User.company),
+            )
+            .filter(User.email == email)
+            .first()
+        )
     except SQLAlchemyError as exc:
-        error_text = str(exc).lower()
-        if "companies_1." in error_text and "does not exist" in error_text:
-            db.rollback()
-            log.warning(
-                "User load failed due to missing company columns in the master DB; retrying without eager company load."
+        db.rollback()
+        log.warning("User load failed with company join, retrying without: %s", exc)
+        return (
+            db.query(User)
+            .options(
+                joinedload(User.roles).joinedload(Role.permissions),
+                joinedload(User.direct_permissions),
+                joinedload(User.role).joinedload(Role.permissions),
             )
-            return (
-                db.query(User)
-                .options(
-                    joinedload(User.roles).joinedload(Role.permissions),
-                    joinedload(User.direct_permissions),
-                    joinedload(User.role).joinedload(Role.permissions),
-                )
-                .filter(User.email == email)
-                .first()
-            )
-        raise
+            .filter(User.email == email)
+            .first()
+        )
 
 
 # ── Core auth dependency ──────────────────────────────────────────────────────
@@ -85,10 +86,87 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
     email: str = payload.get("sub", "")
-    token_company_id: Optional[int] = payload.get("company_id")
+    token_company_id: Optional[str] = payload.get("company_id")
     token_is_super_admin: bool = bool(payload.get("is_super_admin", False))
 
     user = _load_user(db, email)
+    if not user:
+        log.warning(f"User '{email}' not found in resolved DB, trying master DB fallback")
+        from app.core.tenant_manager import tenant_manager
+        master_db = tenant_manager.get_master_session()
+        try:
+            user = _load_user(master_db, email)
+        finally:
+            master_db.close()
+    if not user and payload.get("user_type") == "role_user":
+        # Fallback: RBAC user not yet mirrored as a User record.
+        from app.core.tenant_manager import tenant_manager as _tm
+        from app.models.rbac import RoleUser as RbacUser
+        from sqlalchemy import text as _sa_text
+
+        _master = _tm.get_master_session()
+        try:
+            rbac_user = _master.query(RbacUser).filter(RbacUser.email == email).first()
+        finally:
+            _master.close()
+
+        if rbac_user and rbac_user.slug_locked:
+            _company_id = None
+            if rbac_user.company_slug:
+                _m2 = _tm.get_master_session()
+                try:
+                    _row = _m2.execute(
+                        _sa_text("SELECT id FROM companies WHERE slug = :s"),
+                        {"s": rbac_user.company_slug},
+                    ).fetchone()
+                    if _row:
+                        _company_id = int(_row[0])
+                finally:
+                    _m2.close()
+
+            if _company_id:
+                _m3 = _tm.get_master_session()
+                try:
+                    _existing = _m3.execute(
+                        _sa_text("SELECT id FROM users WHERE email = :e"),
+                        {"e": email},
+                    ).fetchone()
+                    if not _existing:
+                        _ar = _m3.execute(
+                            _sa_text("SELECT id FROM roles WHERE name = 'Admin' ORDER BY id LIMIT 1"),
+                        ).fetchone()
+                        _ar_id = int(_ar[0]) if _ar else None
+                        _m3.execute(
+                            _sa_text("""
+                                INSERT INTO users
+                                    (email, full_name, hashed_password, company_id,
+                                     is_super_admin, status, is_approved, is_active,
+                                     approval_status, role_id)
+                                VALUES
+                                    (:e, :fn, :pw, :cid,
+                                     FALSE, 'active', TRUE, TRUE,
+                                     'approved', :rid)
+                            """),
+                            {
+                                "e": email, "fn": rbac_user.full_name,
+                                "pw": rbac_user.password_hash, "cid": _company_id,
+                                "rid": _ar_id,
+                            },
+                        )
+                        if _ar_id:
+                            _uid_row = _m3.execute(
+                                _sa_text("SELECT id FROM users WHERE email = :e"),
+                                {"e": email},
+                            ).fetchone()
+                            if _uid_row:
+                                _m3.execute(
+                                    _sa_text("INSERT INTO user_roles (user_id, role_id) VALUES (:uid, :rid)"),
+                                    {"uid": _uid_row[0], "rid": _ar_id},
+                                )
+                        _m3.commit()
+                    user = _load_user(_m3, email)
+                finally:
+                    _m3.close()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -96,10 +174,10 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
     # Regular tenant user — must belong to an active company.
-    if not user.company_id and not token_is_super_admin and user.email != "admin@rems.local":
+    if not user.company_id and not token_is_super_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no company assigned")
 
-    if user.email == "admin@rems.local" or token_is_super_admin:
+    if token_is_super_admin:
         # Master admin may authenticate with a token that carries no tenant context.
         cid = token_company_id if token_company_id is not None else 1
         try:
