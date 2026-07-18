@@ -224,25 +224,31 @@ def main():
     print(f"[migrate] Tables in DB: {len(existing_tables)}")
     print(f"[migrate] alembic_version: {current_ver!r}")
 
-    # Widen alembic_version column before any migration
-    engine2 = create_engine(db_url, pool_pre_ping=True)
-    try:
-        widen_alembic_version_column(engine2)
-    finally:
-        engine2.dispose()
-
     cfg = make_alembic_cfg(db_url)
 
     if not has_any_schema:
         # ── State A: Completely empty database ────────────────────────────────
-        print("[migrate] Empty database — running full migration from 0001...")
+        print("[migrate] Empty database — running two-phase migration...")
         engine2 = create_engine(db_url, pool_pre_ping=True)
         try:
             clear_alembic_version(engine2)
         finally:
             engine2.dispose()
         try:
-            print("[migrate] Running alembic upgrade head...")
+            # Phase 1: upgrade to 0035_merge_heads (all short revision IDs)
+            print("[migrate] Phase 1: upgrading to 0035_merge_heads...")
+            alembic_command.upgrade(cfg, "0035_merge_heads")
+            print("[migrate] Phase 1 complete.")
+
+            # Widen alembic_version column before long revision IDs
+            engine3 = create_engine(db_url, pool_pre_ping=True)
+            try:
+                widen_alembic_version_column(engine3)
+            finally:
+                engine3.dispose()
+
+            # Phase 2: continue to head
+            print("[migrate] Phase 2: upgrading to head...")
             alembic_command.upgrade(cfg, "head")
             print("[migrate] Full migration complete.")
         except Exception as e:
@@ -252,6 +258,12 @@ def main():
     elif current_ver in VALID_REVISIONS:
         # ── State C: Valid version — normal upgrade ───────────────────────────
         print(f"[migrate] Version {current_ver!r} is valid — running upgrade head...")
+        # Widen the column in case current_ver is a short revision
+        engine2 = create_engine(db_url, pool_pre_ping=True)
+        try:
+            widen_alembic_version_column(engine2)
+        finally:
+            engine2.dispose()
         try:
             alembic_command.upgrade(cfg, "head")
             print("[migrate] Done — database is up to date.")
@@ -265,11 +277,11 @@ def main():
         print(f"[migrate] Partial schema detected.")
         print(f"[migrate] Highest completed revision (by table inspection): {completed!r}")
 
-        engine3 = create_engine(db_url, pool_pre_ping=True)
+        engine2 = create_engine(db_url, pool_pre_ping=True)
         try:
-            clear_alembic_version(engine3)
+            clear_alembic_version(engine2)
         finally:
-            engine3.dispose()
+            engine2.dispose()
 
         try:
             if completed:
@@ -277,6 +289,13 @@ def main():
                 alembic_command.stamp(cfg, completed)
             else:
                 print("[migrate] No recognisable tables found — running from scratch...")
+
+            # Widen column before any long revision IDs
+            engine3 = create_engine(db_url, pool_pre_ping=True)
+            try:
+                widen_alembic_version_column(engine3)
+            finally:
+                engine3.dispose()
 
             print("[migrate] Running upgrade head to apply remaining migrations...")
             alembic_command.upgrade(cfg, "head")
