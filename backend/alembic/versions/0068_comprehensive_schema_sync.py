@@ -30,9 +30,9 @@ def _column_exists(table, column):
     return column in cols
 
 
-def _add_column_if_missing(table, column, col_type, **kwargs):
+def _add_column_if_missing(table, column, col_type, *args, **kwargs):
     if not _column_exists(table, column):
-        op.add_column(table, sa.Column(column, col_type, **kwargs))
+        op.add_column(table, sa.Column(column, col_type, *args, **kwargs))
 
 
 def _drop_column_if_exists(table, column):
