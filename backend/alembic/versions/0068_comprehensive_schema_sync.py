@@ -439,10 +439,10 @@ def upgrade():
     )
     # Add index on vendors.name
     if _table_exists("vendors"):
-        try:
+        conn = op.get_bind()
+        existing = {ix["name"] for ix in inspect(conn).get_indexes("vendors")}
+        if "ix_vendors_name" not in existing:
             op.create_index("ix_vendors_name", "vendors", ["name"])
-        except Exception:
-            pass
 
     # ═══════════════════════════════════════════════════════════════════════
     # SyncLog
