@@ -1,6 +1,9 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,96 +61,17 @@ from app.services.crm.followup_scheduler import register_followup_job
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("rems")
 
-app = FastAPI(title="REMS API", version="1.0.0")
 
-# Health check — registered FIRST, before anything that could fail
-# No auth, no DB, no imports that could crash
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "service": "Real Estate ERP API"}
-
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Catch-all handler — returns JSON instead of uvicorn's bare text/plain 500.
-    Logs the full traceback so it's visible in the server console.
-    Manually adds CORS headers because exception handler responses bypass the
-    middleware stack (so CORSMiddleware never gets a chance to add them)."""
-    import traceback
-    log.error("Unhandled exception on %s %s\n%s", request.method, request.url.path,
-               traceback.format_exc())
-    origin = request.headers.get("origin", "")
-    cors_headers = {"Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"}
-    if origin:
-        cors_headers["Access-Control-Allow-Origin"] = origin
-        cors_headers["Access-Control-Allow-Credentials"] = "true"
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
-        headers=cors_headers,
-    )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list if settings.cors_origins_list else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Total-Count"],
-)
-# Tenant resolver — must be added AFTER CORS
-app.add_middleware(TenantMiddleware)
-
-upload_root = Path(settings.upload_dir)
-upload_root.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
-
-app.include_router(auth_router,       prefix="/auth",       tags=["auth"])
-app.include_router(activity_router,   prefix="/activity",   tags=["activity"])
-app.include_router(audit_router,     prefix="/audit",      tags=["audit"])
-app.include_router(dashboard_router,  prefix="/dashboard",  tags=["dashboard"])
-app.include_router(properties_router, prefix="/properties", tags=["properties"])
-app.include_router(crm_router,              prefix="/crm",        tags=["crm"])
-app.include_router(client_pipeline_router,  prefix="/crm",        tags=["client-pipeline"])
-app.include_router(finance_router,    prefix="/finance",    tags=["finance"])
-app.include_router(finance_ops_router, prefix="/finance",   tags=["finance-operations"])
-app.include_router(settings_router,   prefix="/settings",   tags=["settings"])
-app.include_router(admin_router,      prefix="/admin",      tags=["admin"])
-app.include_router(tenants_router,      prefix="/tenants",      tags=["tenants"])
-app.include_router(construction_router, prefix="/construction", tags=["construction"])
-app.include_router(websocket_router)
-app.include_router(reminders_router, prefix="/reminders", tags=["reminders"])
-app.include_router(hr_router, prefix="/hr", tags=["hr"])
-app.include_router(mail_router, prefix="/mail", tags=["mail"])
-# Multi-tenant
-app.include_router(company_settings_router,                         tags=["company-settings"])
-# Town / Block / Plot hierarchy
-app.include_router(towns_router, prefix="/towns", tags=["towns"])
-app.include_router(town_units_router, prefix="/town-units", tags=["town-units"])
-app.include_router(ledger_router,  prefix="/finance/ledger", tags=["ledger"])
-app.include_router(bootstrap_router, tags=["bootstrap"])
-# Booking system
-app.include_router(booking_router, prefix="/crm/bookings", tags=["bookings"])
-# Reports system
-app.include_router(reports_router, prefix="/reports", tags=["reports"])
-# AI Intelligence Center
-app.include_router(ai_router, tags=["ai-intelligence"])
-app.include_router(import_router, prefix="/import", tags=["import"])
-app.include_router(chat_router, prefix="/chat", tags=["chat"])
-app.include_router(superadmin_router)
-app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
-app.include_router(files_router)
-app.include_router(spreadsheet_router)
-app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
-app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
-
-# RBAC System
-app.include_router(rbac_auth_router)
-app.include_router(rbac_admin_router)
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # ── Startup ──────────────────────────────────────────────────────────────
+    _startup()
+    yield
+    # ── Shutdown ─────────────────────────────────────────────────────────────
+    stop_reminder_scheduler()
 
 
-@app.on_event("startup")
-def on_startup():
+def _startup():
     log.info("=== Application startup began ===")
     log.info(f"[ENV] DATABASE_URL set: {bool(settings.database_url)}")
     log.info(f"[ENV] JWT_SECRET_KEY set: {bool(settings.jwt_secret_key)}")
@@ -173,7 +97,6 @@ def on_startup():
         print(f"[REMS] Master schema setup skipped: {e}")
 
     # ── Ensure existing database schema BEFORE seeding ─────────────────────
-    # Tables must exist before any INSERT — otherwise the seed silently fails.
     try:
         Base.metadata.create_all(bind=engine)
         print("[REMS] Verified database schema before seeding.")
@@ -213,8 +136,6 @@ def on_startup():
         print(f"[REMS] Superadmin seed skipped: {e}")
 
     # ── Seed admin@rems.local (company admin) in public schema ──────────────
-    # This uses the same guaranteed-commit pattern as the superadmin seed so
-    # the company admin is always available, even if seed_rbac fails later.
     try:
         from app.models.company import Company
         from app.core.security import hash_password
@@ -224,7 +145,6 @@ def on_startup():
                 text("SELECT id FROM users WHERE email = 'admin@rems.local' AND is_super_admin = FALSE"),
             ).fetchone()
             if not existing:
-                # Ensure default company exists
                 company_row = sa_session.execute(
                     text("SELECT id FROM companies WHERE slug = 'default'"),
                 ).fetchone()
@@ -265,29 +185,7 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] Company admin seed skipped: {e}")
 
-    # ── Ensure reminders.user_id column exists (missing from some schemas) ─
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-            conn.commit()
-            print("[REMS] Verified reminders.user_id column.")
-    except Exception as e:
-        print(f"[REMS] reminders.user_id column check skipped: {e}")
-
-    # ── Ensure reminder_templates.user_id column exists ────────────────────
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE reminder_templates ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-            conn.commit()
-            print("[REMS] Verified reminder_templates.user_id column.")
-    except Exception as e:
-        print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
-
     # ── Fix missing companies columns in public schema ─────────────────────
-    # The companies table was created by an older model revision that lacked
-    # columns like email, phone, plan, currency_code, expiry_date, db_path.
-    # create_all() never adds missing columns to existing tables, so we must
-    # do it explicitly here.
     for col, col_type, nullable_default in {
         "email":         ("VARCHAR(255)", "DEFAULT NULL"),
         "phone":         ("VARCHAR(60)",  "DEFAULT NULL"),
@@ -307,9 +205,25 @@ def on_startup():
         except Exception as e:
             print(f"[REMS] companies.{col} column check skipped: {e}")
 
+    # ── Ensure reminders.user_id column exists ─────────────────────────────
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS user_id INTEGER"))
+            conn.commit()
+            print("[REMS] Verified reminders.user_id column.")
+    except Exception as e:
+        print(f"[REMS] reminders.user_id column check skipped: {e}")
+
+    # ── Ensure reminder_templates.user_id column exists ────────────────────
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE reminder_templates ADD COLUMN IF NOT EXISTS user_id INTEGER"))
+            conn.commit()
+            print("[REMS] Verified reminder_templates.user_id column.")
+    except Exception as e:
+        print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
+
     # ── Ensure rbac_login_history.user_id is nullable ──────────────────────
-    # Failed login attempts for unknown users pass user_id=None; the column
-    # must allow NULL to avoid a 500 when logging those attempts.
     try:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE rbac_login_history ALTER COLUMN user_id DROP NOT NULL"))
@@ -330,13 +244,11 @@ def on_startup():
             ).fetchall()
             for (schema_name,) in rows:
                 try:
-                    # Ensure all model tables exist (creates audit_logs if missing)
                     tenant_engine = create_engine(
                         settings.database_url_fixed,
                         connect_args={"options": f"-csearch_path={schema_name},public"},
                         pool_pre_ping=True,
                     )
-                    # Migrate old audit_logs if needed
                     try:
                         with tenant_engine.connect() as conn:
                             conn.execute(text("SET lock_timeout = '5s'"))
@@ -354,10 +266,7 @@ def on_startup():
                         Base.metadata.create_all(bind=tenant_engine)
                     except Exception as exc:
                         print(f"[REMS] create_all failed for '{schema_name}': {exc}")
-                    # Migrate attachment columns for existing tables
                     sync_attachments_table(tenant_engine)
-                    # Ensure master_id column exists (used for UUID → integer PK resolution)
-                    # Also add any missing columns that ORM models expect but older schemas lack
                     with tenant_engine.connect() as conn:
                         conn.execute(text("SET lock_timeout = '5s'"))
                         conn.execute(
@@ -462,7 +371,7 @@ def on_startup():
                                         text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}")
                                     )
                                 except Exception:
-                                    pass  # column likely already exists or table missing
+                                    pass
                         conn.execute(
                             text("""
                                 UPDATE companies c
@@ -476,7 +385,6 @@ def on_startup():
                         conn.commit()
                     tenant_engine.dispose()
 
-                    # Seed RBAC data if permissions table is empty
                     repair_session = sessionmaker(
                         bind=create_engine(
                             settings.database_url_fixed,
@@ -549,8 +457,7 @@ def on_startup():
                                 try:
                                     conn.execute(text(f"ALTER TABLE payments ADD COLUMN {col} {col_type}"))
                                 except Exception:
-                                    pass  # column likely already exists
-                        # CRM table missing columns
+                                    pass
                         for tbl, cols in {
                             "leads": ["preferred_project", "lead_cost", "investor_type"],
                             "dealers": ["cost_per_lead", "monthly_target"],
@@ -601,7 +508,6 @@ def on_startup():
 
     # ── Seed default lookup values (public schema + all company schemas) ──────
     try:
-        # Seed in public schema
         public_engine = create_engine(settings.database_url_fixed, pool_pre_ping=True)
         pub_session = sessionmaker(bind=public_engine)()
         try:
@@ -616,7 +522,6 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] Public lookup seed skipped: {e}")
 
-    # Seed in each company schema via get_db() (tenant-aware)
     try:
         db = next(get_db())
         try:
@@ -629,7 +534,7 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] Tenant lookup seed skipped: {e}")
 
-    # ── Sync TownUnit columns for the enhanced Town Management module ─────────
+    # ── Sync TownUnit columns ─────────────────────────────────────────────────
     db = next(get_db())
     try:
         from app.models.town import sync_town_unit_columns
@@ -641,7 +546,6 @@ def on_startup():
         db.close()
 
     try:
-        import asyncio
         loop = asyncio.new_event_loop()
         start_reminder_scheduler(loop)
     except Exception as e:
@@ -655,9 +559,92 @@ def on_startup():
     _other_sched.start()
 
 
-@app.on_event("shutdown")
-def on_shutdown():
-    stop_reminder_scheduler()
+app = FastAPI(title="REMS API", version="1.0.0", lifespan=lifespan)
+
+# Health check — registered FIRST, before anything that could fail
+# No auth, no DB, no imports that could crash
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "Real Estate ERP API"}
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all handler — returns JSON instead of uvicorn's bare text/plain 500.
+    Logs the full traceback so it's visible in the server console.
+    Manually adds CORS headers because exception handler responses bypass the
+    middleware stack (so CORSMiddleware never gets a chance to add them)."""
+    import traceback
+    log.error("Unhandled exception on %s %s\n%s", request.method, request.url.path,
+               traceback.format_exc())
+    origin = request.headers.get("origin", "")
+    cors_headers = {"Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"}
+    if origin:
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        cors_headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+        headers=cors_headers,
+    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list if settings.cors_origins_list else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
+)
+# Tenant resolver — must be added AFTER CORS
+app.add_middleware(TenantMiddleware)
+
+upload_root = Path(settings.upload_dir)
+upload_root.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
+
+app.include_router(auth_router,       prefix="/auth",       tags=["auth"])
+app.include_router(activity_router,   prefix="/activity",   tags=["activity"])
+app.include_router(audit_router,     prefix="/audit",      tags=["audit"])
+app.include_router(dashboard_router,  prefix="/dashboard",  tags=["dashboard"])
+app.include_router(properties_router, prefix="/properties", tags=["properties"])
+app.include_router(crm_router,              prefix="/crm",        tags=["crm"])
+app.include_router(client_pipeline_router,  prefix="/crm",        tags=["client-pipeline"])
+app.include_router(finance_router,    prefix="/finance",    tags=["finance"])
+app.include_router(finance_ops_router, prefix="/finance",   tags=["finance-operations"])
+app.include_router(settings_router,   prefix="/settings",   tags=["settings"])
+app.include_router(admin_router,      prefix="/admin",      tags=["admin"])
+app.include_router(tenants_router,      prefix="/tenants",      tags=["tenants"])
+app.include_router(construction_router, prefix="/construction", tags=["construction"])
+app.include_router(websocket_router)
+app.include_router(reminders_router, prefix="/reminders", tags=["reminders"])
+app.include_router(hr_router, prefix="/hr", tags=["hr"])
+app.include_router(mail_router, prefix="/mail", tags=["mail"])
+# Multi-tenant
+app.include_router(company_settings_router,                         tags=["company-settings"])
+# Town / Block / Plot hierarchy
+app.include_router(towns_router, prefix="/towns", tags=["towns"])
+app.include_router(town_units_router, prefix="/town-units", tags=["town-units"])
+app.include_router(ledger_router,  prefix="/finance/ledger", tags=["ledger"])
+app.include_router(bootstrap_router, tags=["bootstrap"])
+# Booking system
+app.include_router(booking_router, prefix="/crm/bookings", tags=["bookings"])
+# Reports system
+app.include_router(reports_router, prefix="/reports", tags=["reports"])
+# AI Intelligence Center
+app.include_router(ai_router, tags=["ai-intelligence"])
+app.include_router(import_router, prefix="/import", tags=["import"])
+app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(superadmin_router)
+app.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
+app.include_router(files_router)
+app.include_router(spreadsheet_router)
+app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
+app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
+
+# RBAC System
+app.include_router(rbac_auth_router)
+app.include_router(rbac_admin_router)
 
 
 @app.get("/health/db")
