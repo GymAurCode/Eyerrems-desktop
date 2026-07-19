@@ -110,19 +110,23 @@ def seed_rbac(db: Session):
     for role in all_roles:
         print(f"   - {role.name}: {len(role.permissions)} permissions")
     
-    # 4. Initialize company tenant DB
+    # 4. Initialize company tenant DB (non-fatal — Railway uses PostgreSQL, not SQLite)
     print("\n[INIT]  Initializing default company tenant database...")
-    tenant_manager.initialize_tenant_db(company.id, company.slug)
-    
+    try:
+        tenant_manager.initialize_tenant_db(company.id, company.slug)
+    except Exception as e:
+        print(f"[WARN]  Tenant DB initialization skipped (expected on Railway/PostgreSQL): {e}")
+
     # 5. Create default admin user in master if not exists
+    #    COMMIT early so the user persists even if later steps fail.
     print("\n[USER] Creating default admin user in master...")
     existing_admin_master = db.query(User).filter(User.email == ADMIN_EMAIL).first()
-    
+
     admin_master_role = db.query(Role).filter(Role.name == "Admin").first()
     if not admin_master_role:
         print("[FAIL] Admin role not found in master database!")
         return
-        
+
     if not existing_admin_master:
         admin_user_master = User(
             email=ADMIN_EMAIL,
@@ -148,48 +152,47 @@ def seed_rbac(db: Session):
             existing_admin_master.roles.append(admin_master_role)
         db.flush()
         print(f"[INFO]  Admin user updated/verified in master: {ADMIN_EMAIL}")
-        
-    # 6. Create default admin user in tenant database if not exists
-    print("\n[USER] Creating default admin user in tenant...")
-    tenant_db = tenant_manager.get_tenant_session(company.slug)
-    try:
-        existing_admin_tenant = tenant_db.query(User).filter(User.email == ADMIN_EMAIL).first()
-        admin_tenant_role = tenant_db.query(Role).filter(Role.name == "Admin").first()
-        if not admin_tenant_role:
-            print("[FAIL] Admin role not found in tenant database!")
-            return
-            
-        if not existing_admin_tenant:
-            admin_user_tenant = User(
-                email=ADMIN_EMAIL,
-                full_name="System Administrator",
-                hashed_password=hash_password(ADMIN_PASSWORD),
-                company_id=company.id,
-                status="active",
-                is_approved=True,
-                is_active=True,
-                approval_status="approved",
-                role_id=admin_tenant_role.id,
-            )
-            admin_user_tenant.roles = [admin_tenant_role]
-            tenant_db.add(admin_user_tenant)
-            tenant_db.commit()
-            print(f"[OK] Created admin user in tenant: {ADMIN_EMAIL}")
-        else:
-            existing_admin_tenant.company_id = company.id
-            existing_admin_tenant.hashed_password = hash_password(ADMIN_PASSWORD)
-            if admin_tenant_role not in existing_admin_tenant.roles:
-                existing_admin_tenant.roles.append(admin_tenant_role)
-            tenant_db.commit()
-            print(f"[INFO]  Admin user updated/verified in tenant: {ADMIN_EMAIL}")
-    except Exception as e:
-        tenant_db.rollback()
-        print(f"[FAIL] Failed to seed tenant admin: {e}")
-        raise e
-    finally:
-        tenant_db.close()
+    db.commit()
+    print("[OK] Admin user committed to database.")
 
-    # 7. Seed the admin user into the PostgreSQL company schema (production path)
+    # 6. Create default admin user in tenant database if not exists (non-fatal)
+    print("\n[USER] Creating default admin user in tenant...")
+    try:
+        tenant_db = tenant_manager.get_tenant_session(company.slug)
+        try:
+            existing_admin_tenant = tenant_db.query(User).filter(User.email == ADMIN_EMAIL).first()
+            admin_tenant_role = tenant_db.query(Role).filter(Role.name == "Admin").first()
+            if not admin_tenant_role:
+                print("[WARN] Admin role not found in tenant database — skipping tenant seed.")
+            elif not existing_admin_tenant:
+                admin_user_tenant = User(
+                    email=ADMIN_EMAIL,
+                    full_name="System Administrator",
+                    hashed_password=hash_password(ADMIN_PASSWORD),
+                    company_id=company.id,
+                    status="active",
+                    is_approved=True,
+                    is_active=True,
+                    approval_status="approved",
+                    role_id=admin_tenant_role.id,
+                )
+                admin_user_tenant.roles = [admin_tenant_role]
+                tenant_db.add(admin_user_tenant)
+                tenant_db.commit()
+                print(f"[OK] Created admin user in tenant: {ADMIN_EMAIL}")
+            else:
+                existing_admin_tenant.company_id = company.id
+                existing_admin_tenant.hashed_password = hash_password(ADMIN_PASSWORD)
+                if admin_tenant_role not in existing_admin_tenant.roles:
+                    existing_admin_tenant.roles.append(admin_tenant_role)
+                tenant_db.commit()
+                print(f"[INFO]  Admin user updated/verified in tenant: {ADMIN_EMAIL}")
+        finally:
+            tenant_db.close()
+    except Exception as e:
+        print(f"[WARN]  Tenant admin seed skipped (non-fatal): {e}")
+
+    # 7. Seed the admin user into the PostgreSQL company schema (production path) — non-fatal
     try:
         from app.tenant import get_schema_engine
         _, PgSessionClass = get_schema_engine("company_default")
