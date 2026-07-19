@@ -206,6 +206,7 @@ def _startup():
         "expiry_date":   ("TIMESTAMP",    "DEFAULT NULL"),
         "db_path":       ("VARCHAR(300)", "DEFAULT NULL"),
         "updated_at":    ("TIMESTAMP",    "DEFAULT NULL"),
+        "master_id":     ("VARCHAR(36)",  "DEFAULT NULL"),
     }.items():
         try:
             with engine.connect() as conn:
@@ -254,6 +255,19 @@ def _startup():
             rows = mdb.execute(
                 text("SELECT schema_name FROM master.companies")
             ).fetchall()
+            registered = {r[0] for r in rows}
+            extra = mdb.execute(
+                text("""
+                    SELECT nspname FROM pg_catalog.pg_namespace
+                    WHERE nspname NOT IN ('public', 'pg_catalog', 'information_schema', 'pg_toast')
+                      AND nspname NOT LIKE 'pg_%'
+                      AND nspname NOT IN (SELECT schema_name FROM master.companies)
+                """)
+            ).fetchall()
+            for (nspname,) in extra:
+                if nspname not in registered:
+                    rows.append((nspname,))
+                    registered.add(nspname)
             for (schema_name,) in rows:
                 try:
                     # Ensure the schema exists

@@ -120,12 +120,10 @@ export default function AppTable<T = any>({
     return () => clearTimeout(handler);
   }, [searchInput, state.search, pagination.pageSize, onPageChange]);
 
-  // Trigger onFilterChange on filter criteria changes
+  // Trigger onFilterChange on filter criteria changes (skip initial mount)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      // Trigger initial filter load
-      onFilterChange(state);
       return;
     }
     onFilterChange(state);

@@ -90,7 +90,8 @@ def get_db(request: Request = None):
                         request.state.company_id = row[0]
                         resolved = True
                 except Exception:
-                    log.debug(f"[DB] master_id column not available")
+                    log.debug(f"[DB] master_id column not available, rolling back")
+                    db.rollback()
                 if not resolved:
                     try:
                         slug_row = db.execute(
@@ -101,7 +102,8 @@ def get_db(request: Request = None):
                             request.state.company_id = slug_row[0]
                             resolved = True
                     except Exception:
-                        log.debug(f"[DB] slug lookup fallback failed")
+                        log.debug(f"[DB] slug lookup fallback failed, rolling back")
+                        db.rollback()
                 log.debug(f"[DB] Resolved schema-based tenant session for schema '{company_info['schema_name']}'")
             else:
                 # Fallback to SQLite tenant

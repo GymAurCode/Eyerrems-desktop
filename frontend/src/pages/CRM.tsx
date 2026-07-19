@@ -571,20 +571,24 @@ const MemoCRMPage = memo(function CRMPage() {
   }, [fetchDeals, dealsParams]);
 
   useEffect(() => {
+    if (tab !== 1) return;
     void fetchLeads(leadsParams);
-  }, [fetchLeads, leadsParams]);
+  }, [fetchLeads, leadsParams, tab]);
 
   useEffect(() => {
+    if (tab !== 2) return;
     void fetchClients(clientsParams);
-  }, [fetchClients, clientsParams]);
+  }, [fetchClients, clientsParams, tab]);
 
   useEffect(() => {
+    if (tab !== 3) return;
     void fetchDealers(dealersParams);
-  }, [fetchDealers, dealersParams]);
+  }, [fetchDealers, dealersParams, tab]);
 
   useEffect(() => {
+    if (tab !== 4) return;
     void fetchDeals(dealsParams);
-  }, [fetchDeals, dealsParams]);
+  }, [fetchDeals, dealsParams, tab]);
 
   const doSearch = useCallback(async () => {
     if (!searchQ.trim()) return;
