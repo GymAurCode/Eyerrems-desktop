@@ -186,7 +186,7 @@ def _startup():
         print(f"[REMS] Company admin seed skipped: {e}")
 
     # ── Fix missing companies columns in public schema ─────────────────────
-    for col, col_type, nullable_default in {
+    for col, (col_type, col_default) in {
         "email":         ("VARCHAR(255)", "DEFAULT NULL"),
         "phone":         ("VARCHAR(60)",  "DEFAULT NULL"),
         "plan":          ("VARCHAR(30)",  "DEFAULT 'free'"),
@@ -198,7 +198,7 @@ def _startup():
         try:
             with engine.connect() as conn:
                 conn.execute(text(
-                    f"ALTER TABLE companies ADD COLUMN IF NOT EXISTS {col} {col_type} {nullable_default}"
+                    f"ALTER TABLE companies ADD COLUMN IF NOT EXISTS {col} {col_type} {col_default}"
                 ))
                 conn.commit()
                 print(f"[REMS] Ensured companies.{col} column.")
