@@ -149,7 +149,15 @@ app.include_router(rbac_admin_router)
 @app.on_event("startup")
 def on_startup():
     log.info("=== Application startup began ===")
-    log.info(f"Database URL set: {bool(settings.database_url)}")
+    log.info(f"[ENV] DATABASE_URL set: {bool(settings.database_url)}")
+    log.info(f"[ENV] JWT_SECRET_KEY set: {bool(settings.jwt_secret_key)}")
+    log.info(f"[ENV] JWT_ALGORITHM: {settings.jwt_algorithm}")
+    log.info(f"[ENV] JWT_EXPIRE_MINUTES: {settings.jwt_access_token_expire_minutes}")
+    log.info(f"[ENV] SUPERADMIN_EMAIL: {settings.superadmin_email}")
+    if not settings.jwt_secret_key:
+        log.error("[ENV] JWT_SECRET_KEY is not set! Authentication will fail!")
+    if not settings.database_url:
+        log.warning("[ENV] DATABASE_URL not set — will use SQLite fallback (local dev only)")
 
     # ── Ensure master schema (superadmin multi-tenant) ──────────────────────
     try:
@@ -163,6 +171,14 @@ def on_startup():
             mdb.close()
     except Exception as e:
         print(f"[REMS] Master schema setup skipped: {e}")
+
+    # ── Ensure existing database schema BEFORE seeding ─────────────────────
+    # Tables must exist before any INSERT — otherwise the seed silently fails.
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[REMS] Verified database schema before seeding.")
+    except Exception as e:
+        print(f"[REMS] Schema verification skipped: {e}")
 
     # ── Seed superadmin user in public schema ───────────────────────────────
     try:
@@ -189,17 +205,12 @@ def on_startup():
                 print("[REMS] Superadmin user seeded.")
             else:
                 print("[REMS] Superadmin user already exists.")
+        except Exception as e:
+            print(f"[REMS] Superadmin INSERT failed: {e}")
         finally:
             sa_session.close()
     except Exception as e:
         print(f"[REMS] Superadmin seed skipped: {e}")
-
-    # ── Ensure existing database schema ─────────────────────────────────────
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("[REMS] Verified database schema before seeding.")
-    except Exception as e:
-        print(f"[REMS] Schema verification skipped: {e}")
 
     # ── Repair missing tables in existing company schemas ──────────────────
     try:

@@ -107,13 +107,18 @@ function createWindow() {
   // Set CSP via session headers (takes precedence over <meta> tags).
   // Electron emits a warning when no CSP is present or when 'unsafe-eval' is
   // used — omitting 'unsafe-eval' silences it in both dev and production.
+  //
+  // connect-src allows HTTP/HTTPS to any origin so the app can reach the
+  // Railway-deployed API without being blocked by CSP.  Without this the
+  // production build silently swallows every API call with a network error
+  // that the renderer can't distinguish from an auth failure.
   const csp = [
     "default-src 'self' data: blob: file: gap:;",
     "script-src 'self' 'unsafe-inline';",
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;",
     "img-src 'self' data: blob: file:;",
     "font-src 'self' data: file: https://cdn.jsdelivr.net https://fonts.gstatic.com;",
-    "connect-src 'self' http://localhost:* ws://localhost:* https://cdn.jsdelivr.net;",
+    "connect-src 'self' http://*:* https://*:* ws://*:* wss://*:*;",
     "media-src 'self' blob:;",
     "object-src 'none';",
     "base-uri 'self';",
@@ -175,6 +180,9 @@ function createWindow() {
     mainWindow.webContents.on("unresponsive", () => {
       console.warn("[renderer] window became unresponsive");
     });
+
+    // Open DevTools in production for debugging
+    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on("closed", () => {
@@ -592,19 +600,6 @@ if (app.isPackaged) {
     console.error("[main] Unhandled rejection:", reason);
   });
 
-  // Block DevTools keyboard shortcuts in production
-  app.on("web-contents-created", (_event, contents) => {
-    contents.on("before-input-event", (_event, input) => {
-      if (
-        input.type === "keyDown" &&
-        (input.key === "F12" ||
-          (input.control && input.shift && input.key.toLowerCase() === "i") ||
-          (input.control && input.shift && input.key.toLowerCase() === "j"))
-      ) {
-        _event.preventDefault();
-      }
-    });
-  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

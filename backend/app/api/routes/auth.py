@@ -1,6 +1,9 @@
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+log = logging.getLogger("rems.auth")
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_permissions
@@ -220,21 +223,28 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     # ── 1. Check superadmin ───────────────────────────────────────────────
     if payload.email == app_settings.superadmin_email:
-        # Verify against the superadmin user in the public schema
         sa_user = db.query(User).filter(
             User.email == payload.email,
             User.is_super_admin == True,
         ).first()
-        if not sa_user or not verify_password(payload.password, sa_user.hashed_password):
+
+        if not sa_user:
+            log.warning("Superadmin login failed: user not found for %s", payload.email)
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        if not verify_password(payload.password, sa_user.hashed_password):
+            log.warning("Superadmin login failed: wrong password for %s", payload.email)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         if not sa_user.is_active or not sa_user.is_approved:
+            log.warning("Superadmin login blocked: account inactive for %s", payload.email)
             raise HTTPException(status_code=403, detail="Super Admin account is not active")
 
         sa_user.last_login = datetime.utcnow()
         db.commit()
 
         token = create_access_token(subject=sa_user.email, company_id=None, is_super_admin=True)
+        log.info("Superadmin login success: %s", payload.email)
         return AuthToken(
             access_token=token,
             role="superadmin",
@@ -259,15 +269,21 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
                 """),
                 {"email": payload.email},
             ).fetchone()
-        except Exception:
+            if row:
+                log.info("Company admin found in master.companies: %s", payload.email)
+        except Exception as exc:
+            log.warning("master.companies lookup failed for %s: %s", payload.email, exc)
             row = None
 
         if row:
             if not verify_password(payload.password, row[3]):
+                log.warning("Company admin wrong password: %s", payload.email)
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             if row[4] == "suspended":
+                log.warning("Company admin account suspended: %s", payload.email)
                 raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
             if row[5] and row[5] < datetime.now(timezone.utc):
+                log.warning("Company admin license expired: %s", payload.email)
                 raise HTTPException(status_code=403, detail="License expired. Contact your administrator.")
             company_uuid = str(row[0])
             company_name = row[1]
@@ -275,19 +291,26 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             company_slug = schema_name.replace("company_", "") if schema_name else ""
         else:
             # ── SQLite fallback: query User + Company ORM models ────────────
+            log.info("Falling back to User model lookup for %s", payload.email)
             user = db.query(User).filter(
                 User.email == payload.email,
                 User.is_super_admin == False,
             ).first()
-            if not user or not verify_password(payload.password, user.hashed_password):
+            if not user:
+                log.warning("Company admin not found in users table: %s", payload.email)
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            if not verify_password(payload.password, user.hashed_password):
+                log.warning("Company admin wrong password (User table): %s", payload.email)
                 raise HTTPException(status_code=401, detail="Invalid email or password")
 
             company = master_db.query(Company).filter(
                 Company.id == user.company_id
             ).first()
             if not company:
+                log.warning("Company not found for user %s (company_id=%s)", payload.email, user.company_id)
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             if company.status == "suspended" or not user.is_active:
+                log.warning("Company admin account suspended: %s", payload.email)
                 raise HTTPException(status_code=403, detail="Account suspended. Contact your administrator.")
 
             company_uuid = str(company.id)
@@ -297,6 +320,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         master_db.close()
 
     if not company_uuid:
+        log.warning("Company admin login failed: no company_uuid resolved for %s", payload.email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token(

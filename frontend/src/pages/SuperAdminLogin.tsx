@@ -20,8 +20,12 @@ export default function SuperAdminLoginPage() {
       navigate("/superadmin");
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        setError(typeof detail === "string" ? detail : "Invalid credentials");
+        if (!err.response) {
+          setError("Cannot reach server. Check your connection and ensure the API is running.");
+        } else {
+          const detail = err.response?.data?.detail;
+          setError(typeof detail === "string" ? detail : "Invalid credentials");
+        }
       } else {
         setError("Sign-in failed. Please try again.");
       }

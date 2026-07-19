@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from app.core.security import create_access_token, verify_password, hash_passwor
 from app.routers.rbac_admin import get_current_role_user
 from datetime import datetime
 
+log = logging.getLogger("rems.rbac_auth")
 router = APIRouter(prefix="/api/rbac", tags=["rbac-auth"])
 
 
@@ -74,20 +76,24 @@ async def role_user_login(
         db.commit()
 
     if not user:
+        log.warning("RBAC login failed: user not found for %s from %s", body.email, ip)
         log_failed("User not found")
         raise HTTPException(status_code=401,
                            detail="Invalid email or password")
 
     if not user.is_active:
+        log.warning("RBAC login blocked: account deactivated for %s", body.email)
         log_failed("Account deactivated")
         raise HTTPException(status_code=403,
                            detail="Your account has been deactivated. Contact your administrator.")
 
     if not verify_password(body.password, user.password_hash):
+        log.warning("RBAC login failed: wrong password for %s", body.email)
         log_failed("Wrong password")
         raise HTTPException(status_code=401,
                            detail="Invalid email or password")
 
+    log.info("RBAC login success: %s (%s) from %s", body.email, user.full_name, ip)
     user.last_login = datetime.utcnow()
     user.last_login_ip = ip
 
