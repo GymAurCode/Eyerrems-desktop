@@ -1,4 +1,4 @@
-fastapi==0.110.4
+fastapi==0.110.3
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
