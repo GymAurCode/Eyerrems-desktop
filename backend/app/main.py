@@ -58,6 +58,8 @@ from app.services.booking_scheduler import register_booking_expiry_job
 from app.services.mail.mail_sync_scheduler import register_mail_sync_job
 from app.services.crm.followup_scheduler import register_followup_job
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("rems")
 
