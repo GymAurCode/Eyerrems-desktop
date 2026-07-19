@@ -996,7 +996,7 @@ export const auditApi = {
     return data;
   },
   getRecordHistory: async (recordId: string): Promise<any[]> => {
-    const { data } = await api.get(`/audit/${recordId}`);
+    const { data } = await api.get(`/audit/logs/${recordId}`);
     return Array.isArray(data) ? data : data.items ?? data.data ?? [];
   },
 };

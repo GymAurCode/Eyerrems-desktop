@@ -116,7 +116,7 @@ function createWindow() {
     "default-src 'self' data: blob: file: gap:;",
     "script-src 'self' 'unsafe-inline';",
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;",
-    "img-src 'self' data: blob: file:;",
+    "img-src 'self' data: blob: file: https://*.railway.app;",
     "font-src 'self' data: file: https://cdn.jsdelivr.net https://fonts.gstatic.com;",
     "connect-src 'self' http://*:* https://*:* ws://*:* wss://*:*;",
     "media-src 'self' blob:;",
