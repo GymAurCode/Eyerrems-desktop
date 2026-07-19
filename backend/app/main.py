@@ -212,6 +212,24 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] Superadmin seed skipped: {e}")
 
+    # ── Ensure reminders.user_id column exists (missing from some schemas) ─
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS user_id INTEGER"))
+            conn.commit()
+            print("[REMS] Verified reminders.user_id column.")
+    except Exception as e:
+        print(f"[REMS] reminders.user_id column check skipped: {e}")
+
+    # ── Ensure reminder_templates.user_id column exists ────────────────────
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE reminder_templates ADD COLUMN IF NOT EXISTS user_id INTEGER"))
+            conn.commit()
+            print("[REMS] Verified reminder_templates.user_id column.")
+    except Exception as e:
+        print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
+
     # ── Repair missing tables in existing company schemas ──────────────────
     try:
         from app.tenant import get_master_session

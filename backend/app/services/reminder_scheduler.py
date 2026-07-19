@@ -20,7 +20,8 @@ def _fire_reminders_job() -> None:
     try:
         due = get_due_reminders(db)
         for reminder in due:
-            log.info("[SCHED] Firing reminder id=%s title='%s' user_id=%s", reminder.id, reminder.title, reminder.user_id)
+            uid = reminder.user_id or 0
+            log.info("[SCHED] Firing reminder id=%s title='%s' user_id=%s", reminder.id, reminder.title, uid)
             db.add(NotificationLog(
                 reminder_id=reminder.id,
                 status="delivered",
@@ -30,7 +31,7 @@ def _fire_reminders_job() -> None:
                 "type": "reminder_due",
                 "reminder": {
                     "id": reminder.id,
-                    "user_id": reminder.user_id,
+                    "user_id": uid,
                     "title": reminder.title,
                     "description": reminder.description,
                     "category": reminder.category,
@@ -47,18 +48,19 @@ def _fire_reminders_job() -> None:
                     "updated_at": reminder.updated_at.isoformat() if reminder.updated_at else None,
                 },
             }
-            try:
-                if _main_loop and _main_loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        ws_manager.send_to_user(reminder.user_id, payload),
-                        _main_loop,
-                    )
-                else:
-                    loop = asyncio.new_event_loop()
-                    loop.run_until_complete(ws_manager.send_to_user(reminder.user_id, payload))
-                    loop.close()
-            except Exception as exc:
-                log.exception("[SCHED] WS send failed for reminder %s: %s", reminder.id, exc)
+            if uid:
+                try:
+                    if _main_loop and _main_loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            ws_manager.send_to_user(uid, payload),
+                            _main_loop,
+                        )
+                    else:
+                        loop = asyncio.new_event_loop()
+                        loop.run_until_complete(ws_manager.send_to_user(uid, payload))
+                        loop.close()
+                except Exception as exc:
+                    log.exception("[SCHED] WS send failed for reminder %s: %s", reminder.id, exc)
 
         missed = mark_missed(db)
         if missed:
