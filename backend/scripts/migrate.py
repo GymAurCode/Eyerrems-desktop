@@ -70,11 +70,11 @@ REVISION_CHAIN = [
     ("0037_property_upgrade_fields",  ("properties", "listing_status")),           # column-only
     ("0038_unit_upgrade_fields",      ("units", "unit_type")),                     # column-only
     ("0039_lease_upgrade_fields",     ("leases", "property_id")),                  # column-only
-    ("0040_crm_payments",             ("commissions", "dealer_id")),               # column-only
+    ("0040_crm_payments",             ("crm_payments", "id")),                    # new table
     ("0041_site_visit_feedback",      "site_visits"),                              # new table
     ("0042_add_whatsapp_columns",     ("leads", "whatsapp")),                      # column-only
     ("0043_sync_crm_columns",         ("dealers", "is_active")),                   # column-only
-    ("0044_finance_sync_audit",       ("commissions", "dealer_id")),               # column-only
+    ("0044_finance_sync_audit",       ("accounts", "is_system_account")),          # column-only
     ("0045_add_dealer_monthly_target", ("dealers", "monthly_target")),             # column-only
     ("0046_add_invoice_type_column",  ("invoices", "invoice_type")),               # column-only
     ("0047_make_invoice_tenant_property_nullable", ("invoices", "invoice_type")),  # nullable change
