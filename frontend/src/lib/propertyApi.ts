@@ -138,7 +138,7 @@ export const propApi = {
     return single(res);
   },
   getLeases: async (): Promise<Lease[]> => {
-    const res = await api.get("/leases");
+    const res = await api.get("/properties/leases/all");
     return fromResponse(res);
   },
   getLeaseDetail: async (id: number | string): Promise<LeaseDetail> => {
