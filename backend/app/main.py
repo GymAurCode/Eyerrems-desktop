@@ -103,6 +103,16 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Schema verification skipped: {e}")
 
+    # ── Run alembic migrations to bring schema up to date ──────────────────
+    try:
+        from alembic.config import Config as AlembicConfig
+        from alembic import command
+        alembic_cfg = AlembicConfig(str(BASE_DIR / "alembic.ini"))
+        command.upgrade(alembic_cfg, "head")
+        print("[REMS] Alembic upgrade head completed.")
+    except Exception as e:
+        print(f"[REMS] Alembic upgrade skipped: {e}")
+
     # ── Seed superadmin user in public schema ───────────────────────────────
     try:
         from app.core.tenant_manager import tenant_manager as _tm

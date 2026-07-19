@@ -418,6 +418,9 @@ class DealerOut(BaseModel):
     created_at: datetime
     attachments: list[DealerAttachmentOut] = []
 
+    class Config:
+        from_attributes = True
+
 
 # ── InstallmentType ───────────────────────────────────────────────────────────
 
@@ -635,6 +638,9 @@ class DealerLedgerEntryOut(BaseModel):
     commission_rate: Decimal | None = None
     gross_commission: Decimal | None = None
     debit: Decimal
+
+    class Config:
+        from_attributes = True
 
 
 class DealerDetailOut(BaseModel):

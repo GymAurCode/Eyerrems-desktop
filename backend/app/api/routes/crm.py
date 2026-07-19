@@ -642,7 +642,8 @@ def list_dealers(
     )
     response.headers["X-Total-Count"] = str(total)
     dealers = query.all()
-    return {"items": dealers, "total": total, "limit": limit, "offset": offset}
+    result = [DealerOut.model_validate(d).model_dump() for d in dealers]
+    return {"items": result, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/dealers", response_model=DealerOut)
