@@ -56,24 +56,28 @@ async def role_user_login(
     ).first()
 
     def log_failed(reason: str):
-        history = LoginHistory(
-            user_id=user.id if user else None,
-            user_email=body.email,
-            ip_address=ip,
-            user_agent=user_agent,
-            status="failed",
-            failure_reason=reason
-        )
-        db.add(history)
+        try:
+            history = LoginHistory(
+                user_id=user.id if user else None,
+                user_email=body.email,
+                ip_address=ip,
+                user_agent=user_agent,
+                status="failed",
+                failure_reason=reason
+            )
+            db.add(history)
 
-        notif = AdminNotification(
-            type="failed_login",
-            title="Failed Login Attempt",
-            message=f"{body.email} failed to login: {reason}",
-            related_user_email=body.email
-        )
-        db.add(notif)
-        db.commit()
+            notif = AdminNotification(
+                type="failed_login",
+                title="Failed Login Attempt",
+                message=f"{body.email} failed to login: {reason}",
+                related_user_email=body.email
+            )
+            db.add(notif)
+            db.commit()
+        except Exception as log_exc:
+            log.warning("Failed to persist login failure log: %s", log_exc)
+            db.rollback()
 
     if not user:
         log.warning("RBAC login failed: user not found for %s from %s", body.email, ip)

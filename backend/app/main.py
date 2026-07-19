@@ -212,6 +212,59 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] Superadmin seed skipped: {e}")
 
+    # ── Seed admin@rems.local (company admin) in public schema ──────────────
+    # This uses the same guaranteed-commit pattern as the superadmin seed so
+    # the company admin is always available, even if seed_rbac fails later.
+    try:
+        from app.models.company import Company
+        from app.core.security import hash_password
+        sa_session = _tm.get_master_session()
+        try:
+            existing = sa_session.execute(
+                text("SELECT id FROM users WHERE email = 'admin@rems.local' AND is_super_admin = FALSE"),
+            ).fetchone()
+            if not existing:
+                # Ensure default company exists
+                company_row = sa_session.execute(
+                    text("SELECT id FROM companies WHERE slug = 'default'"),
+                ).fetchone()
+                if not company_row:
+                    now = datetime.now(timezone.utc)
+                    sa_session.execute(
+                        text("""
+                            INSERT INTO companies (name, slug, status, currency_code, created_at, updated_at)
+                            VALUES ('Default Company', 'default', 'active', 'PKR', :now, :now)
+                        """),
+                        {"now": now},
+                    )
+                    sa_session.commit()
+                    company_row = sa_session.execute(
+                        text("SELECT id FROM companies WHERE slug = 'default'"),
+                    ).fetchone()
+                cid = company_row[0] if company_row else None
+                pw_hash = hash_password("Admin@123")
+                now = datetime.now(timezone.utc)
+                sa_session.execute(
+                    text("""
+                        INSERT INTO users (email, full_name, hashed_password, company_id,
+                                           is_super_admin, status, is_approved, is_active,
+                                           approval_status, created_at)
+                        VALUES ('admin@rems.local', 'System Administrator', :pw, :cid,
+                                FALSE, 'active', TRUE, TRUE, 'approved', :now)
+                    """),
+                    {"pw": pw_hash, "cid": cid, "now": now},
+                )
+                sa_session.commit()
+                print("[REMS] Company admin user (admin@rems.local) seeded.")
+            else:
+                print("[REMS] Company admin user already exists.")
+        except Exception as e:
+            print(f"[REMS] Company admin INSERT failed: {e}")
+        finally:
+            sa_session.close()
+    except Exception as e:
+        print(f"[REMS] Company admin seed skipped: {e}")
+
     # ── Ensure reminders.user_id column exists (missing from some schemas) ─
     try:
         with engine.connect() as conn:
@@ -229,6 +282,17 @@ def on_startup():
             print("[REMS] Verified reminder_templates.user_id column.")
     except Exception as e:
         print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
+
+    # ── Ensure rbac_login_history.user_id is nullable ──────────────────────
+    # Failed login attempts for unknown users pass user_id=None; the column
+    # must allow NULL to avoid a 500 when logging those attempts.
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE rbac_login_history ALTER COLUMN user_id DROP NOT NULL"))
+            conn.commit()
+            print("[REMS] Made rbac_login_history.user_id nullable.")
+    except Exception as e:
+        print(f"[REMS] rbac_login_history.user_id nullable fix skipped: {e}")
 
     # ── Repair missing tables in existing company schemas ──────────────────
     try:

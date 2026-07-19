@@ -113,7 +113,7 @@ class LoginHistory(Base):
 
     id = Column(String, primary_key=True,
                 default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("rbac_role_users.id"), nullable=False)
+    user_id = Column(String, ForeignKey("rbac_role_users.id"), nullable=True)
     user_email = Column(String(255), nullable=False)
 
     ip_address = Column(String(50), nullable=True)
