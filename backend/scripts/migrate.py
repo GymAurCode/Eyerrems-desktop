@@ -98,6 +98,7 @@ REVISION_CHAIN = [
     ("0065_add_journals_deleted_at",  ("journals", "deleted_at")),                  # column-only
     ("0066_finance_invoice_payment_separation", ("payments", "party_cnic")),        # column-only
     ("0067_add_dealer_ledger_lead_id", ("dealer_ledger_entries", "lead_id")),       # column-only
+    ("0068_comprehensive_schema_sync", ("accounts", "is_system_account")),           # sync — covers all model columns
 ]
 
 VALID_REVISIONS = {rev for rev, _ in REVISION_CHAIN}

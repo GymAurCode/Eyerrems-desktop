@@ -83,10 +83,24 @@ def lookup_company(x_company_id: str) -> Optional[dict]:
                 ).fetchone()
             except Exception:
                 row = None
+
+        if not row:
+            # Direct integer lookup in public.companies (slug may be missing in master.companies)
+            try:
+                row = conn.execute(
+                    text("""
+                        SELECT NULL as id, c.name, c.slug as schema_name, c.status, c.expiry_date
+                        FROM public.companies c
+                        WHERE c.id = :cid::integer
+                    """),
+                    {"cid": x_company_id},
+                ).fetchone()
+            except Exception:
+                row = None
     if not row:
         return None
     return {
-        "id": str(row[0]),
+        "id": str(row[0]) if row[0] else x_company_id,
         "name": row[1],
         "schema_name": row[2],
         "status": row[3],

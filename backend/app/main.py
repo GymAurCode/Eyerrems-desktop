@@ -256,6 +256,24 @@ def _startup():
             ).fetchall()
             for (schema_name,) in rows:
                 try:
+                    # Ensure the schema exists
+                    with engine.connect() as tmp_conn:
+                        tmp_conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+                        tmp_conn.commit()
+                    # Sync slug from public.companies to master.companies if missing
+                    with engine.connect() as tmp_conn:
+                        tmp_conn.execute(
+                            text("""
+                                UPDATE master.companies m
+                                SET slug = c.slug
+                                FROM public.companies c
+                                WHERE m.schema_name = :schema
+                                  AND c.slug = m.schema_name
+                                  AND (m.slug IS NULL OR m.slug = '')
+                            """),
+                            {"schema": schema_name},
+                        )
+                        tmp_conn.commit()
                     tenant_engine = create_engine(
                         settings.database_url_fixed,
                         connect_args={"options": f"-csearch_path={schema_name},public"},

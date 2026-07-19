@@ -61,8 +61,8 @@ def seed_rbac(db: Session):
             db.execute(
                 text("""
                     INSERT INTO master.companies
-                        (name, admin_email, admin_password_hash, phone, status, expiry_date, schema_name)
-                    VALUES (:name, :email, :pw, :phone, :status, :expiry, :schema)
+                        (name, admin_email, admin_password_hash, phone, status, expiry_date, schema_name, slug)
+                    VALUES (:name, :email, :pw, :phone, :status, :expiry, :schema, :slug)
                 """),
                 {
                     "name": company.name,
@@ -72,11 +72,18 @@ def seed_rbac(db: Session):
                     "status": "active",
                     "expiry": datetime.now(timezone.utc) + timedelta(days=365 * 10),
                     "schema": "company_default",
+                    "slug": company.slug,
                 },
             )
             db.commit()
             print(f"[OK] Added company to master.companies: {ADMIN_EMAIL}")
         else:
+            # Ensure slug is populated for existing rows
+            db.execute(
+                text("UPDATE master.companies SET slug = :slug WHERE admin_email = :email AND (slug IS NULL OR slug = '')"),
+                {"slug": company.slug, "email": ADMIN_EMAIL},
+            )
+            db.commit()
             print(f"[INFO]  Company already in master.companies: {ADMIN_EMAIL}")
     except Exception as e:
         print(f"[WARN]  master.companies seed skipped: {e}")
