@@ -283,6 +283,30 @@ def on_startup():
     except Exception as e:
         print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
 
+    # ── Fix missing companies columns in public schema ─────────────────────
+    # The companies table was created by an older model revision that lacked
+    # columns like email, phone, plan, currency_code, expiry_date, db_path.
+    # create_all() never adds missing columns to existing tables, so we must
+    # do it explicitly here.
+    for col, col_type, nullable_default in {
+        "email":         ("VARCHAR(255)", "DEFAULT NULL"),
+        "phone":         ("VARCHAR(60)",  "DEFAULT NULL"),
+        "plan":          ("VARCHAR(30)",  "DEFAULT 'free'"),
+        "currency_code": ("VARCHAR(10)",  "DEFAULT 'PKR'"),
+        "expiry_date":   ("TIMESTAMP",    "DEFAULT NULL"),
+        "db_path":       ("VARCHAR(300)", "DEFAULT NULL"),
+        "updated_at":    ("TIMESTAMP",    "DEFAULT NULL"),
+    }.items():
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE companies ADD COLUMN IF NOT EXISTS {col} {col_type} {nullable_default}"
+                ))
+                conn.commit()
+                print(f"[REMS] Ensured companies.{col} column.")
+        except Exception as e:
+            print(f"[REMS] companies.{col} column check skipped: {e}")
+
     # ── Ensure rbac_login_history.user_id is nullable ──────────────────────
     # Failed login attempts for unknown users pass user_id=None; the column
     # must allow NULL to avoid a 500 when logging those attempts.
