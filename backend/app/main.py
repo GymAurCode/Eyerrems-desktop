@@ -397,6 +397,29 @@ def _startup():
                         conn.commit()
                     tenant_engine.dispose()
 
+                    # ── Run alembic migrations against this company schema ──
+                    try:
+                        from alembic.config import Config as AlembicConfig
+                        from alembic import command
+                        from alembic.script import ScriptDirectory
+                        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+                        schema_url = settings.database_url_fixed
+                        if schema_url:
+                            parsed = urlparse(schema_url)
+                            qs = parse_qs(parsed.query)
+                            qs["options"] = f"-csearch_path={schema_name},public"
+                            new_qs = urlencode(qs, doseq=True)
+                            schema_url_with_path = urlunparse(parsed._replace(query=new_qs))
+                            schema_cfg = AlembicConfig(str(BASE_DIR / "alembic.ini"))
+                            schema_cfg.set_main_option("sqlalchemy.url", schema_url_with_path)
+                            # Stamp at head first (tables already created by create_all)
+                            head = ScriptDirectory.from_config(schema_cfg).get_current_head()
+                            command.stamp(schema_cfg, head)
+                            command.upgrade(schema_cfg, "head")
+                            print(f"[REMS] Alembic migrations synced for schema '{schema_name}'")
+                    except Exception as exc:
+                        print(f"[REMS] Alembic upgrade skipped for schema '{schema_name}': {exc}")
+
                     repair_session = sessionmaker(
                         bind=create_engine(
                             settings.database_url_fixed,

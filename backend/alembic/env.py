@@ -17,8 +17,12 @@ from app.models import *  # noqa: F401,F403  — registers all ORM models
 # ── Alembic config object ─────────────────────────────────────────────────────
 config = context.config
 
-db_url = settings.database_url_fixed
-config.set_main_option("sqlalchemy.url", db_url)
+existing_url = config.get_main_option("sqlalchemy.url")
+if existing_url:
+    db_url = existing_url
+else:
+    db_url = settings.database_url_fixed
+    config.set_main_option("sqlalchemy.url", db_url)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 if config.config_file_name is not None:
