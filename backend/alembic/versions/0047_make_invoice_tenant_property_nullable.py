@@ -14,9 +14,12 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("invoices") as batch_op:
-        batch_op.alter_column("tenant_id", nullable=True)
-        batch_op.alter_column("property_id", nullable=True)
+    try:
+        with op.batch_alter_table("invoices") as batch_op:
+            batch_op.alter_column("tenant_id", nullable=True)
+            batch_op.alter_column("property_id", nullable=True)
+    except Exception:
+        pass
 
 
 def downgrade():

@@ -34,11 +34,13 @@ def upgrade():
 
     # Add foreign key constraint
     if _column_exists("expenses", "vendor_id"):
-        op.create_foreign_key(
-            "fk_expenses_vendor_id_vendors",
-            "expenses", "vendors",
-            ["vendor_id"], ["id"],
-        )
+        existing_fks = {fk["name"] for fk in inspect(conn).get_foreign_keys("expenses")}
+        if "fk_expenses_vendor_id_vendors" not in existing_fks:
+            op.create_foreign_key(
+                "fk_expenses_vendor_id_vendors",
+                "expenses", "vendors",
+                ["vendor_id"], ["id"],
+            )
 
 
 def downgrade():

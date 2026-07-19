@@ -6,6 +6,7 @@ Create Date: 2026-06-02 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 revision = '0040_crm_payments'
 down_revision = '0039_lease_upgrade_fields'
@@ -14,6 +15,8 @@ depends_on = None
 
 
 def upgrade():
+    if inspect(op.get_bind()).has_table("crm_payments"):
+        return
     op.create_table(
         'crm_payments',
         sa.Column('id', sa.Integer(), primary_key=True),
