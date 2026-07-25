@@ -603,3 +603,28 @@
 .ss-dropdown::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Dark theme: white text in spreadsheet */
+:root .ss-container {
+  --ss-text: #ffffff;
+}
+
+:root.light .ss-container {
+  --ss-text: var(--text-primary, #002a2a);
+}
+
+:root .ss-name-box,
+:root .ss-formula-input,
+:root .ss-cell-editor,
+:root .ss-sheet-rename-input,
+:root .ss-fr-input {
+  color: #ffffff;
+}
+
+:root.light .ss-name-box,
+:root.light .ss-formula-input,
+:root.light .ss-cell-editor,
+:root.light .ss-sheet-rename-input,
+:root.light .ss-fr-input {
+  color: var(--ss-text);
+}

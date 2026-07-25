@@ -31,7 +31,7 @@ export function registerLogoutCallback(cb: () => void) {
   logoutCallback = cb;
 }
 
-function isTokenExpired(token: string): boolean {
+export function isTokenExpired(token: string): boolean {
   try {
     const payloadBase64 = token.split(".")[1];
     if (!payloadBase64) return true;
@@ -51,7 +51,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     if (isTokenExpired(token)) {
       setAuthToken(null);
-      if (logoutCallback) logoutCallback();
+      if (logoutCallback && config.url !== "/auth/logout") logoutCallback();
       return Promise.reject({ __cancelled: true, message: "Token expired" });
     }
     config.headers.Authorization = `Bearer ${token}`;
@@ -73,7 +73,7 @@ api.interceptors.response.use(
       // Only auto-logout if auth was previously established (_authReady)
       // AND the failing endpoint is an auth-protecting endpoint (not a data fetch).
       // Data endpoints that return 401 (should be 403) should not nuke the session.
-      if (_authReady && isAuthEndpoint(err.config?.url)) {
+      if (_authReady && isAuthEndpoint(err.config?.url) && err.config?.url !== "/auth/logout") {
         logoutCallback();
       }
     }

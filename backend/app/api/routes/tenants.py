@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_permissions, require_any_permission
 from app.core.audit import log_action
 from app.core.activity_logger import log_activity
 from app.core.database import get_db
@@ -251,7 +251,7 @@ def list_tenants(
     startDate: date | None = None,
     endDate: date | None = None,
     status: str | None = None,
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view", "tenant:manage")),
 ):
     query = db.query(Tenant).order_by(Tenant.id.desc())
     if status:
@@ -278,7 +278,7 @@ def list_tenants(
 @router.get("/dashboard", response_model=TenantDashboardOut)
 def tenant_dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     tenants  = db.query(Tenant).all()
     payments = db.query(TenantPayment).all()
@@ -303,7 +303,7 @@ def tenant_dashboard(
 def create_tenant_wizard(
     payload: TenantWizardCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_any_permission("tenant:manage", "tenant:create")),
 ):
     prop = db.query(Property).filter(Property.id == payload.lease.property_id).first()
     if not prop:
@@ -350,7 +350,7 @@ def create_tenant_wizard(
 @router.get("/alerts", response_model=list[TenantAlert])
 def get_alerts(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     today       = date.today()
     soon        = today + timedelta(days=7)
@@ -404,7 +404,7 @@ def get_alerts(
 def record_payment(
     payload: PaymentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    current_user: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == payload.tenant_id).first()
     if not tenant:
@@ -442,7 +442,7 @@ def record_payment(
 def get_unit_tenant(
     unit_id: int = Query(...),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     """
     Given a unit_id, return the active tenant linked to that unit (if any).
@@ -504,7 +504,7 @@ def list_maintenance(
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     q = db.query(Maintenance).options(
         joinedload(Maintenance.property_rel),
@@ -529,7 +529,7 @@ def maintenance_analytics(
     date_from: Optional[date] = Query(None),
     date_to:   Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     q = db.query(Maintenance)
     if date_from: q = q.filter(Maintenance.date >= date_from)
@@ -597,7 +597,7 @@ def maintenance_analytics(
 def get_maintenance(
     record_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     m = db.query(Maintenance).options(
         joinedload(Maintenance.property_rel),
@@ -618,9 +618,6 @@ def create_maintenance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not any(r.name in ("Admin", "Staff") for r in current_user.roles):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
     prop = db.query(Property).filter(Property.id == payload.property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -681,9 +678,6 @@ def update_maintenance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not any(r.name in ("Admin", "Staff") for r in current_user.roles):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
     record = db.query(Maintenance).options(
         joinedload(Maintenance.property_rel),
         joinedload(Maintenance.tenant_rel),
@@ -767,9 +761,6 @@ def delete_maintenance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not any(r.name == "Admin" for r in current_user.roles):
-        raise HTTPException(status_code=403, detail="Admin role required")
-
     record = db.query(Maintenance).filter(Maintenance.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
@@ -796,6 +787,47 @@ def delete_maintenance(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Search — MUST be before /{tenant_id} dynamic route
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/search")
+def tenant_search(
+    q: str = "",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_any_permission("tenant:view")),
+):
+    """Lightweight tenant search by name, phone, CNIC, or ID for dropdowns."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    tenants = (
+        db.query(Tenant)
+        .filter(
+            Tenant.name.ilike(like) |
+            Tenant.phone.ilike(like) |
+            Tenant.cnic.ilike(like) |
+            Tenant.email.ilike(like) |
+            Tenant.tenant_id.ilike(like)
+        )
+        .order_by(Tenant.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": t.id,
+            "tenant_id": t.tenant_id,
+            "name": t.name,
+            "phone": t.phone,
+            "email": t.email,
+            "status": "Active" if t.is_active else "Inactive",
+        }
+        for t in tenants
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DYNAMIC ROUTES — /{tenant_id} and nested
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -803,7 +835,7 @@ def delete_maintenance(
 def get_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -816,7 +848,7 @@ def update_tenant(
     tenant_id: int,
     payload: TenantUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_any_permission("tenant:manage", "tenant:create")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -847,7 +879,7 @@ def update_tenant(
 def delete_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("tenant:manage")),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -885,7 +917,7 @@ def delete_tenant(
 def get_leases(
     tenant_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     leases = db.query(TenantLease).options(
         joinedload(TenantLease.property_rel),
@@ -905,7 +937,7 @@ def end_lease(
     tenant_id: int,
     lease_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_any_permission("tenant:manage", "tenant:create")),
 ):
     lease = db.query(TenantLease).filter(
         TenantLease.id == lease_id,
@@ -948,7 +980,7 @@ def end_lease(
 def get_rent_records(
     tenant_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     _update_overdue(db, tenant_id)
     db.commit()
@@ -961,7 +993,7 @@ def get_rent_records(
 def get_payments(
     tenant_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Accountant", "Staff")),
+    _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
     return db.query(TenantPayment).filter(
         TenantPayment.tenant_id == tenant_id
@@ -974,7 +1006,7 @@ def increase_rent(
     lease_id: int,
     payload: RentIncreaseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Staff")),
+    current_user: User = Depends(require_any_permission("tenant:manage", "tenant:create")),
 ):
     lease = db.query(TenantLease).filter(
         TenantLease.id == lease_id,
@@ -1017,7 +1049,7 @@ def generate_rent_records(
     tenant_id: int,
     lease_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Staff")),
+    _: User = Depends(require_any_permission("tenant:manage", "tenant:create")),
 ):
     lease = db.query(TenantLease).filter(
         TenantLease.id == lease_id,
@@ -1030,3 +1062,6 @@ def generate_rent_records(
     db.commit()
     count = db.query(RentRecord).filter(RentRecord.lease_id == lease_id).count()
     return {"generated": True, "total_records": count}
+
+
+

@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
@@ -51,6 +51,41 @@ router = APIRouter()
 
 PERM_VIEW   = ("properties:manage", "properties:view")
 PERM_MANAGE = ("properties:manage",)
+
+
+# ── Search (MUST be before /{property_id} dynamic route) ───────────────────────
+
+@router.get("/search")
+def property_search(
+    q: str = "",
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    """Lightweight property search by name or address for dropdowns."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    props = (
+        db.query(Property)
+        .filter(
+            Property.name.ilike(like) |
+            Property.address.ilike(like)
+        )
+        .order_by(Property.name.asc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "address": p.address,
+            "category": p.category.name if p.category else None,
+            "status": p.status,
+        }
+        for p in props
+    ]
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -1864,3 +1899,6 @@ def list_sale_instalments(
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
     return db.query(SaleInstalment).filter(SaleInstalment.sale_id == sale_id).all()
+
+
+

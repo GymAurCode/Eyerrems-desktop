@@ -15,6 +15,7 @@ import NotificationLogs from "../components/reminders/NotificationLogs";
 import TemplatesTab from "../components/reminders/TemplatesTab";
 import ConfirmDialog from "../components/actions/ConfirmDialog";
 import { useNotifStore } from "../store/notifications";
+import { playTaskSound } from "../hooks/useReminderWebSocket";
 
 const TEAL = "#14B8A6";
 const YELLOW = "#f6ce3a";
@@ -46,17 +47,20 @@ export default function RemindersPage() {
   const [sortBy, setSortBy] = useState("remind_at");
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const pushToast = useNotifStore((s) => s.pushToast);
   const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
 
-  const loadReminders = async () => {
+  const loadReminders = async (overrides?: { search?: string }) => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
+      const s = overrides?.search ?? search;
       if (filterBy) params.filter_by = filterBy;
       if (sortBy) params.sort_by = sortBy;
       if (sortDir) params.sort_dir = sortDir;
-      if (search) params.search = search;
+      if (s) params.search = s;
       const data = await remindersApi.getReminders(params);
       setReminders(data);
     } catch {
@@ -70,10 +74,11 @@ export default function RemindersPage() {
     if (tab === "my" || tab === "calendar" || tab === "stats") {
       loadReminders();
     }
-  }, [tab, filterBy, sortBy, sortDir]);
+  }, [tab, filterBy, sortBy, sortDir, search, refreshKey]);
 
   const handleComplete = async (id: number) => {
     await remindersApi.completeReminder(id);
+    playTaskSound();
     loadReminders();
   };
 
@@ -118,12 +123,15 @@ export default function RemindersPage() {
       <ModuleTabs
         tabs={TAB_ITEMS}
         activeTab={tab}
-        onChange={setTab}
+        onChange={(v) => setTab(v as Tab)}
         moduleColor={accent}
       />
 
       {tab === "dashboard" && (
-        <ReminderDashboard onEdit={(r) => { setEditReminder(r); setFormOpen(true); }} />
+        <ReminderDashboard
+          refreshKey={refreshKey}
+          onEdit={(r) => { setEditReminder(r); setFormOpen(true); }}
+        />
       )}
 
       {tab === "my" && (
@@ -153,7 +161,23 @@ export default function RemindersPage() {
                 {f.label}
               </button>
             ))}
-            <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShowCompleted((v) => !v)}
+              className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${
+                showCompleted
+                  ? ""
+                  : "border-theme text-secondary hover:text-primary"
+              }`}
+              style={showCompleted ? {
+                borderColor: accentBorder,
+                background: accentBg,
+                color: accent,
+              } : undefined}
+              title={showCompleted ? "Hide completed" : "Show completed"}
+            >
+              {showCompleted ? "Hide done" : "Show done"}
+            </button>
+            <div className="flex items-center gap-2">
               <input
                 className="input-field text-xs px-3 py-1.5 w-48"
                 placeholder="Search..."
@@ -204,24 +228,23 @@ export default function RemindersPage() {
                     onDelete={handleDelete}
                   />
                 ))}
-              {reminders.filter((r) => r.status === "completed").length > 0 && (
-                <details className="mt-4">
-                  <summary className="text-xs text-muted cursor-pointer hover:text-primary py-2">
+              {showCompleted && reminders.filter((r) => r.status === "completed").length > 0 && (
+                <>
+                  <div className="border-t border-theme my-3" />
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2">
                     Completed ({reminders.filter((r) => r.status === "completed").length})
-                  </summary>
-                  <div className="space-y-2 mt-2">
-                    {reminders
-                      .filter((r) => r.status === "completed")
-                      .map((r) => (
-                        <ReminderCard
-                          key={r.id}
-                          reminder={r}
-                          onDelete={handleDelete}
-                          onEdit={(r) => { setEditReminder(r); setFormOpen(true); }}
-                        />
-                      ))}
-                  </div>
-                </details>
+                  </p>
+                  {reminders
+                    .filter((r) => r.status === "completed")
+                    .map((r) => (
+                      <ReminderCard
+                        key={r.id}
+                        reminder={r}
+                        onDelete={handleDelete}
+                        onEdit={(r) => { setEditReminder(r); setFormOpen(true); }}
+                      />
+                    ))}
+                </>
               )}
             </div>
           )}
@@ -242,7 +265,9 @@ export default function RemindersPage() {
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditReminder(null); }}
         onSaved={() => {
-          pushToast({ title: editReminder ? "Reminder updated" : "Reminder created", message: editReminder ? "Reminder has been updated successfully" : "Reminder has been created successfully", type: "success" });
+          const isEdit = !!editReminder;
+          pushToast({ title: isEdit ? "Reminder updated" : "Reminder created", message: isEdit ? "Reminder has been updated successfully" : "Reminder has been created successfully", type: "success" });
+          setRefreshKey((k) => k + 1);
           loadReminders();
         }}
         editReminder={editReminder}

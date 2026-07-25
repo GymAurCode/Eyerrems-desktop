@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -29,28 +30,27 @@ from app.api.routes.websocket import router as websocket_router
 from app.api.routes.reminders import router as reminders_router
 from app.api.routes.hr import router as hr_router
 from app.api.routes.mail import router as mail_router
-# Multi-tenant routes
 from app.api.routes.company_settings import router as company_settings_router
 from app.api.routes.towns import router as towns_router, town_units_router
 from app.api.routes.ledger import router as ledger_router
 from app.api.routes.bootstrap import router as bootstrap_router
 from app.api.routes.booking import router as booking_router
-from app.api.routes.reports import router as reports_router
 from app.api.routes.ai_intelligence import router as ai_router
 from app.api.routes.import_routes import router as import_router
 from app.api.routes.chat_routes import router as chat_router
 from app.api.routes.superadmin import router as superadmin_router
 from app.api.routes.attachments import router as attachments_router
 from app.routers.files import router as files_router
-from app.routers.rbac_auth import router as rbac_auth_router
-from app.routers.rbac_admin import router as rbac_admin_router
+
 from app.api.routes.spreadsheet import router as spreadsheet_router
+from app.api.routes.users import router as users_router
 from app.api.routes.lookups import router as lookups_router
 from app.api.routes.async_select import router as async_select_router
+from app.api.routes.reports import router as reports_router
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
-from app.models.audit import AuditLog  # ensure audit_logs table is registered with Base.metadata
+from app.models.audit import AuditLog
 from app.core.master_db import sync_attachments_table
 from app.core.tenant_middleware import TenantMiddleware
 from app.services.reminder_scheduler import start_scheduler as start_reminder_scheduler, stop_scheduler as stop_reminder_scheduler
@@ -66,10 +66,8 @@ log = logging.getLogger("rems")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # ── Startup ──────────────────────────────────────────────────────────────
     _startup()
     yield
-    # ── Shutdown ─────────────────────────────────────────────────────────────
     stop_reminder_scheduler()
 
 
@@ -85,7 +83,6 @@ def _startup():
     if not settings.database_url:
         log.warning("[ENV] DATABASE_URL not set — will use SQLite fallback (local dev only)")
 
-    # ── Ensure master schema (superadmin multi-tenant) ──────────────────────
     try:
         from app.tenant import get_master_session
         from app.core.master_db import ensure_master_schema
@@ -98,14 +95,12 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Master schema setup skipped: {e}")
 
-    # ── Ensure existing database schema BEFORE seeding ─────────────────────
     try:
         Base.metadata.create_all(bind=engine)
         print("[REMS] Verified database schema before seeding.")
     except Exception as e:
         print(f"[REMS] Schema verification skipped: {e}")
 
-    # ── Run alembic migrations to bring schema up to date ──────────────────
     try:
         from alembic.config import Config as AlembicConfig
         from alembic import command
@@ -115,7 +110,6 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Alembic upgrade skipped: {e}")
 
-    # ── Seed superadmin user in public schema ───────────────────────────────
     try:
         from app.core.tenant_manager import tenant_manager as _tm
         from app.core.security import hash_password
@@ -147,7 +141,6 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Superadmin seed skipped: {e}")
 
-    # ── Seed admin@rems.local (company admin) in public schema ──────────────
     try:
         from app.models.company import Company
         from app.core.security import hash_password
@@ -197,58 +190,90 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Company admin seed skipped: {e}")
 
-    # ── Fix missing companies columns in public schema ─────────────────────
-    for col, (col_type, col_default) in {
-        "email":         ("VARCHAR(255)", "DEFAULT NULL"),
-        "phone":         ("VARCHAR(60)",  "DEFAULT NULL"),
-        "plan":          ("VARCHAR(30)",  "DEFAULT 'free'"),
-        "currency_code": ("VARCHAR(10)",  "DEFAULT 'PKR'"),
-        "expiry_date":   ("TIMESTAMP",    "DEFAULT NULL"),
-        "db_path":       ("VARCHAR(300)", "DEFAULT NULL"),
-        "updated_at":    ("TIMESTAMP",    "DEFAULT NULL"),
-        "master_id":     ("VARCHAR(36)",  "DEFAULT NULL"),
-    }.items():
+    def _column_exists(conn, table, column):
         try:
-            with engine.connect() as conn:
-                conn.execute(text(
-                    f"ALTER TABLE companies ADD COLUMN IF NOT EXISTS {col} {col_type} {col_default}"
-                ))
-                conn.commit()
-                print(f"[REMS] Ensured companies.{col} column.")
-        except Exception as e:
-            print(f"[REMS] companies.{col} column check skipped: {e}")
+            rs = conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = :t AND column_name = :c"
+            ), {"t": table, "c": column})
+            return rs.fetchone() is not None
+        except Exception:
+            return False
 
-    # ── Ensure reminders.user_id column exists ─────────────────────────────
+    def _safe_add_column(conn, table, col, col_def):
+        if _column_exists(conn, table, col):
+            return
+        try:
+            conn.execute(text("SET LOCAL lock_timeout = '2s'"))
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_def}"))
+            conn.commit()
+            print(f"[REMS] Added {table}.{col} column.")
+        except Exception as e:
+            conn.rollback()
+            print(f"[REMS] {table}.{col} skipped (non-fatal): {e}")
+
     try:
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-            conn.commit()
-            print("[REMS] Verified reminders.user_id column.")
+            for col, col_def in {
+                "email":         "VARCHAR(255) DEFAULT NULL",
+                "phone":         "VARCHAR(60)  DEFAULT NULL",
+                "plan":          "VARCHAR(30)  DEFAULT 'free'",
+                "currency_code": "VARCHAR(10)  DEFAULT 'PKR'",
+                "expiry_date":   "TIMESTAMP    DEFAULT NULL",
+                "db_path":       "VARCHAR(300) DEFAULT NULL",
+                "updated_at":    "TIMESTAMP    DEFAULT NULL",
+            }.items():
+                _safe_add_column(conn, "companies", col, col_def)
+    except Exception as e:
+        print(f"[REMS] companies column checks skipped: {e}")
+
+    try:
+        with engine.connect() as conn:
+            for col, col_type in {
+                "website": "VARCHAR(255) DEFAULT ''",
+                "reg_no": "VARCHAR(100) DEFAULT ''",
+                "show_logo_watermark": "BOOLEAN DEFAULT TRUE",
+            }.items():
+                _safe_add_column(conn, "report_settings", col, col_type)
+    except Exception as e:
+        print(f"[REMS] report_settings columns check skipped: {e}")
+
+    try:
+        with engine.connect() as conn:
+            _safe_add_column(conn, "reminders", "user_id", "INTEGER")
     except Exception as e:
         print(f"[REMS] reminders.user_id column check skipped: {e}")
 
-    # ── Ensure reminder_templates.user_id column exists ────────────────────
     try:
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE reminder_templates ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-            conn.commit()
-            print("[REMS] Verified reminder_templates.user_id column.")
+            _safe_add_column(conn, "reminder_templates", "user_id", "INTEGER")
     except Exception as e:
         print(f"[REMS] reminder_templates.user_id column check skipped: {e}")
 
-    # ── Ensure rbac_login_history.user_id is nullable ──────────────────────
     try:
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE rbac_login_history ALTER COLUMN user_id DROP NOT NULL"))
-            conn.commit()
-            print("[REMS] Made rbac_login_history.user_id nullable.")
+            for col, col_type in {
+                "user_id":      "VARCHAR(36)",
+                "username":     "VARCHAR(255)",
+                "full_name":    "VARCHAR(255)",
+                "role":         "VARCHAR(100)",
+                "department":   "VARCHAR(100)",
+                "entity_type":  "VARCHAR(100)",
+                "entity_id":    "VARCHAR(255)",
+                "entity_name":  "TEXT",
+                "browser":      "VARCHAR(255)",
+                "os":           "VARCHAR(255)",
+                "device":       "VARCHAR(255)",
+                "request_method": "VARCHAR(10)",
+                "api_endpoint": "VARCHAR(500)",
+                "status":       "VARCHAR(20) DEFAULT 'Success'",
+            }.items():
+                _safe_add_column(conn, "audit_logs", col, col_type)
     except Exception as e:
-        print(f"[REMS] rbac_login_history.user_id nullable fix skipped: {e}")
+        print(f"[REMS] audit_logs enhanced columns check skipped: {e}")
 
-    # ── Repair missing tables in existing company schemas ──────────────────
     try:
         from app.tenant import get_master_session
-        from app.services.rbac_service import RBACService
 
         mdb = get_master_session()
         try:
@@ -270,11 +295,9 @@ def _startup():
                     registered.add(nspname)
             for (schema_name,) in rows:
                 try:
-                    # Ensure the schema exists
                     with engine.connect() as tmp_conn:
                         tmp_conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
                         tmp_conn.commit()
-                    # Sync slug from public.companies to master.companies if missing
                     with engine.connect() as tmp_conn:
                         tmp_conn.execute(
                             text("""
@@ -313,9 +336,18 @@ def _startup():
                     sync_attachments_table(tenant_engine)
                     with tenant_engine.connect() as conn:
                         conn.execute(text("SET lock_timeout = '5s'"))
-                        conn.execute(
-                            text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)")
-                        )
+
+                        def _tenant_add_col(table, col, col_def):
+                            try:
+                                rs = conn.execute(text(
+                                    "SELECT column_name FROM information_schema.columns "
+                                    "WHERE table_name = :t AND column_name = :c"
+                                ), {"t": table, "c": col})
+                                if rs.fetchone() is None:
+                                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_def}"))
+                            except Exception:
+                                pass
+
                         for col, col_type in {
                             "payment_type": "VARCHAR(30)",
                             "source": "VARCHAR(20)",
@@ -338,9 +370,7 @@ def _startup():
                             "created_by_user_id": "INTEGER",
                             "company_id": "INTEGER",
                         }.items():
-                            conn.execute(
-                                text(f"ALTER TABLE payments ADD COLUMN IF NOT EXISTS {col} {col_type}")
-                            )
+                            _tenant_add_col("payments", col, col_type)
                         for col, col_type in {
                             "vendor_name": "VARCHAR(255)",
                             "invoice_bill_no": "VARCHAR(100)",
@@ -362,9 +392,7 @@ def _startup():
                             "discount_amount": "NUMERIC(14,2) DEFAULT 0",
                             "adjustment": "NUMERIC(14,2) DEFAULT 0",
                         }.items():
-                            conn.execute(
-                                text(f"ALTER TABLE expenses ADD COLUMN IF NOT EXISTS {col} {col_type}")
-                            )
+                            _tenant_add_col("expenses", col, col_type)
                         for col, col_type in {
                             "client_id": "INTEGER",
                             "client_name": "VARCHAR(255)",
@@ -372,9 +400,7 @@ def _startup():
                             "paid_amount": "NUMERIC(12,2) DEFAULT 0",
                             "remaining_amount": "NUMERIC(12,2) DEFAULT 0",
                         }.items():
-                            conn.execute(
-                                text(f"ALTER TABLE invoices ADD COLUMN IF NOT EXISTS {col} {col_type}")
-                            )
+                            _tenant_add_col("invoices", col, col_type)
                         for col, col_type in {
                             "buyer_contact_id":   "INTEGER",
                             "seller_contact_id":  "INTEGER",
@@ -395,9 +421,7 @@ def _startup():
                             "sale_stage":         "VARCHAR(30)",
                             "cancellation_reason": "TEXT",
                         }.items():
-                            conn.execute(
-                                text(f"ALTER TABLE property_sales ADD COLUMN IF NOT EXISTS {col} {col_type}")
-                            )
+                            _tenant_add_col("property_sales", col, col_type)
                         for tbl, cols in {
                             "leads": {
                                 "preferred_project": "VARCHAR(120)",
@@ -410,68 +434,24 @@ def _startup():
                             },
                         }.items():
                             for col, col_type in cols.items():
-                                try:
-                                    conn.execute(
-                                        text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}")
-                                    )
-                                except Exception:
-                                    pass
-                        conn.execute(
-                            text("""
-                                UPDATE companies c
-                                SET master_id = m.id
-                                FROM master.companies m
-                                WHERE m.schema_name = :schema
-                                  AND c.master_id IS NULL
-                            """),
-                            {"schema": schema_name},
-                        )
+                                _tenant_add_col(tbl, col, col_type)
                         conn.commit()
                     tenant_engine.dispose()
 
-                    # ── Run alembic migrations against this company schema ──
                     try:
                         from alembic.config import Config as AlembicConfig
                         from alembic import command
                         from alembic.script import ScriptDirectory
-                        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-                        schema_url = settings.database_url_fixed
-                        if schema_url:
-                            parsed = urlparse(schema_url)
-                            qs = parse_qs(parsed.query)
-                            qs["options"] = f"-csearch_path={schema_name},public"
-                            new_qs = urlencode(qs, doseq=True)
-                            schema_url_with_path = urlunparse(parsed._replace(query=new_qs))
-                            schema_cfg = AlembicConfig(str(BASE_DIR / "alembic.ini"))
-                            schema_cfg.set_main_option("sqlalchemy.url", schema_url_with_path)
-                            # Stamp at head first (tables already created by create_all)
-                            head = ScriptDirectory.from_config(schema_cfg).get_current_head()
-                            command.stamp(schema_cfg, head)
-                            command.upgrade(schema_cfg, "head")
-                            print(f"[REMS] Alembic migrations synced for schema '{schema_name}'")
+                        os.environ["ALEMBIC_SEARCH_PATH"] = f"{schema_name},public"
+                        schema_cfg = AlembicConfig(str(BASE_DIR / "alembic.ini"))
+                        head = ScriptDirectory.from_config(schema_cfg).get_current_head()
+                        command.stamp(schema_cfg, head)
+                        command.upgrade(schema_cfg, "head")
+                        del os.environ["ALEMBIC_SEARCH_PATH"]
+                        print(f"[REMS] Alembic migrations synced for schema '{schema_name}'")
                     except Exception as exc:
+                        os.environ.pop("ALEMBIC_SEARCH_PATH", None)
                         print(f"[REMS] Alembic upgrade skipped for schema '{schema_name}': {exc}")
-
-                    repair_session = sessionmaker(
-                        bind=create_engine(
-                            settings.database_url_fixed,
-                            connect_args={"options": f"-csearch_path={schema_name},public"},
-                            pool_pre_ping=True,
-                        )
-                    )()
-                    try:
-                        existing = repair_session.execute(
-                            text("SELECT COUNT(*) FROM permissions")
-                        ).scalar()
-                        if existing == 0:
-                            RBACService.seed_default_permissions(repair_session)
-                            RBACService.seed_default_roles(repair_session)
-                            repair_session.commit()
-                            print(f"[REMS] Seeded RBAC in schema '{schema_name}'")
-                        else:
-                            print(f"[REMS] RBAC already present in schema '{schema_name}'")
-                    finally:
-                        repair_session.close()
 
                     print(f"[REMS] Repaired tables in schema '{schema_name}'")
                 except Exception as e:
@@ -481,11 +461,7 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Company schema repair skipped: {e}")
 
-    # ── Repair missing tables in existing SQLite company databases ────────────
     try:
-        import os
-        from sqlalchemy import create_engine
-        from app.core.database import Base
         from app.core.tenant_manager import DATABASES_DIR
 
         for f in os.listdir(str(DATABASES_DIR)):
@@ -551,7 +527,6 @@ def _startup():
     except Exception as e:
         print(f"[REMS] SQLite tenant schema repair skipped: {e}")
 
-    # ── Seed default Chart of Accounts ────────────────────────────────────────
     db = next(get_db())
     try:
         seeded = seed_default_coa(db)
@@ -562,18 +537,6 @@ def _startup():
     finally:
         db.close()
 
-    # ── Seed default RBAC & admin account ─────────────────────────────────────
-    db = next(get_db())
-    try:
-        from app.scripts.seed_rbac import seed_rbac
-        seed_rbac(db)
-        print("[REMS] RBAC and Default Admin seeded/verified.")
-    except Exception as e:
-        print(f"[REMS] RBAC and Default Admin seeding failed: {e}")
-    finally:
-        db.close()
-
-    # ── Seed default lookup values (public schema + all company schemas) ──────
     try:
         public_engine = create_engine(settings.database_url_fixed, pool_pre_ping=True)
         pub_session = sessionmaker(bind=public_engine)()
@@ -601,7 +564,6 @@ def _startup():
     except Exception as e:
         print(f"[REMS] Tenant lookup seed skipped: {e}")
 
-    # ── Sync TownUnit columns ─────────────────────────────────────────────────
     db = next(get_db())
     try:
         from app.models.town import sync_town_unit_columns
@@ -618,18 +580,17 @@ def _startup():
     except Exception as e:
         log.error("Failed to start reminder scheduler: %s", e)
 
-    from apscheduler.schedulers.background import BackgroundScheduler as _BS
-    _other_sched = _BS(timezone="UTC")
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler as _AsyncSched
+    _async_sched = _AsyncSched(timezone="UTC")
     register_mail_sync_job()
-    register_followup_job(_other_sched)
-    register_booking_expiry_job(_other_sched)
-    _other_sched.start()
+    register_followup_job(_async_sched)
+    register_booking_expiry_job(_async_sched)
+    _async_sched.start()
 
 
 app = FastAPI(title="REMS API", version="1.0.0", lifespan=lifespan)
 
-# Health check — registered FIRST, before anything that could fail
-# No auth, no DB, no imports that could crash
+
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "Real Estate ERP API"}
@@ -637,10 +598,6 @@ async def health():
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Catch-all handler — returns JSON instead of uvicorn's bare text/plain 500.
-    Logs the full traceback so it's visible in the server console.
-    Manually adds CORS headers because exception handler responses bypass the
-    middleware stack (so CORSMiddleware never gets a chance to add them)."""
     import traceback
     log.error("Unhandled exception on %s %s\n%s", request.method, request.url.path,
                traceback.format_exc())
@@ -663,7 +620,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Total-Count"],
 )
-# Tenant resolver — must be added AFTER CORS
 app.add_middleware(TenantMiddleware)
 
 upload_root = Path(settings.upload_dir)
@@ -687,18 +643,12 @@ app.include_router(websocket_router)
 app.include_router(reminders_router, prefix="/reminders", tags=["reminders"])
 app.include_router(hr_router, prefix="/hr", tags=["hr"])
 app.include_router(mail_router, prefix="/mail", tags=["mail"])
-# Multi-tenant
 app.include_router(company_settings_router,                         tags=["company-settings"])
-# Town / Block / Plot hierarchy
 app.include_router(towns_router, prefix="/towns", tags=["towns"])
 app.include_router(town_units_router, prefix="/town-units", tags=["town-units"])
 app.include_router(ledger_router,  prefix="/finance/ledger", tags=["ledger"])
 app.include_router(bootstrap_router, tags=["bootstrap"])
-# Booking system
 app.include_router(booking_router, prefix="/crm/bookings", tags=["bookings"])
-# Reports system
-app.include_router(reports_router, prefix="/reports", tags=["reports"])
-# AI Intelligence Center
 app.include_router(ai_router, tags=["ai-intelligence"])
 app.include_router(import_router, prefix="/import", tags=["import"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
@@ -708,15 +658,12 @@ app.include_router(files_router)
 app.include_router(spreadsheet_router)
 app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
-
-# RBAC System
-app.include_router(rbac_auth_router)
-app.include_router(rbac_admin_router)
+app.include_router(reports_router)
+app.include_router(users_router)
 
 
 @app.get("/health/db")
 def health_db() -> dict:
-    """Check database connectivity — useful for Railway deployment diagnostics."""
     from app.core.database import check_db_connection
     ok = check_db_connection()
     return {"status": "ok" if ok else "error", "database": "connected" if ok else "unreachable"}

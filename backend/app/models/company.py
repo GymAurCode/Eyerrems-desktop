@@ -18,6 +18,7 @@ class Company(Base):
     status        = Column(String(20), nullable=False, default="active", index=True)   # active | suspended
     plan          = Column(String(30), nullable=False, default="free")                 # free | premium | enterprise
     currency_code = Column(String(10), nullable=False, default="PKR")                 # PKR | USD
+    master_id     = Column(String(36), nullable=True)                                 # UUID from master.companies
     expiry_date   = Column(DateTime, nullable=True, index=True)
     db_path       = Column(String(300), nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)

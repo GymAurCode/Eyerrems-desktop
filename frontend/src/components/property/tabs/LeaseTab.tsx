@@ -4,7 +4,6 @@ import {
   Download, FileText, RotateCcw,
 } from "lucide-react";
 import AppDialog from "../../ui/AppDialog";
-import ReportModal from "../../reports/ReportModal";
 import { propApi, Lease, LeaseDetail, LeasePayment } from "../../../lib/propertyApi";
 import { syncApi } from "../../../lib/financeApi";
 import { formatCurrency } from "../../../lib/currency";
@@ -59,14 +58,6 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
   const [detailOpen, setDetailOpen]           = useState(false);
   const [detailTab, setDetailTab]             = useState<"info" | "payments" | "schedule" | "docs">("info");
   const [scheduleData, setScheduleData]       = useState<any[]>([]);
-
-  // Report modal state
-  const [reportModal, setReportModal] = useState<{
-    open: boolean;
-    reportType: string;
-    filters: Record<string, unknown>;
-    title?: string;
-  }>({ open: false, reportType: "", filters: {} });
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -329,20 +320,6 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
         { label: "Start Date", value: row.start_date },
         { label: "End Date", value: row.end_date || "—" },
       ]),
-    },
-    {
-      key: "rent_ledger",
-      label: "Rent Ledger",
-      icon: FileText,
-      onClick: (row: Lease) => setReportModal({ open: true, reportType: "rent_ledger", filters: { tenant_id: row.tenant_id, unit_id: row.unit_id, date_from: row.start_date, date_to: today }, title: "Rent Ledger" }),
-      variant: "secondary",
-    },
-    {
-      key: "rent_schedule",
-      label: "Rent Schedule",
-      icon: FileText,
-      onClick: (row: Lease) => setReportModal({ open: true, reportType: "installment_schedule", filters: { lease_id: row.id }, title: "Rent Schedule" }),
-      variant: "secondary",
     },
     {
       key: "lease_agreement",
@@ -651,14 +628,6 @@ export default function LeaseTab({ refresh, onRefresh }: Props) {
         </div>
       </AppDialog>
 
-      {/* Report Modal */}
-      <ReportModal
-        open={reportModal.open}
-        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
-        reportType={reportModal.reportType}
-        filters={reportModal.filters}
-        title={reportModal.title}
-      />
     </>
   );
 }

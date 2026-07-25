@@ -4,6 +4,7 @@ import type { Reminder } from "../../lib/remindersApi";
 import { remindersApi } from "../../lib/remindersApi";
 import ConfirmDialog from "../../components/actions/ConfirmDialog";
 import { useNotifStore } from "../../store/notifications";
+import { playTaskSound } from "../../hooks/useReminderWebSocket";
 
 const PRIORITY_DOT: Record<string, string> = {
   critical: "bg-red-600",
@@ -70,6 +71,7 @@ export default function MyRemindersTable({ reminders, loading, onRefresh, onEdit
 
   const handleComplete = async (id: number) => {
     await remindersApi.completeReminder(id);
+    playTaskSound();
     onRefresh();
   };
 

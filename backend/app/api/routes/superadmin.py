@@ -14,6 +14,7 @@ from pydantic import BaseModel, AfterValidator
 from sqlalchemy import text
 
 from app.api.deps import require_super_admin
+from app.core.audit import log_action
 from app.core.config import settings
 from app.core.master_db import (
     ensure_master_schema,
@@ -295,22 +296,6 @@ def create_company(
         # Create admin user in the company schema
         db.execute(text(f"SET search_path TO {schema_name},public"))
 
-        # Seed default RBAC permissions and roles into the new schema
-        from app.services.rbac_service import RBACService
-        RBACService.seed_default_permissions(db)
-        RBACService.seed_default_roles(db)
-        db.commit()
-
-        # Get the Admin role (now seeded) — use fully-qualified table name
-        # because db.commit() may have reset the search_path on this connection.
-        role = db.execute(
-            text(f"SELECT id FROM {schema_name}.roles WHERE name = 'Admin' ORDER BY id LIMIT 1")
-        ).fetchone()
-
-        role_id = None
-        if role:
-            role_id = role[0]
-
         # Create the company row in tenant's own companies table
         db.execute(
             text(f"""
@@ -328,20 +313,21 @@ def create_company(
         db.execute(
             text(f"""
                 INSERT INTO {schema_name}.users (email, full_name, hashed_password,
-                    company_id, status, is_approved, is_active, approval_status, role_id)
+                    company_id, status, is_approved, is_active, approval_status)
                 VALUES (:email, :name, :pw, (SELECT id FROM {schema_name}.companies WHERE slug = :slug),
-                        'active', TRUE, TRUE, 'approved', :role_id)
+                        'active', TRUE, TRUE, 'approved')
             """),
             {
                 "email": payload.admin_email,
                 "name": payload.name + " Admin",
                 "pw": pw_hash,
                 "slug": company_slug,
-                "role_id": role_id,
             },
         )
 
         db.commit()
+
+        log_action(db=db, module="superadmin", action="CREATE", record_id=str(company_row[0]), record_label=company_row[1], changed_by=_.email, changed_by_role=None)
 
         return {
             "id": str(company_row[0]),
@@ -379,6 +365,7 @@ def suspend_company(
         if not result:
             raise HTTPException(status_code=404, detail="Company not found")
         db.commit()
+        log_action(db=db, module="superadmin", action="SUSPEND", record_id=str(result[0]), record_label=result[1], changed_by=_.email, changed_by_role=None)
         return {"id": str(result[0]), "name": result[1], "status": result[2]}
     finally:
         db.close()
@@ -400,6 +387,7 @@ def activate_company(
         if not result:
             raise HTTPException(status_code=404, detail="Company not found")
         db.commit()
+        log_action(db=db, module="superadmin", action="ACTIVATE", record_id=str(result[0]), record_label=result[1], changed_by=_.email, changed_by_role=None)
         return {"id": str(result[0]), "name": result[1], "status": result[2]}
     finally:
         db.close()
@@ -449,6 +437,7 @@ def update_company_permissions(
         if not row:
             raise HTTPException(status_code=404, detail="Company not found")
         db.commit()
+        log_action(db=db, module="superadmin", action="UPDATE_PERMISSIONS", record_id=company_id, record_label=f"Company {company_id} permissions", changed_by=_.email, changed_by_role=None)
         return {"permissions": row[0]}
     finally:
         db.close()
@@ -491,6 +480,8 @@ def extend_expiry(
         if not result:
             raise HTTPException(status_code=404, detail="Company not found")
         db.commit()
+
+        log_action(db=db, module="superadmin", action="EXTEND_EXPIRY", record_id=str(result[0]), record_label=result[1], changed_by=_.email, changed_by_role=None)
 
         return {
             "id": str(result[0]),
@@ -551,6 +542,8 @@ def update_company_slug(
 
         db.commit()
 
+        log_action(db=db, module="superadmin", action="UPDATE_SLUG", record_id=company_id, record_label=company[1], changed_by=_.email, changed_by_role=None)
+
         return {"slug": new_slug, "message": f"Slug updated to '{new_slug}'"}
     except HTTPException:
         raise
@@ -589,6 +582,8 @@ def delete_company(
             {"id": company_id},
         )
         db.commit()
+
+        log_action(db=db, module="superadmin", action="DELETE", record_id=company_id, record_label=company[1], changed_by=_.email, changed_by_role=None)
 
         return {"detail": f"Company '{company[1]}' deleted successfully"}
     finally:

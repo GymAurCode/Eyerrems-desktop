@@ -110,7 +110,6 @@ def list_my_company_users(
         return []
     query = (
         db.query(User)
-        .options(joinedload(User.roles))
         .filter(User.company_id == company_id)
     )
     if not current_user.is_super_admin:
@@ -124,7 +123,6 @@ def list_my_company_users(
             "full_name": u.full_name,
             "status": u.status,
             "is_approved": u.is_approved,
-            "roles": [r.name for r in u.roles],
             "created_at": u.created_at,
         }
         for u in users

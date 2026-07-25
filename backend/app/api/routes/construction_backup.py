@@ -23,14 +23,13 @@ from app.schemas.construction import (
     PhaseCreate, PhaseResponse, PhaseUpdate,
     ProcurementCreate, ProcurementResponse, ProcurementStatusUpdate, ProcurementUpdate,
     ProjectContractorCreate, ProjectContractorResponse,
-    ProjectCreate, ProjectReportResponse, ProjectResponse, ProjectSummary, ProjectUpdate,
+    ProjectCreate, ProjectResponse, ProjectSummary, ProjectUpdate,
 )
 from app.services.construction.budget_service import BudgetService
 from app.services.construction.contractor_service import ContractorService
 from app.services.construction.execution_service import ExecutionService
 from app.services.construction.procurement_service import ProcurementService
 from app.services.construction.project_service import ProjectService
-from app.services.construction.report_service import ReportService
 
 router = APIRouter()
 
@@ -220,14 +219,7 @@ def list_project_documents(
     )
 
 
-@router.get("/projects/{project_id}/report", response_model=ProjectReportResponse)
-def get_project_report(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    from app.services.construction.report_service import ReportService
-    return ReportService.project_report(db, project_id)
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -781,18 +773,6 @@ def delete_document(
     db.delete(doc)
     db.commit()
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# REPORTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/report/{project_id}", response_model=ProjectReportResponse)
-def project_report(
-    project_id: int,
-    db: Session = Depends(get_db),
-    _: User     = Depends(_all_staff),
-):
-    return ReportService.project_report(db, project_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

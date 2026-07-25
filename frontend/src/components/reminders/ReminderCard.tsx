@@ -48,6 +48,7 @@ export default function ReminderCard({ reminder, onComplete, onSnooze, onEdit, o
   const [overdue, setOverdue] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const remindTime = new Date(reminder.remind_at).getTime();
 
@@ -104,7 +105,11 @@ export default function ReminderCard({ reminder, onComplete, onSnooze, onEdit, o
     >
       {onComplete && reminder.status === "pending" && (
         <button
-          onClick={() => onComplete(reminder.id)}
+          onClick={() => {
+            setCompleting(true);
+            setTimeout(() => onComplete(reminder.id), 800);
+          }}
+          disabled={completing}
           className="mt-0.5 shrink-0 text-muted hover:text-emerald-400 transition-colors"
         >
           <CheckCircle2 size={16} />
@@ -112,7 +117,7 @@ export default function ReminderCard({ reminder, onComplete, onSnooze, onEdit, o
       )}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className={`text-sm font-medium text-primary truncate ${isCompleted ? "line-through" : ""}`}>
+          <p className={`text-sm font-medium text-primary truncate ${isCompleted ? "line-through" : ""} ${completing ? "animate-wave-strike" : ""}`}>
             {reminder.title}
           </p>
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${PRIORITY_BADGE[reminder.priority] ?? PRIORITY_BADGE.medium}`}>

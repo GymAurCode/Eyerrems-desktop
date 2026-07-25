@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { Printer, Plus, Edit2, Trash2, Eye, Users, Wrench, Calendar, Grid3X3, List, FileText } from "lucide-react";
 import { propApi, Property, Unit, Floor } from "../../../lib/propertyApi";
 import { printRecord } from "../../actions";
-import ReportModal from "../../reports/ReportModal";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
 import { formatCurrency } from "../../../lib/currency";
@@ -28,14 +27,6 @@ type ViewMode = "table" | "heatmap";
 
 export default function UnitsTab({ refresh }: Props) {
   const [properties, setProperties]   = useState<Property[]>([]);
-
-  // Report modal state
-  const [reportModal, setReportModal] = useState<{
-    open: boolean;
-    reportType: string;
-    filters: Record<string, unknown>;
-    title?: string;
-  }>({ open: false, reportType: "", filters: {} });
 
   const today = new Date().toISOString().split("T")[0];
   const firstDayOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
@@ -230,20 +221,6 @@ export default function UnitsTab({ refresh }: Props) {
       },
     },
     {
-      key: "unit_statement",
-      label: "Unit Statement",
-      icon: FileText,
-      onClick: (row: Unit) => setReportModal({ open: true, reportType: "unit_statement", filters: { unit_id: row.id, date_from: firstDayOfYear, date_to: today }, title: "Unit Statement" }),
-      variant: "secondary",
-    },
-    {
-      key: "tenant_history",
-      label: "Tenant History",
-      icon: FileText,
-      onClick: (row: Unit) => setReportModal({ open: true, reportType: "tenant_history", filters: { unit_id: row.id }, title: "Tenant History" }),
-      variant: "secondary",
-    },
-    {
       key: "delete",
       label: "Delete Unit",
       icon: Trash2,
@@ -390,15 +367,6 @@ export default function UnitsTab({ refresh }: Props) {
         onSaved={() => { if (paramsRef.current) fetchUnits(paramsRef.current); }}
         floors={floors}
         editUnit={editing}
-      />
-
-      {/* Report Modal */}
-      <ReportModal
-        open={reportModal.open}
-        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
-        reportType={reportModal.reportType}
-        filters={reportModal.filters}
-        title={reportModal.title}
       />
 
       {/* Delete Confirmation */}

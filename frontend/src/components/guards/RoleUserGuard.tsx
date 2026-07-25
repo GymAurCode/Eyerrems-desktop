@@ -39,15 +39,5 @@ export default function RoleUserGuard({ children }: RoleUserGuardProps) {
     );
   }
 
-  const isRoleUser = (user as any)?.user_type === "role_user";
-  if (!isRoleUser) return <>{children}</>;
-
-  const slugLocked = (user as any)?.slug_locked !== false;
-  const mustChangePassword = (user as any)?.must_change_password === true;
-
-  if (!slugLocked) return <Navigate to="/setup-slug" replace />;
-
-  if (mustChangePassword) return <Navigate to="/change-password" replace />;
-
   return <>{children}</>;
 }

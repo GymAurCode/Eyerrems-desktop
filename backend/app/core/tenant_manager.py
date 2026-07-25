@@ -6,13 +6,37 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.core.config import settings
 
 log = logging.getLogger("rems.tenant_manager")
+
+
+def _get_inspector(engine):
+    import sqlalchemy as sa
+    return sa.inspect(engine)
+
+
+def _col_type_to_sql(col_type):
+    from sqlalchemy import types as sa_types
+    type_map = {
+        sa_types.Integer: "INTEGER",
+        sa_types.String: f"VARCHAR({col_type.length})" if hasattr(col_type, 'length') and col_type.length else "VARCHAR",
+        sa_types.Boolean: "BOOLEAN",
+        sa_types.DateTime: "TIMESTAMP",
+        sa_types.Text: "TEXT",
+        sa_types.Float: "FLOAT",
+        sa_types.Numeric: "NUMERIC",
+        sa_types.Date: "DATE",
+        sa_types.JSON: "TEXT",
+    }
+    for t, sql in type_map.items():
+        if isinstance(col_type, t):
+            return sql
+    return "VARCHAR"
 
 # Create local databases directory under the backend folder
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -184,6 +208,37 @@ class TenantManager:
                 log.warning(f"[TenantManager] Duplicate index ignored during init: {e}")
             else:
                 raise
+
+        # Sync missing columns for existing tables (forward-migration for model changes)
+        try:
+            inspector = _get_inspector(engine)
+            for table_name, table in Base.metadata.tables.items():
+                try:
+                    existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                except Exception:
+                    continue
+                for column in table.columns:
+                    if column.name not in existing_cols:
+                        try:
+                            col_type_sql = _col_type_to_sql(column.type)
+                            sql = f"ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type_sql}"
+                            if column.nullable:
+                                sql += " NULL"
+                            else:
+                                sql += " NOT NULL"
+                            fks = [fk for fk in column.foreign_keys]
+                            if fks:
+                                ref = list(fks)[0]
+                                sql += f" REFERENCES {ref.column.table.name}({ref.column.name})"
+                            with engine.connect() as conn:
+                                conn.execute(text(sql))
+                                conn.commit()
+                                log.info(f"[TenantManager] Added missing column {table_name}.{column.name}")
+                        except Exception as col_err:
+                            log.warning(f"[TenantManager] Could not add {table_name}.{column.name}: {col_err}")
+        except Exception as e:
+            log.warning(f"[TenantManager] Column sync skipped (non-fatal): {e}")
+
         log.info(f"[TenantManager] Created schema successfully for company '{slug}'")
 
         # Seed data
@@ -263,41 +318,6 @@ class TenantManager:
                 log.warning(
                     f"[TenantManager] Skipping feature seed — company {company_id} not ready yet"
                 )
-            
-            # 4. Seed Default Permissions and Roles
-            from app.services.rbac_service import RBACService
-            from app.models.auth import Permission, Role
-            
-            RBACService.seed_default_permissions(db)
-            all_permissions = db.query(Permission).all()
-            
-            roles_config = {
-                "Admin": {
-                    "description": "Full system access — all permissions",
-                    "permissions": all_permissions,
-                },
-                "Staff": {
-                    "description": "Basic staff access",
-                    "permissions": db.query(Permission).filter(
-                        Permission.name.in_([
-                            "dashboard.view", "dashboard:view",
-                            "hr.view", "finance.view",
-                            "crm.view", "crm.create", "crm.update",
-                            "property.view", "tenant.view", "construction.view",
-                            "mail.view", "mail.send",
-                        ])
-                    ).all(),
-                },
-            }
-
-            for role_name, config in roles_config.items():
-                role = Role(
-                    name=role_name,
-                    description=config["description"],
-                    company_id=company_id,
-                    permissions=config["permissions"],
-                )
-                db.add(role)
             
             db.commit()
             log.info(f"[TenantManager] Successfully completed seeding for company '{slug}'")

@@ -638,6 +638,13 @@ class DealerLedgerEntryOut(BaseModel):
     commission_rate: Decimal | None = None
     gross_commission: Decimal | None = None
     debit: Decimal
+    credit: Decimal = Decimal("0")
+    running_balance: Decimal = Decimal("0")
+    status: str = "posted"
+    notes: str | None = None
+    created_at: datetime | None = None
+    lead_name: str | None = None
+    dealer_name: str | None = None
 
     class Config:
         from_attributes = True

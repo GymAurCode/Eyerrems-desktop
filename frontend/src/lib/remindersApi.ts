@@ -21,7 +21,9 @@ export interface Reminder {
 
 export interface DashboardData {
   upcoming_24h: Reminder[];
+  future: Reminder[];
   overdue: Reminder[];
+  completed: Reminder[];
   today_total: number;
   today_completed: number;
   today_pending: number;

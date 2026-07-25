@@ -1,32 +1,21 @@
-import { useState, useEffect } from "react";
-import { Shield, Users as UsersIcon, Activity, Settings, CheckCircle, AlertCircle, DollarSign, Save, LayoutDashboard } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, CheckCircle, Save, Info } from "lucide-react";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
-import { useAuthStore } from "../store/auth";
 import { useCurrencyStore, CURRENCY_OPTIONS, type CurrencyCode } from "../store/currency";
-import RolesTabRbac from "../modules/Admin/tabs/RolesTab";
-import UsersTabRbac from "../modules/Admin/tabs/UsersTab";
-import MonitoringTab from "../modules/Admin/tabs/MonitoringTab";
-import AdminDashboard from "./AdminDashboard";
+import DetailTab from "../modules/Admin/tabs/DetailTab";
 
 const TABS = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "roles", label: "Roles", icon: Shield },
-  { key: "users", label: "Users", icon: UsersIcon },
-  { key: "monitoring", label: "Monitoring", icon: Activity },
-  { key: "settings", label: "Settings", icon: Settings },
+  { key: "detail", label: "Detail", icon: Info },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
-// ── Settings Tab (moved from inline in old Admin) ─────────────────────────────
 function SettingsTab() {
   const { currencyCode, saveCurrency } = useCurrencyStore();
   const [selected, setSelected] = useState<CurrencyCode>(currencyCode);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
-
-  useEffect(() => { setSelected(currencyCode); }, [currencyCode]);
 
   const handleSave = async () => {
     setSaving(true); setErr(""); setSaved(false);
@@ -39,28 +28,8 @@ function SettingsTab() {
     } finally { setSaving(false); }
   };
 
-  const previewAmount = 1250000;
-  const previewCfg = CURRENCY_OPTIONS.find((c) => c.code === selected)!;
-  const previewFormatted = `${previewCfg.symbol} ${new Intl.NumberFormat(previewCfg.locale, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(previewAmount)}`;
-
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
-          <DollarSign size={16} className="text-white" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-primary">Currency Settings</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Choose the currency symbol displayed across the entire application.
-          </p>
-        </div>
-      </div>
-
       <div className="card-dark rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
           <p className="text-xs font-semibold text-primary uppercase tracking-wider">Select Currency</p>
@@ -94,7 +63,6 @@ function SettingsTab() {
                   </p>
                   <p className="text-xs text-muted mt-0.5">
                     Symbol: <span className="font-mono">{opt.symbol}</span>
-                    &nbsp;·&nbsp;Example: <span className="font-mono">{opt.symbol} 1,250,000</span>
                   </p>
                 </div>
                 {isActive && (
@@ -106,18 +74,6 @@ function SettingsTab() {
               </label>
             );
           })}
-        </div>
-      </div>
-
-      <div className="rounded-xl p-4 flex items-center gap-3"
-        style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: "rgba(59,130,246,0.15)" }}>
-          <DollarSign size={14} className="text-blue-400" />
-        </div>
-        <div>
-          <p className="text-xs text-muted">Preview</p>
-          <p className="text-sm font-semibold text-primary font-mono mt-0.5">{previewFormatted}</p>
         </div>
       </div>
 
@@ -138,32 +94,21 @@ function SettingsTab() {
         <button onClick={handleSave} disabled={saving || selected === currencyCode}
           className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
           {saving ? <span className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
-          {saving ? "Saving…" : "Save Settings"}
+          {saving ? "Saving\u2026" : "Save Settings"}
         </button>
       </div>
     </div>
   );
 }
 
-// ── Main AdminPage ────────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const user = useAuthStore((s) => s.user);
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
-  const canManageRbac = isSuperAdmin || user?.role === "Admin" || user?.roles?.includes("Admin") || false;
-
-  const [tab, setTab] = useState<TabKey>(canManageRbac ? "dashboard" : "users");
-
-  useEffect(() => {
-    if (!canManageRbac && tab === "roles") {
-      setTab("users");
-    }
-  }, [canManageRbac, tab]);
+  const [tab, setTab] = useState<TabKey>("detail");
 
   return (
     <div className="p-6 space-y-5 animate-slide-up">
       <div>
         <h1 className="text-xl font-bold text-primary">Administration</h1>
-        <p className="text-xs text-muted mt-0.5">Manage roles, users, monitoring and system settings</p>
+        <p className="text-xs text-muted mt-0.5">Manage company details and users</p>
       </div>
 
       <ModuleTabs
@@ -173,11 +118,7 @@ export default function AdminPage() {
         moduleColor={MODULE_COLORS.admin.primary}
       />
 
-      {tab === "dashboard" && <AdminDashboard />}
-      {tab === "roles" && <RolesTabRbac />}
-      {tab === "users" && <UsersTabRbac />}
-      {tab === "monitoring" && <MonitoringTab />}
-      {tab === "settings" && <SettingsTab />}
+      {tab === "detail" && <DetailTab />}
     </div>
   );
 }

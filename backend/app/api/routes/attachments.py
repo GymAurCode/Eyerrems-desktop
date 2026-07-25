@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.core.activity_logger import log_activity
 from app.core.security import decode_access_token
 from app.models.attachment import Attachment
 from app.models.auth import User
@@ -31,6 +32,7 @@ ALLOWED_MIME_TYPES = {
 
 @router.post("/upload")
 def upload_attachment(
+    request: Request,
     module: str = Form(...),
     record_id: str = Form(...),
     description: str = Form(""),
@@ -74,6 +76,25 @@ def upload_attachment(
         db.commit()
         db.refresh(attachment)
 
+        ip_address = request.client.host if request.client else None
+        log_activity(
+            db=db,
+            user=current_user,
+            action="upload",
+            module="attachments",
+            record_type="attachment",
+            record_id=str(attachment.id),
+            record_label=attachment.document_name or file.filename or "untitled",
+            new_values={
+                "document_name": attachment.document_name or file.filename or "untitled",
+                "file_size_kb": file_size_kb,
+                "file_type": attachment.file_type or file.content_type or "application/octet-stream",
+                "module": module,
+                "record_id": record_id,
+            },
+            ip_address=ip_address,
+        )
+
         return {
             "id": attachment.id,
             "document_name": attachment.document_name,
@@ -113,6 +134,26 @@ def upload_attachment(
         )
         db.commit()
         row = result.fetchone()
+
+        ip_address = request.client.host if request.client else None
+        log_activity(
+            db=db,
+            user=current_user,
+            action="upload",
+            module="attachments",
+            record_type="attachment",
+            record_id=str(row[0]),
+            record_label=row[1] or file.filename or "untitled",
+            new_values={
+                "document_name": row[1] or file.filename or "untitled",
+                "file_size_kb": file_size_kb,
+                "file_type": row[5] or file.content_type or "application/octet-stream",
+                "module": module,
+                "record_id": record_id,
+            },
+            ip_address=ip_address,
+        )
+
         return {
             "id": row[0],
             "document_name": row[1],
@@ -305,6 +346,17 @@ def update_attachment(
     db.commit()
     db.refresh(att)
 
+    log_activity(
+        db=db,
+        user=current_user,
+        action="update",
+        module="attachments",
+        record_type="attachment",
+        record_id=str(attachment_id),
+        record_label=att.document_name or "",
+        new_values=body,
+    )
+
     return {
         "id": att.id,
         "document_name": att.document_name,
@@ -329,6 +381,15 @@ def delete_attachment(
         raise HTTPException(status_code=404, detail="Attachment not found")
     db.delete(att)
     db.commit()
+    log_activity(
+        db=db,
+        user=current_user,
+        action="delete",
+        module="attachments",
+        record_type="attachment",
+        record_id=str(attachment_id),
+        record_label=att.document_name or "",
+    )
     return {"success": True}
 
 
@@ -343,4 +404,14 @@ def bulk_delete_attachments(
         raise HTTPException(status_code=400, detail="No attachment IDs provided")
     deleted = db.query(Attachment).filter(Attachment.id.in_(ids)).delete(synchronize_session=False)
     db.commit()
+    for aid in ids:
+        log_activity(
+            db=db,
+            user=current_user,
+            action="bulk_delete",
+            module="attachments",
+            record_type="attachment",
+            record_id=str(aid),
+            record_label=f"attachment_{aid}",
+        )
     return {"success": True, "deleted_count": deleted}

@@ -1,5 +1,6 @@
-"""Audit Log API — company-scoped activity history."""
+"""Audit Log API — company-scoped activity history with role-based visibility."""
 import json
+import logging
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,31 +11,45 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.auth import User
 
+log = logging.getLogger("rems.audit_api")
+
 router = APIRouter()
 
 MODULE_FILTERS = [
     "property", "tenant", "crm", "hr", "maintenance",
     "finance", "invoice", "user", "settings", "construction",
+    "booking", "report", "auth",
+]
+
+ACTION_FILTERS = [
+    "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT",
+    "GENERATE", "EXPORT", "DOWNLOAD", "PRINT",
+    "STATUS_CHANGE",
+    "BULK_CREATE", "BULK_UPDATE", "BULK_DELETE",
 ]
 
 
-@router.get("/logs")
-def list_audit_logs(
-    module: str = Query(None, description="Filter by module name"),
-    action: str = Query(None, pattern="^(CREATE|UPDATE|DELETE)?$"),
-    changed_by: str = Query(None, description="Filter by user email/name"),
-    date_from: str = Query(None, description="ISO date string"),
-    date_to: str = Query(None, description="ISO date string"),
-    period: str = Query(None, pattern="^(today|week|month|year)?$"),
-    record_id: str = Query(None, description="Filter by record UUID"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get paginated audit logs with filters."""
+def _is_admin(user: User) -> bool:
+    return True
+
+
+def _get_user_role(user: User) -> str:
+    if user.is_super_admin:
+        return "superadmin"
+    return "admin"
+
+
+def _build_where(current_user: User, module=None, action=None, changed_by=None,
+                  record_id=None, date_from=None, date_to=None, period=None,
+                  entity_type=None, status=None, search=None):
+    """Build WHERE clause with role-based visibility."""
     conditions = ["1=1"]
     params: dict = {}
+
+    # Role-based visibility: Admin sees everything; others see only their own actions.
+    if not _is_admin(current_user):
+        conditions.append("changed_by = :current_user_email")
+        params["current_user_email"] = current_user.email
 
     if module:
         conditions.append("module = :module")
@@ -42,12 +57,28 @@ def list_audit_logs(
     if action:
         conditions.append("action = :action")
         params["action"] = action
-    if changed_by:
-        conditions.append("changed_by ILIKE :changed_by")
+    if entity_type:
+        conditions.append("entity_type = :entity_type")
+        params["entity_type"] = entity_type
+    if status:
+        conditions.append("status = :status")
+        params["status"] = status
+    if changed_by and _is_admin(current_user):
+        conditions.append("(changed_by ILIKE :changed_by OR COALESCE(full_name, '') ILIKE :changed_by)")
         params["changed_by"] = f"%{changed_by}%"
     if record_id:
-        conditions.append("record_id = :record_id")
+        conditions.append("(record_id = :record_id OR entity_id = :record_id2)")
         params["record_id"] = record_id
+        params["record_id2"] = record_id
+    if search:
+        search_term = f"%{search}%"
+        conditions.append("""
+            (module ILIKE :search OR action ILIKE :search
+             OR record_label ILIKE :search OR entity_name ILIKE :search
+             OR changed_by ILIKE :search OR COALESCE(full_name, '') ILIKE :search
+             OR ip_address ILIKE :search)
+        """)
+        params["search"] = search_term
 
     # Date range
     if period:
@@ -74,18 +105,100 @@ def list_audit_logs(
         conditions.append("created_at <= :date_to")
         params["date_to"] = date_to
 
+    return conditions, params
+
+
+def _safe_json_load(val):
+    if val is None:
+        return None
+    if isinstance(val, (dict, list)):
+        return val
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return val
+    return val
+
+
+def _row_to_dict(r):
+    """Convert a raw SQLAlchemy Row to a response dict."""
+    return {
+        "id": str(r["id"]),
+        "module": r["module"],
+        "action": r["action"],
+        "record_id": r.get("record_id") or r.get("entity_id"),
+        "record_label": r.get("record_label") or r.get("entity_name") or "",
+        "changed_by": r["changed_by"],
+        "changed_by_role": r.get("changed_by_role"),
+        "user_id": r.get("user_id"),
+        "username": r.get("username"),
+        "full_name": r.get("full_name"),
+        "role": r.get("role"),
+        "department": r.get("department"),
+        "entity_type": r.get("entity_type") or r["module"],
+        "entity_id": r.get("entity_id") or r.get("record_id"),
+        "entity_name": r.get("entity_name") or r.get("record_label") or "",
+        "old_data": _safe_json_load(r.get("old_data")),
+        "new_data": _safe_json_load(r.get("new_data")),
+        "diff": _safe_json_load(r.get("diff")),
+        "ip_address": r.get("ip_address"),
+        "browser": r.get("browser"),
+        "os": r.get("os"),
+        "device": r.get("device"),
+        "request_method": r.get("request_method"),
+        "api_endpoint": r.get("api_endpoint"),
+        "status": r.get("status", "Success"),
+        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+    }
+
+
+COLUMNS_SELECT = """
+    id, module, action,
+    COALESCE(record_id, entity_id) as record_id,
+    COALESCE(record_label, entity_name) as record_label,
+    changed_by, changed_by_role,
+    user_id, username, full_name, role, department,
+    entity_type, entity_id, entity_name,
+    old_data, new_data, diff,
+    ip_address, browser, os, device,
+    request_method, api_endpoint,
+    status, created_at
+"""
+
+
+@router.get("/logs")
+def list_audit_logs(
+    module: str = Query(None, description="Filter by module name"),
+    action: str = Query(None, description="Filter by action type"),
+    changed_by: str = Query(None, description="Filter by user email/name (admin only)"),
+    entity_type: str = Query(None, description="Filter by entity type"),
+    status: str = Query(None, description="Filter by status (Success/Failed)"),
+    search: str = Query(None, description="Full-text search across multiple fields"),
+    date_from: str = Query(None, description="ISO date string"),
+    date_to: str = Query(None, description="ISO date string"),
+    period: str = Query(None, description="today|week|month|year"),
+    record_id: str = Query(None, description="Filter by record UUID"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get paginated audit logs with role-based visibility."""
+    conditions, params = _build_where(
+        current_user, module=module, action=action,
+        changed_by=changed_by, record_id=record_id,
+        date_from=date_from, date_to=date_to, period=period,
+        entity_type=entity_type, status=status, search=search,
+    )
     where = " AND ".join(conditions)
 
-    # Count
+    offset = (page - 1) * per_page
     count_sql = f"SELECT COUNT(*) FROM audit_logs WHERE {where}"
     total = db.execute(text(count_sql), params).scalar() or 0
 
-    # Fetch
-    offset = (page - 1) * per_page
     fetch_sql = f"""
-        SELECT id, module, action, record_id, record_label,
-               changed_by, changed_by_role,
-               old_data, new_data, diff, ip_address, created_at
+        SELECT {COLUMNS_SELECT}
         FROM audit_logs
         WHERE {where}
         ORDER BY created_at DESC
@@ -95,23 +208,9 @@ def list_audit_logs(
     params["offset"] = offset
     rows = db.execute(text(fetch_sql), params).fetchall()
 
-    logs = []
-    for row in rows:
-        r = row._mapping
-        logs.append({
-            "id": str(r["id"]),
-            "module": r["module"],
-            "action": r["action"],
-            "record_id": r["record_id"],
-            "record_label": r["record_label"],
-            "changed_by": r["changed_by"],
-            "changed_by_role": r["changed_by_role"],
-            "old_data": json.loads(r["old_data"]) if r["old_data"] else None,
-            "new_data": json.loads(r["new_data"]) if r["new_data"] else None,
-            "diff": json.loads(r["diff"]) if r["diff"] else None,
-            "ip_address": r["ip_address"],
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-        })
+    logs = [_row_to_dict(r._mapping) for r in rows]
+
+    log.info("History API returned %s records (total: %s)", len(logs), total)
 
     return {
         "total": total,
@@ -127,38 +226,24 @@ def get_record_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return all audit logs for a specific record."""
+    """Return all audit logs for a specific record (any role can view)."""
+    conditions, params = _build_where(current_user, record_id=record_id)
+
+    # Override: for record history, always show matching records regardless of admin status
+    conditions = [c for c in conditions if "changed_by" not in c]
+    where = " AND ".join(conditions)
+
     rows = db.execute(
-        text("""
-            SELECT id, module, action, record_id, record_label,
-                   changed_by, changed_by_role,
-                   old_data, new_data, diff, ip_address, created_at
+        text(f"""
+            SELECT {COLUMNS_SELECT}
             FROM audit_logs
-            WHERE record_id = :record_id
+            WHERE {where}
             ORDER BY created_at DESC
         """),
-        {"record_id": record_id},
+        params,
     ).fetchall()
 
-    logs = []
-    for row in rows:
-        r = row._mapping
-        logs.append({
-            "id": str(r["id"]),
-            "module": r["module"],
-            "action": r["action"],
-            "record_id": r["record_id"],
-            "record_label": r["record_label"],
-            "changed_by": r["changed_by"],
-            "changed_by_role": r["changed_by_role"],
-            "old_data": json.loads(r["old_data"]) if r["old_data"] else None,
-            "new_data": json.loads(r["new_data"]) if r["new_data"] else None,
-            "diff": json.loads(r["diff"]) if r["diff"] else None,
-            "ip_address": r["ip_address"],
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-        })
-
-    return logs
+    return [_row_to_dict(r._mapping) for r in rows]
 
 
 @router.get("/stats")
@@ -166,7 +251,13 @@ def audit_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return summary counts for the audit dashboard."""
+    """Return summary counts scoped to the current user's visibility level."""
+    role_filter = ""
+    params: dict = {}
+    if not _is_admin(current_user):
+        role_filter = " WHERE changed_by = :current_user_email"
+        params["current_user_email"] = current_user.email
+
     now = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=now.weekday())
@@ -176,37 +267,62 @@ def audit_stats(
 
     def _count_since(dt):
         return db.execute(
-            text("SELECT COUNT(*) FROM audit_logs WHERE created_at >= :dt"),
-            {"dt": dt.isoformat()},
+            text("SELECT COUNT(*) FROM audit_logs WHERE created_at >= :dt" + role_filter.replace("WHERE", "AND" if role_filter else "WHERE")),
+            {"dt": dt.isoformat(), **params},
         ).scalar() or 0
 
-    total_today = _count_since(today_start)
-    total_week = _count_since(week_start)
-    total_month = _count_since(month_start)
-    total_year = _count_since(year_start)
-    total_all = db.execute(text("SELECT COUNT(*) FROM audit_logs")).scalar() or 0
+    total_today = db.execute(
+        text(f"SELECT COUNT(*) FROM audit_logs WHERE created_at >= :today{(' AND changed_by = :u' if role_filter else '')}"),
+        {"today": today_start.isoformat(), **params},
+    ).scalar() or 0
 
-    # By module
+    total_week = db.execute(
+        text(f"SELECT COUNT(*) FROM audit_logs WHERE created_at >= :week{(' AND changed_by = :u' if role_filter else '')}"),
+        {"week": week_start.isoformat(), **params},
+    ).scalar() or 0
+
+    total_month = db.execute(
+        text(f"SELECT COUNT(*) FROM audit_logs WHERE created_at >= :month{(' AND changed_by = :u' if role_filter else '')}"),
+        {"month": month_start.isoformat(), **params},
+    ).scalar() or 0
+
+    total_year = db.execute(
+        text(f"SELECT COUNT(*) FROM audit_logs WHERE created_at >= :year{(' AND changed_by = :u' if role_filter else '')}"),
+        {"year": year_start.isoformat(), **params},
+    ).scalar() or 0
+
+    total_all = db.execute(
+        text(f"SELECT COUNT(*) FROM audit_logs{role_filter}"),
+        params,
+    ).scalar() or 0
+
     module_rows = db.execute(
-        text("SELECT module, COUNT(*) as cnt FROM audit_logs GROUP BY module ORDER BY cnt DESC")
+        text(f"SELECT module, COUNT(*) as cnt FROM audit_logs{role_filter} GROUP BY module ORDER BY cnt DESC"),
+        params,
     ).fetchall()
-    by_module = {r._mapping["module"]: r._mapping["cnt"] for r in module_rows}
+    by_module = {}
+    for r in module_rows:
+        key = (r._mapping["module"] or "").lower()
+        by_module[key] = by_module.get(key, 0) + r._mapping["cnt"]
 
-    # By action
     action_rows = db.execute(
-        text("SELECT action, COUNT(*) as cnt FROM audit_logs GROUP BY action ORDER BY cnt DESC")
+        text(f"SELECT action, COUNT(*) as cnt FROM audit_logs{role_filter} GROUP BY action ORDER BY cnt DESC"),
+        params,
     ).fetchall()
-    by_action = {r._mapping["action"]: r._mapping["cnt"] for r in action_rows}
+    by_action = {}
+    for r in action_rows:
+        key = (r._mapping["action"] or "").upper()
+        by_action[key] = by_action.get(key, 0) + r._mapping["cnt"]
 
-    # By user (top 20)
     user_rows = db.execute(
-        text("""
+        text(f"""
             SELECT changed_by, COUNT(*) as cnt
-            FROM audit_logs
+            FROM audit_logs{role_filter}
             GROUP BY changed_by
             ORDER BY cnt DESC
             LIMIT 20
-        """)
+        """),
+        params,
     ).fetchall()
     by_user = [
         {"user": r._mapping["changed_by"], "count": r._mapping["cnt"]}
@@ -230,16 +346,15 @@ def debug_audit_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Debug — return raw row count and sample from audit_logs."""
+    """Debug — return raw row count and sample from audit_logs (admin only)."""
+    if not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     total = db.execute(text("SELECT COUNT(*) FROM audit_logs")).scalar() or 0
     sample = db.execute(
-        text("SELECT id, module, action, record_id, record_label, changed_by, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 5")
+        text(f"SELECT {COLUMNS_SELECT} FROM audit_logs ORDER BY created_at DESC LIMIT 5")
     ).fetchall()
-    rows = [
-        {"id": str(r[0]), "module": r[1], "action": r[2], "record_id": r[3],
-         "record_label": r[4], "changed_by": r[5], "created_at": str(r[6]) if r[6] else None}
-        for r in sample
-    ]
+    rows = [_row_to_dict(r._mapping) for r in sample]
     exists = db.execute(
         text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs')")
     ).scalar() or False

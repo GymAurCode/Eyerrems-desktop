@@ -328,7 +328,7 @@ async def create_journal(
     payload: JournalCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
-    _role: User = Depends(require_roles("Admin", "Accountant")),
+    _role: User = Depends(require_any_permission("finance:create", "finance:approve", "finance:manage")),
 ):
     try:
         entries = [
@@ -443,7 +443,7 @@ async def update_journal(
     payload: JournalUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
-    _role: User = Depends(require_roles("Admin", "Accountant")),
+    _role: User = Depends(require_any_permission("finance:create", "finance:approve", "finance:manage")),
 ):
     journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
     if not journal:
@@ -606,7 +606,7 @@ async def delete_journal(
     journal_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
-    _role: User = Depends(require_roles("Admin", "Accountant")),
+    _role: User = Depends(require_any_permission("finance:create", "finance:approve", "finance:manage")),
 ):
     journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
     if not journal:
@@ -3017,6 +3017,7 @@ async def sync_booking_token(
         db.commit()
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "CRM", "booking", booking_id or 0, "booking_token", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3058,6 +3059,7 @@ async def sync_down_payment(
         _log_success(db, "CRM", "deal", deal_id or 0, "down_payment", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "CRM", "deal", deal_id or 0, "down_payment", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3099,6 +3101,7 @@ async def sync_installment(
         _log_success(db, "CRM", "installment", installment_id or 0, "installment", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "CRM", "installment", installment_id or 0, "installment", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3140,6 +3143,7 @@ async def sync_commission_earned(
         _log_success(db, "CRM", "deal", deal_id or 0, "commission_earned", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "CRM", "deal", deal_id or 0, "commission_earned", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3179,6 +3183,7 @@ async def sync_commission_paid(
         _log_success(db, "CRM", "commission", commission_id or 0, "commission_paid", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "CRM", "commission", commission_id or 0, "commission_paid", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3223,6 +3228,7 @@ async def sync_rent_invoice(
         _log_success(db, "PROPERTY", "invoice", invoice_id or 0, "rent_invoice", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "PROPERTY", "invoice", invoice_id or 0, "rent_invoice", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3264,6 +3270,7 @@ async def sync_rent_payment(
         _log_success(db, "PROPERTY", "payment", payment_id or 0, "rent_payment", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "PROPERTY", "payment", payment_id or 0, "rent_payment", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3304,6 +3311,7 @@ async def sync_security_deposit(
         _log_success(db, "PROPERTY", "lease", lease_id or 0, "security_deposit", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "PROPERTY", "lease", lease_id or 0, "security_deposit", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3344,6 +3352,7 @@ async def sync_security_deposit_refund(
         _log_success(db, "PROPERTY", "lease", lease_id or 0, "security_deposit_refund", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "PROPERTY", "lease", lease_id or 0, "security_deposit_refund", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3388,6 +3397,7 @@ async def sync_maintenance(
         _log_success(db, "PROPERTY", "maintenance", maintenance_id or 0, "maintenance", journal.id)
         return SyncPostResponse(success=True, journal_id=journal.id, message=narration)
     except Exception as e:
+        db.rollback()
         _log_failure(db, "PROPERTY", "maintenance", maintenance_id or 0, "maintenance", str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -3402,13 +3412,17 @@ def _log_success(db: Session, module: str, record_type: str, record_id: int, act
 
 
 def _log_failure(db: Session, module: str, record_type: str, record_id: int, action: str, error: str):
-    sync_log = SyncLog(
-        source_module=module, source_record_type=record_type,
-        source_record_id=record_id, action=action,
-        status="failed", error_message=error,
-    )
-    db.add(sync_log)
-    db.commit()
+    try:
+        with db.begin_nested():
+            sync_log = SyncLog(
+                source_module=module, source_record_type=record_type,
+                source_record_id=record_id, action=action,
+                status="failed", error_message=error,
+            )
+            db.add(sync_log)
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 @router.get("/sync/status/{module}/{record_type}/{record_id}", response_model=SyncStatusResponse)

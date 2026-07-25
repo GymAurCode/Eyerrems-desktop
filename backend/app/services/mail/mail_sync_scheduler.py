@@ -14,7 +14,7 @@ from app.services.reminder_scheduler import get_scheduler
 log = logging.getLogger("mail_sync_scheduler")
 
 
-async def _sync_all_accounts() -> None:
+def _sync_all_accounts() -> None:
     """Sync inbox for every active, verified email account."""
     db = SessionLocal()
     try:
@@ -33,8 +33,10 @@ async def _sync_all_accounts() -> None:
                     log.info("Mail sync: %d new message(s) for %s", new_count, account.email_address)
             except Exception as exc:
                 log.warning("Mail sync failed for %s: %s", account.email_address, exc)
+                db.rollback()
     except Exception as exc:
         log.exception("Mail sync scheduler error: %s", exc)
+        db.rollback()
     finally:
         db.close()
 

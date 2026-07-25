@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.activity_logger import log_activity
 from app.models.auth import User
 from app.schemas.spreadsheet import BulkUpdate, CellUpdate, RowInsert
 from app.services.spreadsheet_service import (
@@ -81,8 +82,10 @@ def api_update_cell(
         result = update_cell(
             db, config["table"], row_id, body.column, body.value, current_user.full_name or current_user.email,
         )
+        log_activity(db=db, user=current_user, action="update", module="spreadsheet", record_type="sheet", record_id=str(row_id), record_label=f"Sheet {sheet_name}", new_values={"column": body.column, "value": body.value})
         return {"success": True, "row_id": row_id, "updated_row": result, "error": None}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -99,8 +102,10 @@ def api_insert_row(
     exclude = config.get("exclude_columns", [])
     try:
         result = insert_row(db, config["table"], body.data, exclude, current_user.full_name or current_user.email)
+        log_activity(db=db, user=current_user, action="create", module="spreadsheet", record_type="sheet", record_id=str(result.get("id")), record_label=f"Sheet {sheet_name}", new_values=body.data)
         return {"success": True, "row_id": result.get("id"), "updated_row": result, "error": None}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -116,7 +121,9 @@ def api_delete_row(
         raise HTTPException(status_code=404, detail=f"Sheet '{sheet_name}' not found")
     try:
         delete_row(db, config["table"], row_id, current_user.full_name or current_user.email)
+        log_activity(db=db, user=current_user, action="delete", module="spreadsheet", record_type="sheet", record_id=str(row_id), record_label=f"Sheet {sheet_name}")
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -132,8 +139,10 @@ def api_duplicate_row(
         raise HTTPException(status_code=404, detail=f"Sheet '{sheet_name}' not found")
     try:
         result = duplicate_row(db, config["table"], row_id, current_user.full_name or current_user.email)
+        log_activity(db=db, user=current_user, action="duplicate", module="spreadsheet", record_type="sheet", record_id=str(result.get("id")), record_label=f"Sheet {sheet_name}", new_values=result)
         return {"success": True, "row_id": result.get("id"), "updated_row": result, "error": None}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -152,8 +161,10 @@ def api_bulk_update(
             db, config["table"], body.row_ids, body.column, body.value,
             current_user.full_name or current_user.email,
         )
+        log_activity(db=db, user=current_user, action="bulk_update", module="spreadsheet", record_type="sheet", record_id=sheet_name, record_label=f"Sheet {sheet_name}", new_values={"row_ids": body.row_ids, "column": body.column, "value": body.value})
         return {"success": True, "count": len(results), "results": results}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 

@@ -7,118 +7,68 @@ const { contextBridge, ipcRenderer } = require("electron");
  * Exposes safe APIs for PDF handling, file operations, and system integration.
  */
 
+function safeInvoke(...args) {
+  try { return ipcRenderer.invoke(...args); }
+  catch { return Promise.reject(new Error("IPC disconnected")); }
+}
+
+function safeSend(...args) {
+  try { ipcRenderer.send(...args); }
+  catch { /* port disconnected during HMR — safe to ignore */ }
+}
+
+function safeOn(channel, callback) {
+  try {
+    ipcRenderer.on(channel, (_, data) => callback(data));
+    return () => { try { ipcRenderer.removeAllListeners(channel); } catch {} };
+  } catch { return () => {}; }
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
   // Platform info
   platform: process.platform,
 
   // PDF Operations
   pdf: {
-    /**
-     * Save PDF blob to temp directory and open in system viewer
-     * @param {Blob} blob - PDF blob data
-     * @param {string} filename - Suggested filename
-     * @returns {Promise<{success: boolean, path?: string, error?: string}>}
-     */
-    saveAndOpen: (blob, filename) => ipcRenderer.invoke("pdf:save-and-open", blob, filename),
-
-    /**
-     * Open PDF in new Electron window with built-in viewer
-     * @param {string} filePath - Path to PDF file
-     * @returns {Promise<{success: boolean, error?: string}>}
-     */
-    openInWindow: (filePath) => ipcRenderer.invoke("pdf:open-window", filePath),
-
-    /**
-     * Save PDF to user-selected location
-     * @param {Blob} blob - PDF blob data
-     * @param {string} defaultName - Default filename
-     * @returns {Promise<{success: boolean, path?: string, error?: string}>}
-     */
-    saveAs: (blob, defaultName) => ipcRenderer.invoke("pdf:save-as", blob, defaultName),
-
-    /**
-     * Print PDF file
-     * @param {string} filePath - Path to PDF file
-     * @returns {Promise<{success: boolean, error?: string}>}
-     */
-    print: (filePath) => ipcRenderer.invoke("pdf:print", filePath),
+    saveAndOpen: (blob, filename) => safeInvoke("pdf:save-and-open", blob, filename),
+    openInWindow: (filePath) => safeInvoke("pdf:open-window", filePath),
+    saveAs: (blob, defaultName) => safeInvoke("pdf:save-as", blob, defaultName),
+    print: (filePath) => safeInvoke("pdf:print", filePath),
   },
 
   // File Operations
   file: {
-    /**
-     * Check if file exists
-     * @param {string} filePath - Path to check
-     * @returns {Promise<boolean>}
-     */
-    exists: (filePath) => ipcRenderer.invoke("file:exists", filePath),
-
-    /**
-     * Get file size
-     * @param {string} filePath - Path to file
-     * @returns {Promise<number>} Size in bytes
-     */
-    getSize: (filePath) => ipcRenderer.invoke("file:size", filePath),
-
-    /**
-     * Delete file
-     * @param {string} filePath - Path to file
-     * @returns {Promise<{success: boolean, error?: string}>}
-     */
-    delete: (filePath) => ipcRenderer.invoke("file:delete", filePath),
+    exists: (filePath) => safeInvoke("file:exists", filePath),
+    getSize: (filePath) => safeInvoke("file:size", filePath),
+    delete: (filePath) => safeInvoke("file:delete", filePath),
   },
 
   // System Operations
   system: {
-    /**
-     * Open file in system default application
-     * @param {string} filePath - Path to file
-     * @returns {Promise<{success: boolean, error?: string}>}
-     */
-    openExternal: (filePath) => ipcRenderer.invoke("system:open-external", filePath),
-
-    /**
-     * Show file in system file explorer
-     * @param {string} filePath - Path to file
-     * @returns {Promise<void>}
-     */
-    showInFolder: (filePath) => ipcRenderer.invoke("system:show-in-folder", filePath),
+    openExternal: (filePath) => safeInvoke("system:open-external", filePath),
+    showInFolder: (filePath) => safeInvoke("system:show-in-folder", filePath),
   },
 
   // Temp Directory Management
   temp: {
-    /**
-     * Get temp directory path
-     * @returns {Promise<string>}
-     */
-    getPath: () => ipcRenderer.invoke("temp:get-path"),
-
-    /**
-     * Clean old temp files (older than 24 hours)
-     * @returns {Promise<{deleted: number}>}
-     */
-    cleanup: () => ipcRenderer.invoke("temp:cleanup"),
+    getPath: () => safeInvoke("temp:get-path"),
+    cleanup: () => safeInvoke("temp:cleanup"),
   },
 
   // Logger
-  log: (level, message, details) => ipcRenderer.send("log:renderer", level, message, details),
+  log: (level, message, details) => safeSend("log:renderer", level, message, details),
 
   // Auto-updater
-  checkForUpdates: () => ipcRenderer.send("check-for-updates"),
-  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
-  startUpdateDownload: () => ipcRenderer.send("start-update-download"),
-  restartApp: () => ipcRenderer.send("restart-app"),
+  checkForUpdates: () => safeSend("check-for-updates"),
+  getAppVersion: () => safeInvoke("get-app-version"),
+  startUpdateDownload: () => safeSend("start-update-download"),
+  restartApp: () => safeSend("restart-app"),
 
   // Update event listeners
-  onUpdateAvailable: (callback) =>
-    ipcRenderer.on("update-available", (_, data) => callback(data)),
-  onUpdateDownloadStarted: (callback) =>
-    ipcRenderer.on("update-download-started", () => callback()),
-  onUpdateProgress: (callback) =>
-    ipcRenderer.on("update-download-progress", (_, data) => callback(data)),
-  onUpdateDownloaded: (callback) =>
-    ipcRenderer.on("update-downloaded", (_, data) => callback(data)),
-  onUpdateError: (callback) =>
-    ipcRenderer.on("update-error", (_, data) => callback(data)),
+  onUpdateAvailable: (callback) => safeOn("update-available", callback),
+  onUpdateDownloadStarted: (callback) => safeOn("update-download-started", () => callback()),
+  onUpdateProgress: (callback) => safeOn("update-download-progress", callback),
+  onUpdateDownloaded: (callback) => safeOn("update-downloaded", callback),
+  onUpdateError: (callback) => safeOn("update-error", callback),
 });
 

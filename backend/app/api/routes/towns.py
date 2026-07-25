@@ -997,59 +997,60 @@ def create_transaction(
     # ── Auto-create double-entry journal ──────────────────────────────────────
     journal = None
     try:
-        txn_type = payload.transaction_type
-        # Determine debit/credit accounts
-        # For most types: DR Cash/Bank (1010 or 1100), CR Income account
-        # For refund: DR Liability, CR Cash/Bank
-        cash_account  = _get_account_by_code(db, "1010")  # Cash on Hand
-        bank_account  = _get_account_by_code(db, "1100")  # Main Bank Account
+        with db.begin_nested():
+            txn_type = payload.transaction_type
+            # Determine debit/credit accounts
+            # For most types: DR Cash/Bank (1010 or 1100), CR Income account
+            # For refund: DR Liability, CR Cash/Bank
+            cash_account  = _get_account_by_code(db, "1010")  # Cash on Hand
+            bank_account  = _get_account_by_code(db, "1100")  # Main Bank Account
 
-        # Choose debit account based on payment method
-        method = (payload.payment_method or "cash").lower()
-        debit_account = bank_account if method in ("bank", "cheque", "online") else cash_account
+            # Choose debit account based on payment method
+            method = (payload.payment_method or "cash").lower()
+            debit_account = bank_account if method in ("bank", "cheque", "online") else cash_account
 
-        # Choose credit account based on transaction type
-        credit_code_map = {
-            "booking":     "4510",
-            "installment": "4520",
-            "sale":        "4500",
-            "rent":        "4530",
-            "refund":      "1100",   # refund goes out of bank
-            "transfer":    "1100",
-            "adjustment":  "1100",
-        }
-        credit_code = credit_code_map.get(txn_type, "4300")  # fallback: Other Income
-        credit_account = _get_account_by_code(db, credit_code)
+            # Choose credit account based on transaction type
+            credit_code_map = {
+                "booking":     "4510",
+                "installment": "4520",
+                "sale":        "4500",
+                "rent":        "4530",
+                "refund":      "1100",   # refund goes out of bank
+                "transfer":    "1100",
+                "adjustment":  "1100",
+            }
+            credit_code = credit_code_map.get(txn_type, "4300")  # fallback: Other Income
+            credit_account = _get_account_by_code(db, credit_code)
 
-        if debit_account and credit_account and txn_type != "refund":
-            entries = [
-                JournalEntryData(account_id=debit_account.id,  debit=payload.amount),
-                JournalEntryData(account_id=credit_account.id, credit=payload.amount),
-            ]
-        elif debit_account and credit_account and txn_type == "refund":
-            # Refund: DR Advance Deposit, CR Bank
-            advance_acc = _get_account_by_code(db, "2500")
-            if advance_acc:
+            if debit_account and credit_account and txn_type != "refund":
                 entries = [
-                    JournalEntryData(account_id=advance_acc.id,   debit=payload.amount),
-                    JournalEntryData(account_id=debit_account.id, credit=payload.amount),
+                    JournalEntryData(account_id=debit_account.id,  debit=payload.amount),
+                    JournalEntryData(account_id=credit_account.id, credit=payload.amount),
                 ]
+            elif debit_account and credit_account and txn_type == "refund":
+                # Refund: DR Advance Deposit, CR Bank
+                advance_acc = _get_account_by_code(db, "2500")
+                if advance_acc:
+                    entries = [
+                        JournalEntryData(account_id=advance_acc.id,   debit=payload.amount),
+                        JournalEntryData(account_id=debit_account.id, credit=payload.amount),
+                    ]
+                else:
+                    entries = None
             else:
                 entries = None
-        else:
-            entries = None
 
-        if entries:
-            unit_ref = f"TUN-{unit.tid}" if unit else "TOWN"
-            journal = JournalService.create_journal_entry(
-                db=db,
-                entries=entries,
-                reference_type=f"town_{txn_type}",
-                reference_id=unit_ref,
-                description=payload.description or f"Town {txn_type} — {unit_ref}",
-                date=payload.transaction_date,
-                user=current_user,
-            )
+            if entries:
+                unit_ref = f"TUN-{unit.tid}" if unit else "TOWN"
+                journal = JournalService.create_journal_entry(
+                    db=db,
+                    entries=entries,
+                    reference_type=f"town_{txn_type}",
+                    reference_id=unit_ref,
+                    description=payload.description or f"Town {txn_type} — {unit_ref}",
+                    date=payload.transaction_date,
+                    user=current_user,
+                )
     except Exception as e:
         # Journal creation failure should not block the transaction record
         import logging

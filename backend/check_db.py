@@ -1,0 +1,10 @@
+import sqlite3
+
+conn = sqlite3.connect('databases/company_default.db')
+cursor = conn.cursor()
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+tables = cursor.fetchall()
+print('Tables in company_default.db:')
+for t in tables:
+    print(f'  {t[0]}')
+conn.close()

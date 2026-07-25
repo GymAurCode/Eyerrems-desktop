@@ -18,7 +18,9 @@
     "axios": "^1.9.0",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.3",
+    "html2canvas": "^1.4.1",
     "hyperformula": "^3.3.0",
+    "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.8.0",
@@ -31,6 +33,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@types/jsbarcode": "^3.11.4",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@vitejs/plugin-react": "^4.4.1",

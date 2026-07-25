@@ -363,6 +363,17 @@ def get_dashboard(db: Session, user_id: int) -> dict:
         .all()
     )
 
+    future = (
+        db.query(Reminder)
+        .filter(
+            Reminder.user_id == user_id,
+            Reminder.remind_at >= upcoming_end,
+            ~Reminder.status.in_(["completed", "cancelled"]),
+        )
+        .order_by(Reminder.remind_at)
+        .all()
+    )
+
     overdue = (
         db.query(Reminder)
         .filter(
@@ -371,6 +382,17 @@ def get_dashboard(db: Session, user_id: int) -> dict:
             ~Reminder.status.in_(["completed", "cancelled"]),
         )
         .order_by(Reminder.remind_at)
+        .all()
+    )
+
+    completed = (
+        db.query(Reminder)
+        .filter(
+            Reminder.user_id == user_id,
+            Reminder.status == "completed",
+        )
+        .order_by(Reminder.completed_at.desc().nullslast())
+        .limit(20)
         .all()
     )
 
@@ -392,7 +414,9 @@ def get_dashboard(db: Session, user_id: int) -> dict:
 
     return {
         "upcoming_24h": upcoming_24h,
+        "future": future,
         "overdue": overdue,
+        "completed": completed,
         "today_total": today_total,
         "today_completed": today_completed,
         "today_pending": today_pending,

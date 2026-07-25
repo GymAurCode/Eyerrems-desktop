@@ -22,9 +22,3 @@ class AuditLogDetailResponse(AuditLogResponse):
     details: Optional[str]
     ip_address: Optional[str]
     user_agent: Optional[str]
-
-
-class RolePermissionResponse(BaseModel):
-    role_id: int
-    role_name: str
-    permissions: list[str]

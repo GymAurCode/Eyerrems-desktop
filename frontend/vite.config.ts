@@ -68,6 +68,7 @@ export default defineConfig(({ mode }) => {
         "/construction": proxyConfig(proxyTarget),
         "/hr": proxyConfig(proxyTarget),
         "/reminders": { ...proxyConfig(proxyTarget), ws: true },
+        "/report-branding": proxyConfig(proxyTarget),
         "/reports": proxyConfig(proxyTarget),
         "/towns": proxyConfig(proxyTarget),
         "/town-units": proxyConfig(proxyTarget),

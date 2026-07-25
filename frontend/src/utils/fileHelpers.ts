@@ -21,3 +21,16 @@ export const isPDF = (fileType: string): boolean =>
 
 export const isInlineViewable = (fileType: string): boolean =>
   isImage(fileType) || isPDF(fileType);
+
+export function downloadBlob(blob: Blob, filename: string, mimeType?: string): void {
+  const url = URL.createObjectURL(
+    mimeType ? new Blob([blob], { type: mimeType }) : blob
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

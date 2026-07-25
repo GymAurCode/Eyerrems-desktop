@@ -5,7 +5,6 @@ import {
   TrendingUp, RefreshCw, Calendar, Search, Filter,
   ArrowRight, User, Building2, Timer, Eye, Printer, FileText,
 } from "lucide-react";
-import ReportModal from "../../../components/reports/ReportModal";
 import { api } from "../../../lib/api";
 import { bookingApi, BookingListItem, BookingStats } from "../../../lib/bookingApi";
 import { formatCurrency } from "../../../lib/currency";
@@ -150,14 +149,6 @@ export default function BookingList() {
   const [error, setError]             = useState<string | null>(null);
   const [statusFilter, setStatus]     = useState("all");
   const [showCreate, setShowCreate]   = useState(false);
-
-  // Report modal state
-  const [reportModal, setReportModal] = useState<{
-    open: boolean;
-    reportType: string;
-    filters: Record<string, unknown>;
-    title?: string;
-  }>({ open: false, reportType: "", filters: {} });
 
   // AppTable State
   const [params, setParams] = useState({
@@ -311,28 +302,6 @@ export default function BookingList() {
         { label: "Expiry", value: new Date(row.expiry_date).toLocaleDateString() },
       ]),
     },
-    {
-      key: "booking_form",
-      label: "Print Booking Form",
-      icon: FileText,
-      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "booking_form", filters: { booking_id: row.id }, title: "Print Booking Form" }),
-      variant: "secondary",
-    },
-    {
-      key: "token_receipt",
-      label: "Token Receipt",
-      icon: FileText,
-      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "token_receipt", filters: { booking_id: row.id }, title: "Token Receipt" }),
-      variant: "secondary",
-    },
-    {
-      key: "installment_schedule",
-      label: "Instalment Schedule",
-      icon: FileText,
-      onClick: (row: BookingListItem) => setReportModal({ open: true, reportType: "installment_schedule", filters: { booking_id: row.id }, title: "Instalment Schedule" }),
-      variant: "secondary",
-      hidden: (row: BookingListItem) => !row.has_plan,
-    },
   ];
 
   const toolbarActions = (
@@ -452,14 +421,6 @@ export default function BookingList() {
         onSaved={() => { setShowCreate(false); refresh(); }}
       />
 
-      {/* Report Modal */}
-      <ReportModal
-        open={reportModal.open}
-        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
-        reportType={reportModal.reportType}
-        filters={reportModal.filters}
-        title={reportModal.title}
-      />
     </div>
   );
 }

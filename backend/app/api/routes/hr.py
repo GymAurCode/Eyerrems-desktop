@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, require_any_permission
 from app.core.activity_logger import log_activity
 from app.core.audit import log_action
 from app.core.database import get_db
@@ -43,7 +43,7 @@ router = APIRouter()
 def list_departments(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Department)
     if active_only:
@@ -55,7 +55,7 @@ def list_departments(
 def create_department(
     payload: DepartmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(Department).filter(Department.code == payload.code).first():
         raise HTTPException(400, "Department code already exists")
@@ -85,7 +85,7 @@ def update_department(
     dept_id: int,
     payload: DepartmentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
@@ -117,7 +117,7 @@ def update_department(
 def delete_department(
     dept_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
@@ -149,7 +149,7 @@ def delete_department(
 def list_positions(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Position)
     if active_only:
@@ -161,7 +161,7 @@ def list_positions(
 def create_position(
     payload: PositionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(Position).filter(Position.code == payload.code).first():
         raise HTTPException(400, "Position code already exists")
@@ -191,7 +191,7 @@ def update_position(
     pos_id: int,
     payload: PositionUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
@@ -225,7 +225,7 @@ def update_position(
 def list_branches(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Branch)
     if active_only:
@@ -237,7 +237,7 @@ def list_branches(
 def create_branch(
     payload: BranchCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(Branch).filter(Branch.code == payload.code).first():
         raise HTTPException(400, "Branch code already exists")
@@ -266,7 +266,7 @@ def update_branch(
     branch_id: int,
     payload: BranchUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     branch = db.query(Branch).filter(Branch.id == branch_id).first()
     if not branch:
@@ -299,7 +299,7 @@ def update_branch(
     branch_id: int,
     payload: BranchUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    _: User = Depends(require_any_permission("hr:manage")),
 ):
     branch = db.query(Branch).filter(Branch.id == branch_id).first()
     if not branch:
@@ -318,7 +318,7 @@ def update_branch(
 def list_shift_templates(
     active_only: bool = True,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(ShiftTemplate)
     if active_only:
@@ -330,7 +330,7 @@ def list_shift_templates(
 def create_shift_template(
     payload: ShiftTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(ShiftTemplate).filter(ShiftTemplate.shift_name == payload.shift_name).first():
         raise HTTPException(400, "Shift template name already exists")
@@ -360,7 +360,7 @@ def update_shift_template(
     shift_id: int,
     payload: ShiftTemplateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     st = db.query(ShiftTemplate).filter(ShiftTemplate.id == shift_id).first()
     if not st:
@@ -392,7 +392,7 @@ def update_shift_template(
 def delete_shift_template(
     shift_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     st = db.query(ShiftTemplate).filter(ShiftTemplate.id == shift_id).first()
     if not st:
@@ -431,7 +431,7 @@ def list_employees(
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     query = db.query(Employee).filter(Employee.is_active.is_(True)).order_by(Employee.full_name)
     if department_id:
@@ -461,7 +461,7 @@ def list_employees(
 def create_employee(
     payload: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     now = datetime.utcnow()
     parts = [payload.first_name]
@@ -497,11 +497,53 @@ def create_employee(
     return emp
 
 
+# ── Employee Search (MUST be before /employees/{emp_id} dynamic route) ─────────
+
+@router.get("/employees/search")
+def employee_search(
+    q: str = "",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_any_permission("hr:view")),
+):
+    """Lightweight employee search by name, code, phone, or email for dropdowns."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    employees = (
+        db.query(Employee)
+        .options(joinedload(Employee.department))
+        .filter(
+            Employee.first_name.ilike(like) |
+            Employee.last_name.ilike(like) |
+            Employee.employee_code.ilike(like) |
+            Employee.phone.ilike(like) |
+            Employee.email.ilike(like)
+        )
+        .order_by(Employee.first_name.asc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": e.id,
+            "employee_code": e.employee_code or str(e.id),
+            "name": f"{e.first_name} {e.last_name}",
+            "full_name": f"{e.first_name} {e.last_name}",
+            "phone": e.phone,
+            "email": e.email,
+            "department": e.department.name if e.department else None,
+            "status": e.status,
+        }
+        for e in employees
+    ]
+
+
 @router.get("/employees/{emp_id}", response_model=EmployeeDetail)
 def get_employee(
     emp_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     emp = (
         db.query(Employee)
@@ -525,7 +567,7 @@ def update_employee(
     emp_id: int,
     payload: EmployeeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     emp = db.query(Employee).filter(Employee.id == emp_id).first()
     if not emp:
@@ -565,7 +607,7 @@ def update_employee(
 def deactivate_employee(
     emp_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     emp = db.query(Employee).filter(Employee.id == emp_id).first()
     if not emp:
@@ -596,7 +638,7 @@ def deactivate_employee(
 def get_salary_structure(
     emp_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     salary = db.query(SalaryStructure).filter(
         SalaryStructure.employee_id == emp_id,
@@ -611,7 +653,7 @@ def create_salary_structure(
     emp_id: int,
     payload: SalaryStructureCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if not db.query(Employee).filter(Employee.id == emp_id).first():
         raise HTTPException(404, "Employee not found")
@@ -689,7 +731,7 @@ def update_salary_structure(
     emp_id: int,
     payload: SalaryStructureUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     salary = db.query(SalaryStructure).filter(
         SalaryStructure.employee_id == emp_id,
@@ -737,7 +779,7 @@ def list_attendance(
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Attendance)
     if employee_id:
@@ -753,7 +795,7 @@ def list_attendance(
 def mark_attendance(
     payload: AttendanceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_any_permission("hr:view")),
 ):
     if not db.query(Employee).filter(Employee.id == payload.employee_id, Employee.is_active.is_(True)).first():
         raise HTTPException(404, "Employee not found")
@@ -790,7 +832,7 @@ def update_attendance(
     att_id: int,
     payload: AttendanceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     record = db.query(Attendance).filter(Attendance.id == att_id).first()
     if not record:
@@ -824,7 +866,7 @@ def update_attendance(
 def approve_attendance_correction(
     att_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     result = AttendanceService.approve_correction(db, att_id, current_user.id)
     log_action(
@@ -846,7 +888,7 @@ def daily_attendance_report(
     report_date: date = Query(default=None),
     department_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     if not report_date:
         report_date = date.today()
@@ -859,7 +901,7 @@ def monthly_attendance_report(
     year: int,
     month: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     return AttendanceService.get_monthly_summary(db, employee_id, year, month)
 
@@ -869,7 +911,7 @@ def monthly_attendance_report(
 @router.get("/leave-types", response_model=List[LeaveTypeResponse])
 def list_leave_types(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     return db.query(LeaveType).filter(LeaveType.is_active.is_(True)).order_by(LeaveType.name).all()
 
@@ -878,7 +920,7 @@ def list_leave_types(
 def create_leave_type(
     payload: LeaveTypeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(LeaveType).filter(LeaveType.code == payload.code).first():
         raise HTTPException(400, "Leave type code already exists")
@@ -912,7 +954,7 @@ def list_leaves(
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Leave).filter(Leave.is_active.is_(True))
     if employee_id:
@@ -930,7 +972,7 @@ def list_leaves(
 def request_leave(
     payload: LeaveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_any_permission("hr:view")),
 ):
     try:
         leave = LeaveService.request_leave(
@@ -966,7 +1008,7 @@ def request_leave(
 def get_leave(
     leave_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     leave = (
         db.query(Leave)
@@ -983,7 +1025,7 @@ def get_leave(
 def approve_leave(
     leave_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     try:
         result = LeaveService.approve_leave(db, leave_id, current_user.id)
@@ -1008,7 +1050,7 @@ def reject_leave(
     leave_id: int,
     rejection_reason: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     try:
         result = LeaveService.reject_leave(db, leave_id, current_user.id, rejection_reason)
@@ -1032,7 +1074,7 @@ def reject_leave(
 def cancel_leave(
     leave_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    current_user: User = Depends(require_any_permission("hr:view")),
 ):
     try:
         result = LeaveService.cancel_leave(db, leave_id, current_user.id)
@@ -1057,7 +1099,7 @@ def get_leave_balance(
     employee_id: int,
     year: int = Query(default=None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     if not year:
         year = date.today().year
@@ -1072,7 +1114,7 @@ def list_payroll(
     employee_id: Optional[int] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     q = db.query(Payroll)
     if payroll_period:
@@ -1089,7 +1131,7 @@ def calculate_payroll(
     employee_id: int,
     payroll_period: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin", "Manager")),
+    current_user: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     # Check for duplicate
     existing = db.query(Payroll).filter(
@@ -1124,7 +1166,7 @@ def calculate_all_payroll(
     payroll_period: str,
     department_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     """Bulk calculate payroll for all active employees in a period."""
     q = db.query(Employee).filter(
@@ -1171,7 +1213,7 @@ def calculate_all_payroll(
 def get_payroll(
     payroll_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     p = db.query(Payroll).filter(Payroll.id == payroll_id).first()
     if not p:
@@ -1183,7 +1225,7 @@ def get_payroll(
 def approve_payroll(
     payroll_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     try:
         result = PayrollService.approve_payroll(db, payroll_id, current_user)
@@ -1207,7 +1249,7 @@ def approve_payroll(
 def post_payroll_to_accounting(
     payroll_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin")),
+    user: User = Depends(require_any_permission("hr:manage")),
 ):
     try:
         PayrollService.post_payroll_to_accounting(db, payroll_id, user)
@@ -1221,7 +1263,7 @@ def mark_payroll_paid(
     payroll_id: int,
     payload: PayrollUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if not payload.payment_date or not payload.payment_method:
         raise HTTPException(400, "payment_date and payment_method are required")
@@ -1254,7 +1296,7 @@ def mark_payroll_paid(
 def get_payslip_data(
     payroll_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     payroll = db.query(Payroll).options(joinedload(Payroll.employee)).filter(Payroll.id == payroll_id).first()
     if not payroll:
@@ -1268,7 +1310,7 @@ def payroll_summary_report(
     department_id: Optional[int] = None,
     branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     return PayrollService.generate_payroll_summary(db, payroll_period, department_id, branch_id)
 
@@ -1279,7 +1321,7 @@ def payroll_summary_report(
 def list_holidays(
     year: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager", "Staff")),
+    _: User = Depends(require_any_permission("hr:view")),
 ):
     q = db.query(Holiday).filter(Holiday.is_active.is_(True))
     if year:
@@ -1292,7 +1334,7 @@ def list_holidays(
 def create_holiday(
     payload: HolidayCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     if db.query(Holiday).filter(Holiday.holiday_date == payload.holiday_date).first():
         raise HTTPException(400, "Holiday already exists for this date")
@@ -1321,7 +1363,7 @@ def create_holiday(
 def delete_holiday(
     holiday_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     h = db.query(Holiday).filter(Holiday.id == holiday_id).first()
     if not h:
@@ -1350,7 +1392,7 @@ def delete_holiday(
 @router.get("/allowance-types", response_model=List[AllowanceTypeResponse])
 def list_allowance_types(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     return db.query(AllowanceType).filter(AllowanceType.is_active.is_(True)).all()
 
@@ -1359,7 +1401,7 @@ def list_allowance_types(
 def create_allowance_type(
     payload: AllowanceTypeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     now = datetime.utcnow()
     at = AllowanceType(**payload.model_dump(), created_at=now, updated_at=now)
@@ -1385,7 +1427,7 @@ def create_allowance_type(
 @router.get("/deduction-types", response_model=list[DeductionTypeResponse])
 def list_deduction_types(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin", "Manager")),
+    _: User = Depends(require_any_permission("hr:create", "hr:update", "hr:manage")),
 ):
     return db.query(DeductionType).filter(DeductionType.is_active.is_(True)).all()
 
@@ -1394,7 +1436,7 @@ def list_deduction_types(
 def create_deduction_type(
     payload: DeductionTypeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("Admin")),
+    current_user: User = Depends(require_any_permission("hr:manage")),
 ):
     now = datetime.utcnow()
     dt = DeductionType(**payload.model_dump(), created_at=now, updated_at=now)
@@ -1420,9 +1462,12 @@ def create_deduction_type(
 @router.get("/stats")
 def hr_stats(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("Admin")),
+    _: User = Depends(require_any_permission("hr:manage")),
 ):
     total_employees = db.query(Employee).filter(
         Employee.is_active.is_(True)
     ).count()
     return {"total": total_employees}
+
+
+

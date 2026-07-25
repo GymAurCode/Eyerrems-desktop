@@ -1,4 +1,4 @@
-from app.schemas.admin import AuditLogResponse, RolePermissionResponse
+from app.schemas.admin import AuditLogResponse
 from app.schemas.auth import LoginRequest, RegisterRequest, AuthToken, UserResponse
 from app.schemas.construction import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectSummary,

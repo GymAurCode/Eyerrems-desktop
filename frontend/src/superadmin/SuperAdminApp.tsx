@@ -92,7 +92,7 @@ function Sidebar() {
       {/* Logout */}
       <div className="px-2 pb-3">
         <button
-          onClick={() => { logout(); navigate("/superadmin/login", { replace: true }); }}
+          onClick={() => { navigate("/login", { replace: true }); requestAnimationFrame(() => logout()); }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full transition-all"
           style={{ color: "#ef4444" }}
         >

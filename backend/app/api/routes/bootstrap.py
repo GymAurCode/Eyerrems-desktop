@@ -1,11 +1,3 @@
-"""
-GET /bootstrap — Single endpoint that returns everything the frontend needs on
-initial load.  Replaces the waterfall of:
-  /auth/me  +  /dashboard/stats  +  /activity/recent
-  +  /reminders/notifications/unread-count
-
-Cached per-user for 30 seconds on the backend to absorb rapid re-mounts.
-"""
 import logging
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -17,7 +9,6 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.api.routes.auth import _user_detail_response
 from app.core.database import get_db
 from app.core.journal_service import JournalService
 from app.models.auth import User
@@ -29,7 +20,6 @@ from app.models.reminders import NotificationLog, Reminder
 router = APIRouter()
 log = logging.getLogger("rems.bootstrap")
 
-# ── Simple TTL cache (avoids adding redis/cachetools dependency) ──────────────
 _cache: dict[int, tuple[datetime, Any]] = {}
 _cache_lock = Lock()
 _TTL_SECONDS = 30
@@ -46,7 +36,6 @@ def _get_cached(user_id: int) -> Any | None:
 def _set_cached(user_id: int, data: Any) -> None:
     with _cache_lock:
         _cache[user_id] = (datetime.utcnow(), data)
-        # Evict entries older than 5 minutes to prevent unbounded growth
         cutoff = datetime.utcnow() - timedelta(minutes=5)
         stale = [k for k, v in _cache.items() if v[0] < cutoff]
         for k in stale:
@@ -54,18 +43,17 @@ def _set_cached(user_id: int, data: Any) -> None:
 
 
 def _build_bootstrap(user: User, db: Session) -> dict:
-    # ── User ──────────────────────────────────────────────────────────────────
-    try:
-        user_data = _user_detail_response(user, db)
-    except Exception:
-        user_data = {"id": user.id, "email": user.email, "full_name": user.full_name}
+    user_data = {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "company_id": user.company_id,
+        "is_super_admin": user.is_super_admin,
+    }
 
-    # ── Company permissions (from master.companies) ────────────────────────────
     company_permissions = {}
     if user.company_id:
         try:
-            # user.company_id is the tenant DB's integer company id.
-            # Look up the master UUID from the tenant's companies table.
             master_id_row = db.execute(
                 text("SELECT master_id FROM companies WHERE id = :id"),
                 {"id": user.company_id},
@@ -90,7 +78,6 @@ def _build_bootstrap(user: User, db: Session) -> dict:
             except Exception:
                 company_permissions = {}
 
-    # ── Dashboard stats ───────────────────────────────────────────────────────
     try:
         total_properties = db.query(func.count(Property.id)).scalar() or 0
     except Exception:
@@ -142,7 +129,6 @@ def _build_bootstrap(user: User, db: Session) -> dict:
         "expense":          expense,
     }
 
-    # ── Recent activity (limit 10) ────────────────────────────────────────────
     limit = 10
     events: list[dict] = []
 
@@ -200,7 +186,6 @@ def _build_bootstrap(user: User, db: Session) -> dict:
     events.sort(key=lambda e: e["timestamp"], reverse=True)
     activity = events[:limit]
 
-    # ── Recent notification logs count ─────────────────────────────────────────
     try:
         unread_count = (
             db.query(func.count(NotificationLog.id))
@@ -227,11 +212,6 @@ def bootstrap(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Single endpoint for initial page load.
-    Returns user, dashboard stats, recent activity, and unread notification count.
-    Cached per-user for 30 seconds.
-    """
     cached = _get_cached(current_user.id)
     if cached is not None:
         return {**cached, "from_cache": True}
@@ -245,7 +225,6 @@ def bootstrap(
 def invalidate_bootstrap_cache(
     current_user: User = Depends(get_current_user),
 ):
-    """Call this after mutations that affect dashboard stats."""
     with _cache_lock:
         _cache.pop(current_user.id, None)
     return {"ok": True}

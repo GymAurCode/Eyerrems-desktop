@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react";
-import { Calendar, Clock, AlertTriangle, Bell } from "lucide-react";
+import { Calendar, Clock, AlertTriangle, Bell, ChevronDown, CheckCircle2 } from "lucide-react";
 import type { DashboardData } from "../../lib/remindersApi";
 import { remindersApi } from "../../lib/remindersApi";
 import ReminderCard from "./ReminderCard";
 import type { Reminder } from "../../lib/remindersApi";
 import ConfirmDialog from "../../components/actions/ConfirmDialog";
 import { useNotifStore } from "../../store/notifications";
+import { playTaskSound } from "../../hooks/useReminderWebSocket";
 
 interface Props {
+  refreshKey?: number;
   onEdit: (reminder: Reminder) => void;
 }
 
-export default function ReminderDashboard({ onEdit }: Props) {
+export default function ReminderDashboard({ refreshKey, onEdit }: Props) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const pushToast = useNotifStore((s) => s.pushToast);
   const [deleteTarget, setDeleteTarget] = useState<{ item: any; type?: string } | null>(null);
+  const [completedOpen, setCompletedOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -29,7 +32,7 @@ export default function ReminderDashboard({ onEdit }: Props) {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [refreshKey]);
 
   if (loading) return <div className="py-12 text-center text-xs text-muted">Loading dashboard...</div>;
   if (!data) return <div className="py-12 text-center text-xs text-muted">Could not load dashboard.</div>;
@@ -43,6 +46,7 @@ export default function ReminderDashboard({ onEdit }: Props) {
 
   const handleComplete = async (id: number) => {
     await remindersApi.completeReminder(id);
+    playTaskSound();
     load();
   };
 
@@ -99,7 +103,43 @@ export default function ReminderDashboard({ onEdit }: Props) {
         </div>
       )}
 
-      {data.overdue.length === 0 && data.upcoming_24h.length === 0 && (
+      {data.future.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-400">Upcoming</p>
+          <div className="space-y-2">
+            {data.future.map((r) => (
+              <ReminderCard key={r.id} reminder={r} onComplete={handleComplete} onSnooze={handleSnooze} onEdit={onEdit} onDelete={handleDelete} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.completed.length > 0 && (
+        <div>
+          <button
+            onClick={() => setCompletedOpen((v) => !v)}
+            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider mb-2 text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            <CheckCircle2 size={14} />
+            Completed ({data.completed.length})
+            <ChevronDown
+              size={14}
+              className={`transition-transform duration-200 ${completedOpen ? "rotate-0" : "-rotate-90"}`}
+            />
+          </button>
+          <div
+            className={`space-y-2 overflow-hidden transition-all duration-300 ${
+              completedOpen ? "opacity-100 max-h-[2000px]" : "opacity-0 max-h-0"
+            }`}
+          >
+            {data.completed.map((r) => (
+              <ReminderCard key={r.id} reminder={r} onEdit={onEdit} onDelete={handleDelete} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.overdue.length === 0 && data.upcoming_24h.length === 0 && data.future.length === 0 && (
         <div className="py-12 text-center text-xs text-muted border border-dashed border-theme rounded-xl">
           No reminders scheduled. Create one to get started.
         </div>

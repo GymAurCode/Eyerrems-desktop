@@ -70,6 +70,7 @@ export default function DealerDetailPage() {
     setLoading(true);
     crmApi.getDealerDetail(id)
       .then(setData)
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [id]);
 

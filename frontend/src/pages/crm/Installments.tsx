@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
-import { CheckCircle2, Clock, AlertCircle, Calendar, Printer, FileText } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react";
 import DataTable from '../../components/data-table/DataTable';
-import ReportModal from "../../components/reports/ReportModal";
 import { crmApi, Installment } from "../../lib/crmApi";
 
 type DisplayStatus = "paid" | "due_today" | "overdue" | "upcoming";
@@ -40,14 +39,6 @@ export default function Installments() {
   const [items, setItems] = useState<Installment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | DisplayStatus>("all");
-
-  // Report modal state
-  const [reportModal, setReportModal] = useState<{
-    open: boolean;
-    reportType: string;
-    filters: Record<string, unknown>;
-    title?: string;
-  }>({ open: false, reportType: "", filters: {} });
 
   const fetch = async () => {
     setLoading(true);
@@ -178,49 +169,13 @@ export default function Installments() {
             label: 'Actions',
             width: 100,
             align: 'right',
-            render: (_value: string, row: Installment) => {
-              const ds = computeDisplayStatus(row);
-              return (
-                <div className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    title="Print Instalment Schedule"
-                    onClick={(e) => { e.stopPropagation(); setReportModal({ open: true, reportType: "installment_schedule", filters: { deal_ref: row.deal_ref, client_name: row.client_name }, title: "Instalment Schedule" }); }}
-                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-all"
-                    style={{ color: "#34d399" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(16,185,129,0.15)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                  >
-                    <Printer size={14} />
-                  </button>
-                  {ds === "paid" && (
-                    <button
-                      type="button"
-                      title="Print Payment Receipt"
-                      onClick={(e) => { e.stopPropagation(); setReportModal({ open: true, reportType: "payment_receipt", filters: { instalment_id: row.id }, title: "Payment Receipt" }); }}
-                      className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-all"
-                      style={{ color: "#60a5fa" }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.15)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                    >
-                      <FileText size={14} />
-                    </button>
-                  )}
-                </div>
-              );
+            render: () => {
+              return <div className="inline-flex items-center gap-1" />;
             },
           },
         ]}
       />
 
-      {/* Report Modal */}
-      <ReportModal
-        open={reportModal.open}
-        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
-        reportType={reportModal.reportType}
-        filters={reportModal.filters}
-        title={reportModal.title}
-      />
     </div>
   );
 }

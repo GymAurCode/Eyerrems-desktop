@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 9.5pt; }
+  body {
+    font-family: system-ui, -apple-system, &#39;Segoe UI&#39;, Roboto, Helvetica, Arial, sans-serif;
+    color: #000;
+    background: #fff;
+    line-height: 1.45;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Print ─────────────────────────────────────────────────────────────── */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 13mm 16mm 13mm;
+    @bottom-left {
+      content: "Company | Booking Statement | BKG-0042";
+      font-size: 7.5pt;
+      color: #555;
+      font-family: system-ui, -apple-system, &#39;Segoe UI&#39;, Roboto, Helvetica, Arial, sans-serif;
+    }
+    @bottom-right {
+      content: "Page " counter(page);
+      font-size: 7.5pt;
+      color: #555;
+      font-family: system-ui, -apple-system, &#39;Segoe UI&#39;, Roboto, Helvetica, Arial, sans-serif;
+    }
+  }
+  @media screen {
+    body { padding: 12mm 13mm; max-width: 210mm; margin: 0 auto; }
+  }
+
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+
+  /* ── Rules ─────────────────────────────────────────────────────────────── */
+  .rule-thin { border: none; border-top: 1px solid #000; margin: 10px 0; }
+  .rule-thick { border: none; border-top: 1.4px solid #000; margin: 12px 0; }
+
+  /* ── Letterhead ────────────────────────────────────────────────────────── */
+  .letterhead {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 10px; padding-bottom: 10px;
+    border-bottom: 1.4px solid #000;
+  }
+  .letterhead-left { display: flex; align-items: center; gap: 10px; }
+  .monogram {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1.4px solid #000;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-weight: 700; font-size: 14pt;
+    background: #fff;
+  }
+  .company-info { }
+  .company-name { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tagline { font-size: 7.5pt; color: #555; }
+
+  .letterhead-right { text-align: right; }
+  .doc-title { font-size: 12pt; font-weight: 700; }
+  .doc-ref { font-size: 7.5pt; color: #555; margin-top: 2px; }
+  .doc-date { font-size: 7.5pt; color: #555; }
+
+  /* ── Seal / Stamp ──────────────────────────────────────────────────────── */
+  .seal-container { text-align: right; margin-bottom: 8px; }
+  .seal-svg { width: 70px; height: 70px; }
+
+  /* ── Info Grid ─────────────────────────────────────────────────────────── */
+  .info-grid { display: table; width: 100%; border-collapse: collapse; margin: 10px 0; }
+  .info-grid-row { display: table-row; }
+  .info-grid-cell {
+    display: table-cell; padding: 4px 8px 4px 0;
+    border-bottom: 0.5px solid #000;
+    vertical-align: top;
+  }
+  .info-grid-label { font-weight: 600; width: 28%; font-size: 8pt; color: #000; }
+  .info-grid-value { width: 22%; font-size: 8pt; }
+  .info-grid-label-r { font-weight: 600; width: 28%; font-size: 8pt; padding-left: 16px; }
+  .info-grid-value-r { width: 22%; font-size: 8pt; }
+
+  /* ── Financial Summary Strip ───────────────────────────────────────────── */
+  .fin-strip {
+    display: flex; width: 100%; border: 1px solid #000; margin: 12px 0;
+    border-collapse: collapse;
+  }
+  .fin-strip-cell {
+    flex: 1; padding: 8px 6px; text-align: center;
+    border-right: 1px solid #000; font-size: 7.5pt;
+  }
+  .fin-strip-cell:last-child { border-right: none; }
+  .fin-strip-cell.inverted { background: #000; color: #fff; }
+  .fin-strip-label { font-weight: 600; margin-bottom: 2px; }
+  .fin-strip-value { font-size: 9pt; font-weight: 700; }
+
+  /* ── Ledger Table ──────────────────────────────────────────────────────── */
+  .ledger-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 8pt; }
+  .ledger-table thead th {
+    background: #000; color: #fff; font-weight: 700; font-size: 7.5pt;
+    padding: 6px 5px; text-align: left;
+    border: 0.5px solid #000;
+  }
+  .ledger-table tbody td {
+    padding: 5px; border-bottom: 0.5px solid #aaa;
+    vertical-align: middle;
+  }
+  .ledger-table tbody tr.milestone { background: #f0f0f0; font-weight: 700; }
+  .ledger-table tbody tr.subtotal { border-top: 1px solid #000; font-weight: 600; }
+  .ledger-table tbody tr.total-row td {
+    border-top: 1.4px solid #000; font-weight: 700;
+    padding: 7px 5px;
+  }
+  .ledger-table .align-right { text-align: right; }
+  .ledger-table .align-center { text-align: center; }
+
+  /* ── Status Dot Glyphs ─────────────────────────────────────────────────── */
+  .dot-filled, .dot-half, .dot-empty {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 3px; vertical-align: middle;
+  }
+  .dot-filled { background: #000; border: 1px solid #000; }
+  .dot-half {
+    background: linear-gradient(90deg, #000 50%, transparent 50%);
+    border: 1px solid #000;
+  }
+  .dot-empty { background: transparent; border: 1px solid #000; }
+
+  .status-dots { display: inline-flex; align-items: center; gap: 2px; }
+
+  /* ── Terms / Notes ─────────────────────────────────────────────────────── */
+  .terms-block { margin: 16px 0 10px; font-size: 7.5pt; color: #555; line-height: 1.6; }
+  .terms-block strong { color: #000; }
+
+  /* ── Signature ─────────────────────────────────────────────────────────── */
+  .signature-row {
+    display: flex; width: 100%; margin-top: 20px; padding-top: 10px;
+    border-top: 1px solid #000;
+  }
+  .signature-col { flex: 1; text-align: center; font-size: 8pt; }
+  .signature-line { margin: 20px 20px 4px; border-top: 1px solid #000; }
+  .signature-label { font-size: 7pt; color: #555; }
+</style>
+</head>
+<body>
+
+  <!-- ── Letterhead ─────────────────────────────────────────────────────── -->
+  <div class="letterhead">
+    <div class="letterhead-left">
+      <div class="monogram">ER</div>
+      <div class="company-info">
+        <div class="company-name">EyerREMS Developers</div>
+        <div class="tagline">Building Tomorrow</div>
+      </div>
+    </div>
+    <div class="letterhead-right">
+      <div class="doc-title">Booking Statement</div>
+      <div style="font-size:8pt;color:#555;">Property: Lake View Villa</div>
+      <div class="doc-ref">Ref: BKG-0042</div>
+      <div class="doc-date">22/07/2026</div>
+    </div>
+  </div>
+
+  <!-- ── Seal ────────────────────────────────────────────────────────────── -->
+  
+  <div class="seal-container">
+    <svg class="seal-svg" viewBox="0 0 100 100">
+      <defs>
+        <path id="seal-ring" d="M 50 10 A 40 40 0 1 1 49.99 10" fill="none"/>
+      </defs>
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#000" stroke-width="1.5"/>
+      <text font-size="7" font-weight="700" fill="#000" text-anchor="middle" x="50" y="53">Active</text>
+      <text font-size="3.5" fill="#555" text-anchor="middle" x="50" y="82">
+        <textPath href="#seal-ring">ACTIVE &#x2022; ACTIVE &#x2022;</textPath>
+      </text>
+    </svg>
+  </div>
+  
+
+  <!-- ── Info Grid ──────────────────────────────────────────────────────── -->
+  
+  <div class="info-grid">
+    
+    
+    <div class="info-grid-row">
+      <div class="info-grid-cell info-grid-label">
+        Customer
+      </div>
+      <div class="info-grid-cell info-grid-value">
+        John Doe
+      </div>
+      <div class="info-grid-cell info-grid-label-r">
+        Booking ID
+      </div>
+      <div class="info-grid-cell info-grid-value-r">
+        BKG-0042
+      </div>
+    </div>
+    
+    <div class="info-grid-row">
+      <div class="info-grid-cell info-grid-label">
+        CNIC
+      </div>
+      <div class="info-grid-cell info-grid-value">
+        12345-6789012-3
+      </div>
+      <div class="info-grid-cell info-grid-label-r">
+        Status
+      </div>
+      <div class="info-grid-cell info-grid-value-r">
+        ACTIVE
+      </div>
+    </div>
+    
+  </div>
+  
+
+  <hr class="rule-thin">
+
+  <!-- ── Financial Summary Strip ────────────────────────────────────────── -->
+  
+  <div class="fin-strip">
+    
+    <div class="fin-strip-cell">
+      <div class="fin-strip-label">Price</div>
+      <div class="fin-strip-value">15,000,000</div>
+    </div>
+    
+    <div class="fin-strip-cell">
+      <div class="fin-strip-label">Paid</div>
+      <div class="fin-strip-value">4,500,000</div>
+    </div>
+    
+    <div class="fin-strip-cell inverted">
+      <div class="fin-strip-label">Due</div>
+      <div class="fin-strip-value">10,500,000</div>
+    </div>
+    
+  </div>
+  
+
+  <!-- ── Ledger Table ───────────────────────────────────────────────────── -->
+  
+  <table class="ledger-table">
+    <thead>
+      <tr>
+        
+        <th class="align-left">Date</th>
+        
+        <th class="align-left">Description</th>
+        
+        <th class="align-right">Amount</th>
+        
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr class="">
+        
+        <td class="align-left">
+          <span class="status-dots">
+            
+            <span class="dot-filled"></span><span class="dot-filled"></span><span class="dot-filled"></span>
+            
+          </span>
+          22/07
+        </td>
+        
+        <td class="align-left">Down Payment
+        </td>
+        
+        <td class="align-right">3,000,000
+        </td>
+        
+      </tr>
+      
+      <tr class="milestone">
+        
+        <td class="align-left">
+          <span class="status-dots">
+            
+            <span class="dot-filled"></span><span class="dot-half"></span><span class="dot-empty"></span>
+            
+          </span>
+          22/08
+        </td>
+        
+        <td class="align-left">Milestone
+        </td>
+        
+        <td class="align-right">500,000
+        </td>
+        
+      </tr>
+      
+      <tr class="">
+        
+        <td class="align-left">
+          <span class="status-dots">
+            
+            <span class="dot-empty"></span><span class="dot-empty"></span><span class="dot-empty"></span>
+            
+          </span>
+          22/09
+        </td>
+        
+        <td class="align-left">Installment
+        </td>
+        
+        <td class="align-right">500,000
+        </td>
+        
+      </tr>
+      
+      
+      <tr class="total-row">
+        
+        <td class="align-left">
+          
+        </td>
+        
+        <td class="align-left">
+          TOTAL
+        </td>
+        
+        <td class="align-right">
+          15,000,000
+        </td>
+        
+      </tr>
+      
+    </tbody>
+  </table>
+  
+
+  <hr class="rule-thin">
+
+  <!-- ── Terms / Notes ──────────────────────────────────────────────────── -->
+  
+  <div class="terms-block">Computer generated document.</div>
+  
+
+  <!-- ── Signature ──────────────────────────────────────────────────────── -->
+  <div class="signature-row">
+    <div class="signature-col">
+      <div class="signature-line"></div>
+      <div class="signature-label">Customer</div>
+      <div>John Doe</div>
+    </div>
+    <div class="signature-col">
+      <div class="signature-line"></div>
+      <div class="signature-label">Authorized</div>
+      <div>Jane Smith</div>
+    </div>
+    <div class="signature-col">
+      <div class="signature-line"></div>
+      <div class="signature-label">Company Stamp</div>
+      <div>EyerREMS Developers</div>
+    </div>
+  </div>
+
+</body>
+</html>

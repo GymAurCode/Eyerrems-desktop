@@ -1,8 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useUIStore } from "../store/ui";
-
-const YELLOW = "#f6ce3a";
-
+import NotificationBell from "./notifications/NotificationBell";
 function IconBtn({ onClick, label, children }: { onClick?: () => void; label: string; children: React.ReactNode }) {
   return (
     <button
@@ -78,13 +76,7 @@ export default function Topbar({ title }: { title?: string }) {
         </IconBtn>
 
         {/* Bell */}
-        <IconBtn label="Notifications">
-          <i className="ti ti-bell text-base" />
-          <span
-            className="absolute top-[6px] right-[6px] w-[6px] h-[6px] rounded-full"
-            style={{ background: YELLOW }}
-          />
-        </IconBtn>
+        <NotificationBell />
 
       </div>
     </header>

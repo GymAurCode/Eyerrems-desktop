@@ -19,7 +19,6 @@ import SafetyTab from "./tabs/SafetyTab";
 import FinanceTab from "./tabs/FinanceTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import TimelineTab from "./tabs/TimelineTab";
-import ReportsTab from "./tabs/ReportsTab";
 import NotificationsTab from "./tabs/NotificationsTab";
 
 const TABS = [
@@ -35,7 +34,7 @@ const TABS = [
   { id: "documents",   label: "Documents",   icon: FileText },
   { id: "timeline",    label: "Timeline",    icon: Milestone },
   { id: "notifications", label: "Alerts",    icon: Bell },
-  { id: "reports",     label: "Reports",     icon: BarChart2 },
+
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
@@ -111,7 +110,7 @@ export default function ProjectDetails() {
       case "documents": return <DocumentsTab projectId={project.id} />;
       case "timeline": return <TimelineTab projectId={project.id} />;
       case "notifications": return <NotificationsTab projectId={project.id} />;
-      case "reports": return <ReportsTab projectId={project.id} />;
+
       default: return <OverviewTab project={project} onRefresh={handleRefresh} />;
     }
   };

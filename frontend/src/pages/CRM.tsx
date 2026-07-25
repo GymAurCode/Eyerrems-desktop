@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, memo, useMemo, useCallback, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText, MessageCircle, AlertTriangle, UserX, Building2, FileBarChart } from "lucide-react";
-import ReportModal from "../components/reports/ReportModal";
 import { useLookup } from "../hooks/useLookup";
 import { QuickRowActions, printRecord } from "../components/actions";
 import { crmApi, Lead, Client, Dealer, Deal } from "../lib/crmApi";
@@ -121,13 +120,9 @@ interface ClientsTabProps {
   onRefresh: () => void;
   onPageChange: (config: any) => void;
   onFilterChange: (filters: any) => void;
-  onReport: (report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => void;
 }
 
-const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsErr, clientsTotal, clientsParams, navigate, onRefresh, onPageChange, onFilterChange, onReport }: ClientsTabProps) {
-  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const firstDayOfYear = useMemo(() => new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0], []);
-
+const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsErr, clientsTotal, clientsParams, navigate, onRefresh, onPageChange, onFilterChange }: ClientsTabProps) {
   const clientColumns = useMemo(() => [
     { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
@@ -141,10 +136,7 @@ const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsEr
     { key: "print", label: "Print", icon: Printer, onClick: (row: Client) => printRecord(`Client ${row.client_id}`, [
       { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
     ]) },
-    { key: "customer_profile", label: "Customer Profile", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "customer_profile", filters: { client_id: row.id }, title: "Customer Profile" }), variant: "secondary" },
-    { key: "customer_ledger", label: "Customer Ledger", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "customer_ledger", filters: { client_id: row.id, date_from: firstDayOfYear, date_to: today }, title: "Customer Ledger" }), variant: "secondary" },
-    { key: "outstanding_payments", label: "Outstanding Payments", icon: FileText, onClick: (row: Client) => onReport({ open: true, reportType: "outstanding_payments", filters: { client_id: row.id }, title: "Outstanding Payments" }), variant: "secondary" },
-  ], [today, firstDayOfYear, navigate, onReport]);
+  ], [navigate]);
 
   return (
     <AppTable
@@ -299,7 +291,7 @@ const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersEr
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {deleteConflict.leads.map(l => (
-                    <div key={l.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px" }}>
+                    <div key={l.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-surface2)", fontSize: "12px", display: "flex", gap: "8px" }}>
                       <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{l.lead_id}</span>
                       <span style={{ color: "var(--text-primary)" }}>{l.name}</span>
                     </div>
@@ -314,7 +306,7 @@ const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersEr
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {deleteConflict.clients.map(c => (
-                    <div key={c.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px" }}>
+                    <div key={c.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-surface2)", fontSize: "12px", display: "flex", gap: "8px" }}>
                       <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{c.client_id}</span>
                       <span style={{ color: "var(--text-primary)" }}>{c.name}</span>
                     </div>
@@ -329,7 +321,7 @@ const DealersTab = memo(function DealersTab({ dealers, dealersLoading, dealersEr
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {deleteConflict.deals.map(d => (
-                    <div key={d.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-muted, #F8FAFC)", fontSize: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+                    <div key={d.id} style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--bg-surface2)", fontSize: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
                       <span style={{ color: "var(--text-primary)", flex: 1 }}>{d.deal_title ?? "Untitled"}</span>
                       <Badge status={d.status} />
                     </div>
@@ -367,10 +359,9 @@ interface DealsTabProps {
   onRefresh: () => void;
   onPageChange: (config: any) => void;
   onFilterChange: (filters: any) => void;
-  onReport: (report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => void;
 }
 
-const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTotal, dealsParams, navigate, onRefresh, onPageChange, onFilterChange, onReport }: DealsTabProps) {
+const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTotal, dealsParams, navigate, onRefresh, onPageChange, onFilterChange }: DealsTabProps) {
   const dealColumns = useMemo(() => [
     { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
@@ -385,9 +376,7 @@ const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTo
     { key: "print", label: "Print", icon: Printer, onClick: (row: Deal) => printRecord(`Deal ${row.deal_id}`, [
       { label: "Title", value: row.deal_title ?? "—" }, { label: "Client", value: row.client_name ?? "—" }, { label: "Value", value: String(row.deal_value) }, { label: "Status", value: row.status },
     ]) },
-    { key: "deal_summary", label: "Deal Summary", icon: FileText, onClick: (row: Deal) => onReport({ open: true, reportType: "deal_report", filters: { deal_id: row.id }, title: "Deal Summary Report" }) },
-    { key: "booking_form", label: "Booking Form", icon: FileText, onClick: (row: Deal) => onReport({ open: true, reportType: "booking_form", filters: { deal_id: row.id }, title: "Booking Form" }), variant: "secondary" },
-  ], [navigate, onReport]);
+  ], [navigate]);
 
   return (
     <AppTable
@@ -443,13 +432,6 @@ const MemoCRMPage = memo(function CRMPage() {
   const [dealersLoading, setDealersLoading] = useState(false);
   const [dealersErr, setDealersErr] = useState<string | null>(null);
   const [dealersParams, setDealersParams] = useState(defaultParams);
-
-  const [reportModal, setReportModal] = useState<{
-    open: boolean;
-    reportType: string;
-    filters: Record<string, unknown>;
-    title?: string;
-  }>({ open: false, reportType: "", filters: {} });
 
   const [dealsTotal, setDealsTotal] = useState(0);
   const [dealsLoading, setDealsLoading] = useState(false);
@@ -613,10 +595,6 @@ const MemoCRMPage = memo(function CRMPage() {
   const onDealsPageChange = useCallback((config: any) => setDealsParams((prev) => ({ ...prev, ...config })), []);
   const onDealsFilterChange = useCallback((filters: any) => setDealsParams((prev) => ({ ...prev, ...filters })), []);
 
-  const handleSetReportModal = useCallback((report: { open: boolean; reportType: string; filters: Record<string, unknown>; title?: string }) => {
-    setReportModal(report);
-  }, []);
-
   return (
     <div className="p-6 space-y-5 animate-slide-up">
       {/* Header */}
@@ -683,7 +661,6 @@ const MemoCRMPage = memo(function CRMPage() {
           onRefresh={refreshClients}
           onPageChange={onClientsPageChange}
           onFilterChange={onClientsFilterChange}
-          onReport={handleSetReportModal}
         />
       )}
       {tab === 3 && (
@@ -711,7 +688,6 @@ const MemoCRMPage = memo(function CRMPage() {
           onRefresh={refreshDeals}
           onPageChange={onDealsPageChange}
           onFilterChange={onDealsFilterChange}
-          onReport={handleSetReportModal}
         />
       )}
       {tab === 5 && <MemoBookingList />}
@@ -750,13 +726,6 @@ const MemoCRMPage = memo(function CRMPage() {
         open={dealModal}
         onClose={() => setDealModal(false)}
         onSaved={() => { setDealModal(false); refreshDeals(); }}
-      />
-      <ReportModal
-        open={reportModal.open}
-        onClose={() => setReportModal({ open: false, reportType: "", filters: {} })}
-        reportType={reportModal.reportType}
-        filters={reportModal.filters}
-        title={reportModal.title}
       />
     </div>
   );

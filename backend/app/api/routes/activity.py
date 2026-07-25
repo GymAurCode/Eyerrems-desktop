@@ -31,6 +31,7 @@ def recent_activity(
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Deal query: %s", exc)
+        db.rollback()
 
     try:
         for prop in db.query(Property).order_by(Property.created_at.desc()).limit(limit).all():
@@ -42,6 +43,7 @@ def recent_activity(
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Property query: %s", exc)
+        db.rollback()
 
     try:
         for client in db.query(Client).order_by(Client.created_at.desc()).limit(limit).all():
@@ -53,6 +55,7 @@ def recent_activity(
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Client query: %s", exc)
+        db.rollback()
 
     try:
         for lead in db.query(Lead).order_by(Lead.created_at.desc()).limit(limit).all():
@@ -64,6 +67,7 @@ def recent_activity(
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Lead query: %s", exc)
+        db.rollback()
 
     try:
         for expense in db.query(Expense).order_by(Expense.created_at.desc()).limit(limit).all():
@@ -71,12 +75,13 @@ def recent_activity(
                 continue
             events.append({
                 "type": "expense",
-                "title": f"Expense — {expense.description or 'Untitled'}",
+                "title": f"Expense — {expense.expense_number or expense.expense_type or 'Untitled'}",
                 "amount": float(expense.amount) if expense.amount else 0,
                 "timestamp": expense.created_at.isoformat(),
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Expense query: %s", exc)
+        db.rollback()
 
     try:
         for payment in db.query(Payment).order_by(Payment.created_at.desc()).limit(limit).all():
@@ -90,6 +95,7 @@ def recent_activity(
             })
     except SQLAlchemyError as exc:
         log.warning("Skipping Payment query: %s", exc)
+        db.rollback()
 
     events.sort(key=lambda e: e["timestamp"] or "", reverse=True)
     return events[:limit]

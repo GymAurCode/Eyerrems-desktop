@@ -107,9 +107,6 @@ def provision_company_schema(
         conn.execute(text(f"SET search_path TO {schema_name},public"))
         conn.execute(text("SET lock_timeout = '5s'"))
         Base.metadata.create_all(bind=conn, checkfirst=False)
-        # The Company model does not define master_id, but create_company
-        # inserts it.  Add the column here so the INSERT succeeds.
-        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS master_id VARCHAR(36)"))
         sync_attachments_table(connection=conn)
         conn.commit()
     tenant_engine.dispose()

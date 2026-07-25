@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.models.auth import User
 from app.models.lookup import LookupValue
+from app.core.activity_logger import log_activity
 
 router = APIRouter()
 log = logging.getLogger("rems.lookups")
@@ -88,6 +89,7 @@ def _compute_usage(db: Session, category: str, values: list[str]) -> dict[str, i
                 if val in result:
                     result[val] += row[1]
         except Exception:
+            db.rollback()
             log.debug("Skipping usage query for %s.%s (table may not exist)", table, col)
     return result
 
@@ -152,6 +154,7 @@ def list_all_categories(
                     .all()
                 )
         except Exception as exc:
+            db.rollback()
             log.warning("Auto-seed on empty lookups failed: %s", exc)
 
     grouped: dict = {}
@@ -204,6 +207,7 @@ def create_lookup_value(
     db.add(lv)
     db.commit()
     db.refresh(lv)
+    log_activity(db=db, user=current_user, action="create", module="lookups", record_type="lookup", record_id=str(lv.id), record_label=lv.label)
     return _serialize(lv)
 
 
@@ -248,6 +252,7 @@ def seed_default_lookup_values(
     from app.core.seed_lookups import seed_lookup_values
 
     inserted = seed_lookup_values(db, missing_categories_only=True)
+    log_activity(db=db, user=current_user, action="seed", module="lookups", record_type="lookup", record_id="-", record_label=f"Seeded {inserted} default values")
     msg = (
         f"Inserted {inserted} default value(s)."
         if inserted
@@ -270,6 +275,7 @@ def reorder_lookup_values(
     for idx, lid in enumerate(ids):
         db.query(LookupValue).filter(LookupValue.id == lid).update({"sort_order": idx})
     db.commit()
+    log_activity(db=db, user=current_user, action="reorder", module="lookups", record_type="lookup", record_id="-", record_label=f"Reordered {len(ids)} lookup values")
     return {"success": True}
 
 
@@ -312,6 +318,7 @@ def update_lookup_value(
 
     db.commit()
     db.refresh(lv)
+    log_activity(db=db, user=current_user, action="update", module="lookups", record_type="lookup", record_id=str(lookup_id), record_label=lv.label)
     return _serialize(lv)
 
 
@@ -325,6 +332,7 @@ def delete_lookup_value(
     lv = db.query(LookupValue).filter(LookupValue.id == lookup_id).first()
     if not lv:
         raise HTTPException(status_code=404, detail="Lookup value not found")
+    log_activity(db=db, user=current_user, action="delete", module="lookups", record_type="lookup", record_id=str(lookup_id), record_label=lv.label)
     db.delete(lv)
     db.commit()
     return {"success": True}

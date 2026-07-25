@@ -1152,8 +1152,7 @@ function ChatTab() {
 
   useEffect(() => {
     if (user) {
-      const role = user.roles?.[0] ?? user.role ?? "Staff";
-      setCurrentUser(String(user.id), user.full_name, role);
+      setCurrentUser(String(user.id), user.full_name, "Staff");
     }
     chatApi.bootstrap()
       .then(syncFromBootstrap)

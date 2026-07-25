@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bell, BellOff, Check, Clock, X } from "lucide-react";
 import type { Reminder } from "../../lib/remindersApi";
 import { remindersApi } from "../../lib/remindersApi";
+import { playTaskSound } from "../../hooks/useReminderWebSocket";
 
 const PRIORITY_COLORS: Record<string, string> = {
   critical: "bg-red-600",
@@ -36,6 +37,7 @@ export default function NotificationCenter({ notifications, onDismiss, onDismiss
     setLoadingId(id);
     try {
       await remindersApi.completeReminder(id);
+      playTaskSound();
       onDismiss(id);
     } catch {
       // silently fail

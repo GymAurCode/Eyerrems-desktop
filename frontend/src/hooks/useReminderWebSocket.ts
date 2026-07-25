@@ -4,6 +4,8 @@ import { buildWsUrl } from "../lib/config";
 import { remindersApi } from "../lib/remindersApi";
 import type { Reminder } from "../lib/remindersApi";
 
+const SOUND_ENABLED = true;
+
 const SoundContext = (() => {
   let ctx: AudioContext | null = null;
   return () => {
@@ -14,8 +16,9 @@ const SoundContext = (() => {
 })();
 
 function playNotificationSound() {
+  if (!SOUND_ENABLED) return;
   try {
-    const audio = new Audio("/sounds/reminder.mp3");
+    const audio = new Audio("/sounds/tune.wav");
     audio.volume = 0.5;
     audio.play().catch(() => {
       try {
@@ -31,11 +34,38 @@ function playNotificationSound() {
         osc.start(audioCtx.currentTime);
         osc.stop(audioCtx.currentTime + 0.5);
       } catch {
-        // audio not available
+        /* audio not available */
       }
     });
   } catch {
-    // audio not available
+    /* audio not available */
+  }
+}
+
+function playTaskSound() {
+  if (!SOUND_ENABLED) return;
+  try {
+    const audio = new Audio("/sounds/task.wav");
+    audio.volume = 0.5;
+    audio.play().catch(() => {
+      try {
+        const audioCtx = SoundContext();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.5);
+      } catch {
+        /* audio not available */
+      }
+    });
+  } catch {
+    /* audio not available */
   }
 }
 
@@ -69,12 +99,16 @@ function showDesktopNotification(reminder: Reminder) {
   }
 }
 
+// Backoff schedule: 5s, 10s, 20s — then give up (max 3 retries)
+const BACKOFF_MS = [5_000, 10_000, 20_000];
+
 export function useReminderWebSocket() {
   const token = useAuthStore((s) => s.token);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gaveUpRef = useRef(false);
   const [notifications, setNotifications] = useState<Reminder[]>([]);
   const [missedCount, setMissedCount] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -90,19 +124,23 @@ export function useReminderWebSocket() {
   useEffect(() => {
     if (!token) return;
 
+    // Reset gave-up flag on fresh effect run (e.g. user re-logs in with new token)
+    gaveUpRef.current = false;
+
     let destroyed = false;
 
     function connect() {
-      if (destroyed) return;
-      const url = buildWsUrl(token!).replace("/ws", "/reminders/ws");
-      console.log("[reminder-ws] Connecting...");
-      const ws = new WebSocket(url);
+      if (destroyed || gaveUpRef.current) return;
+
+      // Construct proper URL for /reminders/ws
+      const baseUrl = buildWsUrl(token!);
+      const wsUrl = baseUrl.replace("/ws?", "/reminders/ws?");
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("[reminder-ws] Connected");
-        setConnected(true);
         retryRef.current = 0;
+        setConnected(true);
         pingRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "ping" }));
@@ -121,31 +159,36 @@ export function useReminderWebSocket() {
             playNotificationSound();
             showDesktopNotification(msg.reminder);
           } else if (msg.type === "pong") {
-            // keep alive
+            /* keep alive */
           }
         } catch (err) {
-          console.warn("[reminder-ws] Failed to parse message:", err);
+          /* malformed message */
         }
       };
 
-      ws.onerror = () => {
-        console.warn("[reminder-ws] Error");
-      };
+      ws.onerror = () => {};
 
       ws.onclose = (evt) => {
-        console.log("[reminder-ws] Closed code=%s", evt.code);
         setConnected(false);
         if (pingRef.current) clearInterval(pingRef.current);
         if (destroyed) return;
-        if (evt.code === 4001) {
-          console.warn("[reminder-ws] Auth failed, not retrying");
+
+        // Code 4001 / 1008 = auth failure — do NOT retry
+        if (evt.code === 4001 || evt.code === 1008) {
+          console.warn("[reminder-ws] Auth rejected (%s) — not retrying", evt.code);
+          gaveUpRef.current = true;
           return;
         }
-        const delays = [5000, 10000, 20000, 30000];
-        const delay = delays[retryRef.current] ?? 30000;
-        retryRef.current = Math.min(retryRef.current + 1, delays.length - 1);
+
+        // Exponential backoff with cap (max 3 retries)
+        const delay = BACKOFF_MS[retryRef.current];
+        if (delay === undefined) {
+          console.warn("[reminder-ws] Max retries reached — giving up");
+          gaveUpRef.current = true;
+          return;
+        }
+        retryRef.current += 1;
         timerRef.current = setTimeout(connect, delay);
-        console.log("[reminder-ws] Reconnecting in %sms", delay);
       };
     }
 
@@ -159,6 +202,7 @@ export function useReminderWebSocket() {
     };
   }, [token]);
 
+  // Recovery fetch for missed reminders when disconnected
   useEffect(() => {
     if (!token) return;
     const t = setTimeout(async () => {
@@ -168,7 +212,7 @@ export function useReminderWebSocket() {
           setMissedCount(recovery.missed_count);
         }
       } catch {
-        // backend not ready
+        /* backend not ready */
       }
     }, 3000);
     return () => clearTimeout(t);
@@ -176,3 +220,5 @@ export function useReminderWebSocket() {
 
   return { notifications, missedCount, setMissedCount, dismiss, dismissAll, connected };
 }
+
+export { playTaskSound };

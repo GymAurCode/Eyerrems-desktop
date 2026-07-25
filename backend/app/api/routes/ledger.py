@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_any_permission, require_permissions
 from app.core.database import get_db
 from app.core.tid import next_tid
+from app.core.activity_logger import log_activity
 from app.models.auth import User
 from app.models.crm import Client, Deal, Dealer
 from app.models.ledger import ClientLedgerEntry, DealerLedgerEntry, PropertyLedgerEntry
@@ -296,6 +297,7 @@ def create_client_ledger_entry(
     _recalc_client_balances(db, payload.client_id)
     db.commit()
     db.refresh(entry)
+    log_activity(db=db, user=user, action="create", module="ledger", record_type="client_ledger", record_id=str(entry.id), record_label=entry.description, new_values=payload.model_dump())
     return _fmt_client_entry(entry)
 
 
@@ -322,6 +324,7 @@ def update_client_ledger_entry(
     _recalc_client_balances(db, client_id)
     db.commit()
     db.refresh(e)
+    log_activity(db=db, user=_, action="update", module="ledger", record_type="client_ledger", record_id=str(entry_id), record_label=e.description, new_values=payload)
     return _fmt_client_entry(e)
 
 
@@ -480,6 +483,7 @@ def create_dealer_ledger_entry(
     _recalc_dealer_balances(db, payload.dealer_id)
     db.commit()
     db.refresh(entry)
+    log_activity(db=db, user=user, action="create", module="ledger", record_type="dealer_ledger", record_id=str(entry.id), record_label=entry.description, new_values=payload.model_dump())
     return _fmt_dealer_entry(entry)
 
 
@@ -639,4 +643,5 @@ def create_property_ledger_entry(
     _recalc_property_balances(db, payload.property_id)
     db.commit()
     db.refresh(entry)
+    log_activity(db=db, user=user, action="create", module="ledger", record_type="property_ledger", record_id=str(entry.id), record_label=entry.description, new_values=payload.model_dump())
     return _fmt_property_entry(entry)

@@ -43,7 +43,7 @@ const DealerDetail = lazy(() => import("./pages/crm/DealerDetail"));
 const InstallmentPlanBuilder = lazy(() => import("./pages/crm/InstallmentPlanBuilder"));
 const FinancePage = lazy(() => import("./pages/Finance"));
 const AdminPage = lazy(() => import("./pages/Admin"));
-const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+
 const TenantPage = lazy(() => import("./pages/Tenant"));
 const TenantDetailPage = lazy(() => import("./pages/TenantDetail"));
 const MaintenancePage = lazy(() => import("./pages/Maintenance"));
@@ -59,10 +59,6 @@ const TownListPage = lazy(() => import("./pages/towns/TownList"));
 const TownDetailPage = lazy(() => import("./pages/towns/TownDetail"));
 const BookingsPage = lazy(() => import("./pages/Bookings"));
 const BookingDetailPage = lazy(() => import("./pages/crm/bookings/BookingDetail"));
-const ReportsCenter = lazy(() => import("./pages/reports/ReportsCenter"));
-const ReportRunner = lazy(() => import("./pages/reports/ReportRunner"));
-const InstallmentPlanReport = lazy(() => import("./pages/reports/InstallmentPlanReport"));
-const BookingFormReport = lazy(() => import("./pages/reports/BookingFormReport"));
 const AIIntelligencePage = lazy(() => import("./pages/AIIntelligence"));
 const ImportCenter = lazy(() => import("./pages/ImportCenter"));
 const HistoryPage = lazy(() => import("./pages/History"));
@@ -70,8 +66,11 @@ const RecentActivityPage = lazy(() => import("./pages/RecentActivity"));
 const SpreadsheetWorkspace = lazy(() => import("./spreadsheet/SpreadsheetWorkspace"));
 const ProductSpreadsheetPage = lazy(() => import("./pages/ProductSpreadsheetPage"));
 const AdvanceOptionsPage = lazy(() => import("./pages/AdvanceOptions"));
-const SlugSetupPage = lazy(() => import("./pages/SlugSetup"));
+const ReportsPage = lazy(() => import("./pages/ReportsHub"));
+const ReportDetailPage = lazy(() => import("./pages/ReportDetail"));
+
 const ChangePasswordPage = lazy(() => import("./pages/ChangePassword"));
+
 
 // ── Module loading spinner ────────────────────────────────────────────────────
 function ModuleLoadingSpinner() {
@@ -93,7 +92,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/leases":       "Leases",
   "/payments":     "Payments",
   "/maintenance":  "Maintenance",
-  "/reports":      "Reports",
   "/team":         "Team",
   "/settings":     "Settings",
   "/towns":        "Town Management",
@@ -101,7 +99,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/finance":      "Finance",
   "/admin":        "Administration",
   "/import":       "Bulk Import",
-  "/admin-panel":  "Admin Panel - RBAC",
   "/construction": "Construction",
   "/hr":           "Human Resources",
   "/reminders":    "Reminders & Notifications",
@@ -114,6 +111,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/spreadsheet":   "Spreadsheet",
   "/products/spreadsheet": "Product Spreadsheet",
   "/advance-options": "Advance Options",
+  "/reports":        "Reports",
 };
 
 function DisabledModule() {
@@ -202,9 +200,10 @@ export default function App() {
 
   useEffect(() => {
     if (token) {
-      bootstrap()
-        .then(() => setBootstrapped(true))
-        .catch(() => fetchMe().then(() => setBootstrapped(true)).catch(() => undefined));
+      const fallbackTimer = setTimeout(() => setBootstrapped(true), 15000);
+      bootstrap().catch(() => fetchMe().catch(() => undefined))
+        .then(() => { clearTimeout(fallbackTimer); setBootstrapped(true); });
+      return () => clearTimeout(fallbackTimer);
     } else {
       setBootstrapped(false);
     }
@@ -242,8 +241,7 @@ export default function App() {
           </SuperAdminRoute>
         } />
 
-        {/* ── RBAC role user routes ────────────────────────────────────────── */}
-        <Route path="/setup-slug" element={<SlugSetupPage />} />
+        {/* ── Role user routes ─────────────────────────────────────────────── */}
         <Route path="/change-password" element={
           <ProtectedRoute>
             <ChangePasswordPage />
@@ -420,6 +418,35 @@ export default function App() {
           </RoleUserGuard>
         } />
 
+        {/* ── Reports module (deep-linkable: /reports/:module?/:reportType?) ─ */}
+        <Route path="/reports" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ReportsPage />
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+        <Route path="/reports/:module" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ReportsPage />
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+        <Route path="/reports/:module/:reportType" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ReportDetailPage />
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+
         {/* ── Tenant module ────────────────────────────────────────────────── */}
         <Route path="/tenants" element={
           <RoleUserGuard>
@@ -463,17 +490,6 @@ export default function App() {
             </ProtectedRoute>
           </RoleUserGuard>
         } />
-        <Route path="/import" element={
-          <Navigate to="/reports?tab=import" replace />
-        } />
-        <Route path="/admin-panel" element={
-          <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <CompanyLayout><AdminPanel /></CompanyLayout>
-            </ProtectedRoute>
-          </RoleUserGuard>
-        } />
-
         {/* ── Construction module ──────────────────────────────────────────── */}
         <Route path="/construction" element={
           <RoleUserGuard>
@@ -613,35 +629,6 @@ export default function App() {
           </RoleUserGuard>
         } />
 
-        {/* ── Reports Center ───────────────────────────────────────────────── */}
-        <Route path="/reports" element={
-          <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-              <CompanyLayout><ModuleGuard module="reports"><ReportsCenter /></ModuleGuard></CompanyLayout>
-            </ProtectedRoute>
-          </RoleUserGuard>
-        } />
-        <Route path="/reports/run/:reportKey" element={
-          <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-              <CompanyLayout><ModuleGuard module="reports"><ReportRunner /></ModuleGuard></CompanyLayout>
-            </ProtectedRoute>
-          </RoleUserGuard>
-        } />
-        <Route path="/reports/installment-plan" element={
-          <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-              <CompanyLayout><ModuleGuard module="reports"><InstallmentPlanReport /></ModuleGuard></CompanyLayout>
-            </ProtectedRoute>
-          </RoleUserGuard>
-        } />
-        <Route path="/reports/booking-form" element={
-          <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant","Staff","Manager"]}>
-              <CompanyLayout><ModuleGuard module="reports"><BookingFormReport /></ModuleGuard></CompanyLayout>
-            </ProtectedRoute>
-          </RoleUserGuard>
-        } />
 
         {/* ── AI Intelligence Center ────────────────────────────────────────── */}
         <Route path="/ai" element={
@@ -655,8 +642,8 @@ export default function App() {
         {/* ── Activity History ────────────────────────────────────────────── */}
         <Route path="/history" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <CompanyLayout><ModuleGuard module="history"><HistoryPage /></ModuleGuard></CompanyLayout>
+            <ProtectedRoute allowedRoles={["Admin", "Staff", "Manager", "Accountant", "Dealer"]}>
+              <CompanyLayout><HistoryPage /></CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />

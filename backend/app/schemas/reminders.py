@@ -127,7 +127,9 @@ class ReminderOut(BaseModel):
 
 class ReminderDashboardOut(BaseModel):
     upcoming_24h: list[ReminderOut]
+    future: list[ReminderOut]
     overdue: list[ReminderOut]
+    completed: list[ReminderOut]
     today_total: int
     today_completed: int
     today_pending: int

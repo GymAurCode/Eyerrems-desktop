@@ -122,7 +122,6 @@ export default function AdminDashboard() {
     { icon: "ti ti-users", label: "Tenants", path: "/tenants", statLabel: "Active Tenants", statValue: stats?.active_tenants ?? "—", iconBg: "rgba(246,206,58,0.12)", iconColor: TEAL },
     { icon: "ti ti-currency-dollar", label: "Finance", path: "/finance", statLabel: "Income / Expense", statValue: stats ? `${(stats.income / 1000000).toFixed(1)}M / ${(stats.expense / 1000000).toFixed(1)}M` : "—", iconBg: "rgba(246,206,58,0.12)", iconColor: YELLOW },
     { icon: "ti ti-user-check", label: "CRM", path: "/crm", statLabel: "Active Deals", statValue: stats?.active_deals ?? "—", iconBg: "rgba(246,206,58,0.12)", iconColor: TEAL },
-    { icon: "ti ti-chart-bar", label: "Reports", path: "/reports", statLabel: "Analytics & Insights", statValue: "View Reports", iconBg: "rgba(246,206,58,0.12)", iconColor: YELLOW },
     { icon: "ti ti-tool", label: "Maintenance", path: "/maintenance", statLabel: "Pending Requests", statValue: stats?.pending_maintenance ?? "—", iconBg: "rgba(239,68,68,0.12)", iconColor: "#ef4444" },
     { icon: "ti ti-user-cog", label: "HR", path: "/hr", statLabel: "Total Employees", statValue: stats?.total_employees ?? "—", iconBg: "rgba(246,206,58,0.12)", iconColor: TEAL },
   ];
@@ -276,26 +275,6 @@ export default function AdminDashboard() {
                   : "—"}
               </span>
             </div>
-          </div>
-          <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--border-subtle)" }}>
-            <button
-              type="button"
-              onClick={() => navigate("/reports")}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] font-medium transition-all"
-              style={{
-                background: "rgba(246,206,58,0.08)",
-                color: TEAL,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(246,206,58,0.15)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(246,206,58,0.08)";
-              }}
-            >
-              <i className="ti ti-chart-bar text-sm" />
-              View Full Reports
-            </button>
           </div>
         </div>
       </div>

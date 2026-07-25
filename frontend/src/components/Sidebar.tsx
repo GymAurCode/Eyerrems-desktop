@@ -1,54 +1,31 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useUIStore } from "../store/ui";
+import { usePermissions } from "../hooks/usePermissions";
 
 const YELLOW = "#f6ce3a";
 const SIDEBAR_BG = "var(--bg-sidebar)";
 
-const NAV_SECTIONS = [
-  {
-    label: "Main",
-    items: [
-      { path: "/",             label: "Dashboard",    icon: "ti-layout-dashboard" },
-      { path: "/property",     label: "Properties",   icon: "ti-building" },
-      { path: "/towns",        label: "Towns",        icon: "ti-map-pin" },
-      { path: "/crm",          label: "CRM",          icon: "ti-users" },
-      { path: "/tenants",      label: "Tenants",      icon: "ti-user-check" },
-      { path: "/maintenance",  label: "Maintenance",  icon: "ti-tool" },
-      { path: "/construction", label: "Construction", icon: "ti-building-skyscraper" },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      { path: "/hr",           label: "HR",           icon: "ti-briefcase" },
-      { path: "/finance",      label: "Finance",      icon: "ti-currency-dollar" },
-      { path: "/reports",      label: "Reports",      icon: "ti-chart-bar" },
-    ],
-  },
-  {
-    label: "Stock Ops",
-    items: [
-      { path: "/spreadsheet",  label: "Spreadsheet",  icon: "ti-table" },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { path: "/ai",           label: "AI Intel",     icon: "ti-robot" },
-      { path: "/communication",label: "Communication",icon: "ti-mail" },
-      { path: "/reminders",    label: "Reminders",    icon: "ti-bell-ringing" },
-      { path: "/activity",     label: "Activity",     icon: "ti-activity" },
-      { path: "/history",      label: "History",      icon: "ti-history" },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { path: "/admin",        label: "Admin",        icon: "ti-settings" },
-    ],
-  },
+type NavItem = { path: string; label: string; icon: string; requiredPermission: string };
+type NavSection = { label: string; items: NavItem[] };
+
+const ALL_NAV_ITEMS: NavItem[] = [
+  { path: "/",             label: "Dashboard",    icon: "ti-layout-dashboard",   requiredPermission: "dashboard.view" },
+  { path: "/property",     label: "Properties",   icon: "ti-building",           requiredPermission: "properties.view" },
+  { path: "/towns",        label: "Towns",        icon: "ti-map-pin",            requiredPermission: "towns.view" },
+  { path: "/crm",          label: "CRM",          icon: "ti-users",              requiredPermission: "crm.view" },
+  { path: "/tenants",      label: "Tenants",      icon: "ti-user-check",         requiredPermission: "tenants.view" },
+  { path: "/maintenance",  label: "Maintenance",  icon: "ti-tool",               requiredPermission: "maintenance.view" },
+  { path: "/construction", label: "Construction", icon: "ti-building-skyscraper", requiredPermission: "construction.view" },
+  { path: "/hr",           label: "HR",           icon: "ti-briefcase",          requiredPermission: "hr.view" },
+  { path: "/finance",      label: "Finance",      icon: "ti-currency-dollar",    requiredPermission: "finance.view" },
+  { path: "/reports",      label: "Reports",      icon: "ti-file",               requiredPermission: "reports.view" },
+  { path: "/spreadsheet",  label: "Spreadsheet",  icon: "ti-table",              requiredPermission: "spreadsheet.view" },
+  { path: "/ai",           label: "AI Intel",     icon: "ti-robot",              requiredPermission: "ai.view" },
+  { path: "/communication",label: "Communication",icon: "ti-mail",               requiredPermission: "communication.view" },
+  { path: "/reminders",    label: "Reminders",    icon: "ti-bell-ringing",       requiredPermission: "reminders.view" },
+  { path: "/admin",       label: "Admin",        icon: "ti-settings",           requiredPermission: "admin.view" },
 ];
 
 function NavItem({ path, label, icon, badge }: { path: string; label: string; icon?: string; badge?: boolean }) {
@@ -123,7 +100,7 @@ function NavItem({ path, label, icon, badge }: { path: string; label: string; ic
   );
 }
 
-function MiniSidebar({ user, onSignOut }: { user: { full_name?: string } | null; onSignOut: () => void }) {
+function MiniSidebar({ user, onSignOut, navSections }: { user: { full_name?: string } | null; onSignOut: () => void; navSections: NavSection[] }) {
   const location = useLocation();
   return (
     <aside
@@ -148,7 +125,7 @@ function MiniSidebar({ user, onSignOut }: { user: { full_name?: string } | null;
         </div>
       </div>
       <nav className="flex flex-col items-center gap-1 py-3 px-2">
-        {NAV_SECTIONS.flatMap((s) => s.items).map((item) => {
+        {navSections.flatMap((s: NavSection) => s.items).map((item: NavItem) => {
           const active = item.path === "/" ? location.pathname === "/" : location.pathname.startsWith(item.path);
           return (
             <Link
@@ -192,12 +169,59 @@ function MiniSidebar({ user, onSignOut }: { user: { full_name?: string } | null;
   );
 }
 
+function useFilteredNavSections() {
+  const { can, isAdmin } = usePermissions();
+
+  return useMemo(() => {
+    const filterItem = (item: NavItem) => {
+      if (isAdmin) return true;
+      return can(item.requiredPermission);
+    };
+
+    const sections: NavSection[] = [
+      {
+        label: "Main",
+        items: ALL_NAV_ITEMS.filter((i) =>
+          ["dashboard","properties","towns","crm","tenants","maintenance","construction"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+        ),
+      },
+      {
+        label: "Manage",
+        items: ALL_NAV_ITEMS.filter((i) =>
+          ["hr","finance","reports"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+        ),
+      },
+      {
+        label: "Stock Ops",
+        items: ALL_NAV_ITEMS.filter((i) =>
+          ["spreadsheet"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+        ),
+      },
+      {
+        label: "Tools",
+        items: ALL_NAV_ITEMS.filter((i) =>
+          ["ai","communication","reminders"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+        ),
+      },
+      {
+        label: "System",
+        items: ALL_NAV_ITEMS.filter((i) =>
+          ["admin"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+        ),
+      },
+    ];
+
+    return sections.filter((s) => s.items.length > 0);
+  }, [isAdmin, can]);
+}
+
 export default function Sidebar() {
   const user = useAuthStore((s) => s.user);
   const open = useUIStore((s) => s.sidebarOpen);
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const [showSignOut, setShowSignOut] = useState(false);
+  const NAV_SECTIONS = useFilteredNavSections();
 
   const confirmSignOut = () => {
     logout();
@@ -215,7 +239,6 @@ export default function Sidebar() {
         boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
       }}
     >
-        {/* ── Logo Area ── */}
       <div
           className="flex items-center gap-2 px-4 py-1.5 border-b shrink-0"
         style={{ borderColor: "var(--border)" }}
@@ -242,7 +265,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* ── Navigation ── */}
       <nav className="flex-1 py-1 px-2 space-y-1">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label}>
@@ -261,7 +283,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* ── User Footer ── */}
       <div
         className="flex items-center gap-2 px-3 py-1.5 border-t shrink-0"
         style={{ borderColor: "var(--border)" }}
@@ -303,7 +324,7 @@ export default function Sidebar() {
       </div>
     </aside>
   ) : (
-    <MiniSidebar user={user} onSignOut={() => setShowSignOut(true)} />
+    <MiniSidebar user={user} onSignOut={() => setShowSignOut(true)} navSections={NAV_SECTIONS} />
   );
 
   return (

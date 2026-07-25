@@ -13,19 +13,21 @@ export function useRealtimeSocket(token: string | null) {
   const receiveWsEvent = useChatStore((s) => s.receiveWsEvent);
   const retryCount = useRef(0);
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gaveUpRef  = useRef(false);
 
   useEffect(() => {
     if (!token) return;
+    gaveUpRef.current = false;
 
     let ws: WebSocket | null = null;
     let destroyed = false;
 
     function connect() {
-      if (destroyed) return;
+      if (destroyed || gaveUpRef.current) return;
       ws = new WebSocket(buildWsUrl(token!));
 
       ws.onopen = () => {
-        retryCount.current = 0; // reset backoff on successful connection
+        retryCount.current = 0;
       };
 
       ws.onmessage = (evt) => {
@@ -40,7 +42,6 @@ export function useRealtimeSocket(token: string | null) {
               priority: String(p.priority ?? "medium"),
               reminder_id: p.reminder_id as number | undefined,
             });
-            // Only fetch unread count — not the full dashboard
             void fetchUnreadCount();
             _playTone(880, 0.5, soundEnabled);
 
@@ -54,7 +55,7 @@ export function useRealtimeSocket(token: string | null) {
                 })
               : "";
             pushToast({
-              title: `📅 Follow-up Due`,
+              title: "Follow-up Due",
               message: String(p.message ?? `Follow-up for ${entityLabel} is due`) +
                 (scheduledAt ? ` — ${scheduledAt}` : ""),
               priority: "high",
@@ -62,19 +63,17 @@ export function useRealtimeSocket(token: string | null) {
             _playTone(660, 0.6, soundEnabled);
 
           } else if (msg.event === "system_event") {
-            // Dispatch into the chat system event feed
             const p = msg.payload as Record<string, string>;
             const eventType = (p.event_type ?? "GENERIC") as SystemEventType;
             receiveWsEvent(eventType, p);
           }
-          // All other events are intentionally ignored — no fetchStats spam
-        } catch (_) {
-          // Malformed message — ignore silently
+        } catch {
+          /* malformed message — ignore silently */
         }
       };
 
       ws.onerror = () => {
-        // onerror is always followed by onclose — handle retry there
+        /* onerror is always followed by onclose — delegate retry there */
       };
 
       ws.onclose = (evt) => {
@@ -83,13 +82,15 @@ export function useRealtimeSocket(token: string | null) {
         // Code 1008 = policy violation (auth failed) — do NOT retry
         if (evt.code === 1008) {
           console.warn("[WS] Auth rejected (1008) — not retrying");
+          gaveUpRef.current = true;
           return;
         }
 
-        // Normal close or network drop — retry with backoff (max 3 attempts)
+        // Exponential backoff with max retries
         const delay = BACKOFF_MS[retryCount.current];
         if (delay === undefined) {
           console.warn("[WS] Max retries reached — giving up");
+          gaveUpRef.current = true;
           return;
         }
         retryCount.current += 1;
@@ -120,6 +121,5 @@ function _playTone(freq: number, duration: number, enabled: boolean) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + duration);
-  } catch (_) { /* audio not available */ }
+  } catch { /* audio not available */ }
 }
-

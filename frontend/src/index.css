@@ -1,8 +1,73 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Poppins:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Reports Module typography ── */
+.report-heading-serif {
+  font-family: 'Lora', 'Georgia', serif;
+}
+.report-ui-sans {
+  font-family: 'Poppins', 'Inter', sans-serif;
+}
+.report-mono {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace;
+}
+.report-gold-badge {
+  display: inline-block;
+  font-size: 7.4px;
+  padding: 2.5px 7px;
+  border-radius: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: var(--report-gold-soft);
+  color: var(--report-gold);
+}
+.report-active-badge {
+  display: inline-block;
+  font-size: 7.4px;
+  padding: 2.5px 7px;
+  border-radius: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: rgba(59,181,149,0.12);
+  color: var(--report-teal);
+}
+.report-overdue-badge {
+  display: inline-block;
+  font-size: 7.4px;
+  padding: 2.5px 7px;
+  border-radius: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: rgba(211,93,78,0.12);
+  color: var(--report-red);
+}
+.report-row-card {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  transition: border-color 0.15s, background 0.15s;
+}
+.report-row-card:hover {
+  border-color: var(--report-gold);
+  background: var(--bg-surface2);
+}
+.report-input {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  font-size: 12px;
+  outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  transition: border-color 0.15s;
+}
+.report-input:focus {
+  border-color: var(--report-gold);
+}
 
 /* ── Theme variables ── */
 :root {
@@ -125,6 +190,13 @@
   --sa-icon-color:    #6b7280;
   --sa-footer-color:  #4c1d95;
 
+  /* ── Reports Module: Ledger Noir gold accent ── */
+  --report-gold:       #C9A24B;
+  --report-gold-soft:  rgba(201,162,75,0.12);
+  --report-gold-faint: rgba(201,162,75,0.06);
+  --report-teal:       #3BB595;
+  --report-red:        #D35D4E;
+
   /* ── Button glass colors (dark: yellow) ── */
   --btn-glass-primary-bg: rgba(246, 206, 58, 0.12);
   --btn-glass-primary-border: rgba(246, 206, 58, 0.25);
@@ -162,6 +234,13 @@
   --accent-yellow:  #f6ce3a;
   --accent-teal:    #14B8A6;
   --tab-active-color: #14B8A6;
+
+  /* ── Reports Module: brass gold accent (light) ── */
+  --report-gold:       #B4872E;
+  --report-gold-soft:  rgba(180,135,46,0.10);
+  --report-gold-faint: rgba(180,135,46,0.05);
+  --report-teal:       #2E8C6A;
+  --report-red:        #C1493A;
 
   /* ── Data-table row colors (light) ── */
   --table-row-odd:  #ffffff;
@@ -923,6 +1002,54 @@ textarea:focus {
   to   { opacity: 1; transform: translateX(0); }
 }
 .animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ── Wave strike-through animation ── */
+@keyframes waveReveal {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes waveRipple {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: -40px;
+  }
+}
+
+.animate-wave-strike {
+  position: relative;
+  display: inline-block;
+}
+
+.animate-wave-strike::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 55%;
+  height: 4px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 8'%3E%3Cpath d='M0 4 Q5 0 10 4 T20 4 T30 4 T40 4' fill='none' stroke='%23f6ce3a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+  background-size: 40px 8px;
+  transform-origin: left;
+  animation: waveReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+.dark .animate-wave-strike::after {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 8'%3E%3Cpath d='M0 4 Q5 0 10 4 T20 4 T30 4 T40 4' fill='none' stroke='%23f6ce3a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+  background-size: 40px 8px;
+}
 
 /* ── Toast progress bar ── */
 @keyframes toastProgress {
@@ -1702,22 +1829,47 @@ textarea:focus {
 }
 
 /* ── Report Print Styles ─────────────────────────────────────────────────── */
+@page {
+  margin: 20mm;
+}
+
 @media print {
-  /* Hide everything except the report content */
+  /* Reset html/body for print */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    width: 100%;
+  }
+
+  /* Hide everything then selectively show the report */
   body > * { display: none !important; }
   .app-shell { display: block !important; }
   .app-shell > aside { display: none !important; }
   .app-shell > div > header { display: none !important; }
   .app-shell > div > main { display: block !important; }
 
-  /* Show only the print area */
+  /* Hide all page-level chrome inside main */
+  .app-shell > div > main > * { display: none !important; }
   .report-viewer { display: block !important; }
   .report-viewer > *:not(.print-area) { display: none !important; }
   .print-area { display: block !important; }
 
+  /* Report preview inline in app */
+  .report-preview {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .report-preview img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
   /* Table print styles */
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 8pt; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 8pt; word-break: break-word; white-space: normal; }
   thead { background-color: #1e3a5f !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   tr:nth-child(even) { background-color: #f5f7fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 

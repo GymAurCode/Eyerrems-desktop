@@ -120,18 +120,6 @@ export const MODULE_COLORS: Record<string, ModuleColorSet> = {
     sidebar_bg: '#14B8A6',
     sidebar_text: '#FFFFFF',
   },
-  reports: {
-    name: 'Reports',
-    primary: '#64748B',
-    light: '#F8FAFC',
-    medium: '#CBD5E1',
-    dark: '#475569',
-    text: '#1E293B',
-    accent: '#64748B',
-    rgb: '100,116,139',
-    sidebar_bg: '#64748B',
-    sidebar_text: '#FFFFFF',
-  },
   ai: {
     name: 'AI Intel',
     primary: '#A855F7',
@@ -204,7 +192,6 @@ export const MODULE_KEY_BY_PATH: Record<string, string> = {
   '/construction': 'construction',
   '/hr': 'hr',
   '/finance': 'finance',
-  '/reports': 'reports',
   '/ai': 'ai',
   '/communication': 'communication',
   '/reminders': 'reminders',
@@ -223,7 +210,6 @@ export function getModuleFromPath(pathname: string): string {
   if (path.startsWith('/construction')) return 'construction'
   if (path.startsWith('/hr')) return 'hr'
   if (path.startsWith('/finance')) return 'finance'
-  if (path.startsWith('/report')) return 'reports'
   if (path.startsWith('/admin')) return 'admin'
   if (path.startsWith('/ai')) return 'ai'
   if (path.startsWith('/communication')) return 'communication'
@@ -252,7 +238,6 @@ export const MODULE_COLOR_PRIMARY: Record<string, string> = {
   construction:  MODULE_COLORS.construction.primary,
   hr:            MODULE_COLORS.hr.primary,
   finance:       MODULE_COLORS.finance.primary,
-  reports:       MODULE_COLORS.reports.primary,
   ai:            MODULE_COLORS.ai.primary,
   communication: MODULE_COLORS.communication.primary,
   reminders:     MODULE_COLORS.reminders.primary,

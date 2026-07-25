@@ -23,6 +23,7 @@ from app.models.auth import User
 from app.models.booking import Booking, BookingAttachment, BookingLog
 from app.models.crm import Client, Installment, InstallmentPlan, InstallmentPayment, Lead
 from app.models.property import Property, Unit
+from app.services.activity_service import ActivityService
 from app.services.finance_posting_service import post_token_receipt, post_booking_fee
 from app.schemas.booking import (
     BookingAssignment,
@@ -53,6 +54,45 @@ router = APIRouter()
 
 PERM_VIEW   = ("crm:manage", "crm:view", "booking:view")
 PERM_MANAGE = ("crm:manage", "booking:manage")
+
+
+# ── Search ─────────────────────────────────────────────────────────────────────
+
+@router.get("/search")
+def booking_search(
+    q: str = "",
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    """Lightweight booking search by ID, client name, or property for dropdowns."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    bookings = (
+        db.query(Booking)
+        .options(joinedload(Booking.client), joinedload(Booking.property))
+        .filter(
+            Booking.booking_id.ilike(like) |
+            Booking.client.has(Client.name.ilike(like)) |
+            Booking.client.has(Client.phone.ilike(like)) |
+            Booking.property.has(Property.name.ilike(like))
+        )
+        .order_by(Booking.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": b.id,
+            "booking_id": b.booking_id,
+            "name": f"{b.booking_id} — {(b.client.name if b.client else 'N/A')}",
+            "client_name": b.client.name if b.client else None,
+            "property_name": b.property.name if b.property else None,
+            "status": b.status,
+        }
+        for b in bookings
+    ]
 
 
 # ── ID generators ─────────────────────────────────────────────────────────────
@@ -312,6 +352,12 @@ def create_booking(
 
     db.commit()
     db.refresh(booking)
+    ActivityService.log_create(
+        db=db, actor=current_user, entity_type="booking",
+        entity_id=booking.id, entity_label=f"Booking {booking.booking_id}",
+        new_data={"id": booking.id, "booking_id": booking.booking_id, "status": booking.status,
+                  "client_id": booking.client_id, "unit_id": booking.unit_id},
+    )
     return _enrich_booking(_load_booking(db, booking.id))
 
 
@@ -458,6 +504,11 @@ def update_booking(
     )
     db.commit()
     db.refresh(booking)
+    ActivityService.log_update(
+        db=db, actor=current_user, entity_type="booking",
+        entity_id=booking.id, entity_label=f"Booking {booking.booking_id}",
+        new_data={"status": booking.status},
+    )
     return _enrich_booking(_load_booking(db, booking_id))
 
 
@@ -477,6 +528,11 @@ def delete_booking(
             performed_by_id=current_user.id, notes="Deleted by user",
         )
         db.commit()
+    ActivityService.log_delete(
+        db=db, actor=current_user, entity_type="booking",
+        entity_id=booking.id, entity_label=f"Booking {booking.booking_id}",
+        old_data={"status": booking.status},
+    )
 
 
 # ── Status management ─────────────────────────────────────────────────────────
@@ -490,6 +546,7 @@ def update_booking_status(
     _=Depends(require_any_permission(*PERM_MANAGE)),
 ):
     booking = _load_booking(db, booking_id)
+    old_status = booking.status
     BookingService.update_booking_status(
         db=db, booking=booking, new_status=payload.status,
         performed_by_id=current_user.id,
@@ -498,6 +555,13 @@ def update_booking_status(
     )
     db.commit()
     db.refresh(booking)
+    ActivityService.log(
+        db=db, actor=current_user, action="status-change",
+        entity_type="booking", entity_id=booking.id,
+        entity_label=f"Booking {booking.booking_id}: {old_status} → {payload.status}",
+        old_data={"status": old_status},
+        new_data={"status": payload.status},
+    )
     return _enrich_booking(_load_booking(db, booking_id))
 
 

@@ -3,7 +3,7 @@ export const MODULE_TAB_CONFIG = [
     key: 'dashboard',
     label: 'Dashboard',
     icon: 'LayoutDashboard',
-    tabs: []
+    tabs: ['Dashboard']
   },
   {
     key: 'properties',
@@ -62,7 +62,13 @@ export const MODULE_TAB_CONFIG = [
     key: 'reports',
     label: 'Reports',
     icon: 'BarChart',
-    tabs: ['Reports', 'Analytics']
+    tabs: ['Reports']
+  },
+  {
+    key: 'spreadsheet',
+    label: 'Spreadsheet',
+    icon: 'Table',
+    tabs: ['Spreadsheet']
   },
   {
     key: 'ai',
@@ -94,11 +100,29 @@ export const MODULE_TAB_CONFIG = [
     icon: 'Clock',
     tabs: ['Activity']
   },
+  {
+    key: 'import',
+    label: 'Import',
+    icon: 'Upload',
+    tabs: ['Import']
+  },
+  {
+    key: 'advance-options',
+    label: 'Advance Options',
+    icon: 'Settings',
+    tabs: ['Options']
+  },
+  {
+    key: 'products-spreadsheet',
+    label: 'Product Spreadsheet',
+    icon: 'Table',
+    tabs: ['Products']
+  },
 ]
 
-export const READ_ONLY_MODULES = ['reports', 'ai', 'history']
+export const READ_ONLY_MODULES = ['ai', 'history']
 
-export const NO_DELETE_MODULES = ['reports', 'ai']
+export const NO_DELETE_MODULES = ['ai']
 
 export function getModuleConfig(key) {
   return MODULE_TAB_CONFIG.find((m) => m.key === key)

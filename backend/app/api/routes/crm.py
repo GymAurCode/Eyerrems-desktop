@@ -1,7 +1,7 @@
 """CRM routes — full ERP-grade implementation."""
 import shutil
 import uuid
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time, timezone
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
@@ -19,6 +19,7 @@ from app.core.database import get_db
 from app.core.table_query import apply_table_filters
 from app.core.journal_service import JournalService, JournalEntryData
 from app.core.websocket_manager import ws_manager
+from app.services import reminder_service as rsvc
 from app.models.auth import User
 from app.models.booking import Booking
 from app.models.ledger import DealerLedgerEntry
@@ -549,6 +550,40 @@ def convert_lead_to_client(lead_id: int, payload: ConvertLeadToClient,
     return _client_out(_load_client(db, client.id))
 
 
+# ── Client Search (MUST be before /clients/{client_id} dynamic route) ─────────
+
+@router.get("/clients/search")
+def client_search(
+    q: str = "",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    """Lightweight client search by name/CNIC/phone for global search bar."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    clients = db.query(Client).filter(
+        Client.name.ilike(like) |
+        Client.cnic.ilike(like) |
+        Client.phone.ilike(like) |
+        Client.client_id.ilike(like) |
+        Client.tracking_id.ilike(like)
+    ).order_by(Client.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": c.id,
+            "client_id": c.client_id,
+            "tracking_id": c.tracking_id,
+            "name": c.name,
+            "phone": c.phone,
+            "cnic": c.cnic,
+            "status": c.status,
+        }
+        for c in clients
+    ]
+
+
 @router.get("/clients/{client_id}", response_model=ClientOut)
 def get_client(client_id: str, db: Session = Depends(get_db),
                _=Depends(require_any_permission(*PERM_VIEW))):
@@ -681,6 +716,7 @@ def get_dealer_detail(dealer_id: str, db: Session = Depends(get_db),
     try:
         return _build_dealer_detail(db, dealer_id)
     except Exception as exc:
+        db.rollback()
         import traceback
         traceback.print_exc()
         raise HTTPException(500, detail=str(exc))
@@ -827,14 +863,14 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
     recent_leads_out = []
     for l in recent_leads_data:
         prop_name = None
-        deal_for_lead = db.query(Deal).filter(Deal.lead_id == l.id).first()
+        deal_for_lead = db.query(Deal).join(Deal.client).filter(Client.lead_id == l.id).first()
         if deal_for_lead and deal_for_lead.property:
             prop_name = deal_for_lead.property.name
         recent_leads_out.append(RecentAssignedLead(
             id=l.id, lead_id=l.lead_id or "", name=l.name or "",
             phone=l.phone, property_name=prop_name,
             assigned_date=l.created_at, current_stage=l.status or "new",
-            lead_cost=l.lead_cost or l.cost_per_lead,
+            lead_cost=l.lead_cost,
             expected_commission=deal_for_lead.commission if deal_for_lead else None,
             status=l.status or "new",
         ))
@@ -870,11 +906,19 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         db.query(Client).options(joinedload(Client.attachments))
         .filter(Client.dealer_id == did).all()
     )
-    active_deals = (
+    active_deals_raw = (
         db.query(Deal).options(joinedload(Deal.attachments), joinedload(Deal.client),
                                joinedload(Deal.dealer), joinedload(Deal.property))
         .filter(Deal.dealer_id == did).order_by(Deal.created_at.desc()).all()
     )
+
+    active_deals_out = []
+    for d in active_deals_raw:
+        deal_data = {c.name: getattr(d, c.name) for c in Deal.__table__.columns}
+        deal_data["client_name"] = d.client.name if d.client else None
+        deal_data["dealer_name"] = d.dealer.name if d.dealer else None
+        deal_data["property_name"] = d.property.name if d.property else None
+        active_deals_out.append(DealOut.model_validate(deal_data))
 
     return DealerDetailOut(
         dealer=DealerOut.model_validate(dealer),
@@ -885,7 +929,11 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         recent_leads=recent_leads_out,
         recent_ledger_entries=entries_out,
         assigned_clients=[ClientOut.model_validate(c) for c in assigned_clients],
-        active_deals=[DealOut.model_validate(d) for d in active_deals],
+        active_deals=active_deals_out,
+        credit=current_balance,
+        running_balance=current_balance,
+        status="active" if dealer.is_active else "inactive",
+        created_at=dealer.created_at,
     )
 
 
@@ -1307,6 +1355,45 @@ async def create_deal(payload: DealCreate, db: Session = Depends(get_db),
     return _deal_out(_load_deal(db, deal.id))
 
 
+# ── Deals Search (MUST be before /deals/{deal_id} dynamic route) ───────────────
+
+@router.get("/deals/search")
+def deal_search(
+    q: str = "",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _=Depends(require_any_permission(*PERM_VIEW)),
+):
+    """Lightweight deal search by title, ID, client name, or tracking ID for dropdowns."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    deals = (
+        db.query(Deal)
+        .options(joinedload(Deal.client))
+        .filter(
+            Deal.deal_title.ilike(like) |
+            Deal.deal_id.ilike(like) |
+            Deal.tracking_id.ilike(like) |
+            Deal.client.has(Client.name.ilike(like))
+        )
+        .order_by(Deal.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": d.id,
+            "deal_id": d.deal_id,
+            "title": d.deal_title or f"Deal #{d.id}",
+            "name": d.deal_title or f"Deal {d.deal_id}",
+            "client_name": d.client.name if d.client else None,
+            "status": d.status,
+        }
+        for d in deals
+    ]
+
+
 @router.get("/deals/{deal_id}", response_model=DealOut)
 def get_deal(deal_id: str, db: Session = Depends(get_db),
              _=Depends(require_any_permission(*PERM_VIEW))):
@@ -1699,6 +1786,7 @@ def create_followup(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
+    lead = db.query(Lead).filter(Lead.id == payload.lead_id).first()
     fu = FollowUp(
         fu_id=_next_followup_id(db),
         lead_id=payload.lead_id,
@@ -1718,6 +1806,25 @@ def create_followup(
     )
     db.commit()
     db.refresh(fu)
+
+    remind_time = time(9, 0)
+    if payload.time:
+        try:
+            parts = payload.time.split(":")
+            remind_time = time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+        except (ValueError, IndexError):
+            remind_time = time(9, 0)
+    remind_at = datetime.combine(payload.date, remind_time).replace(tzinfo=timezone.utc)
+    rsvc.create_reminder(db, payload.assigned_user_id or current_user.id, {
+        "title": f"Follow-up ({payload.fu_type}) - {lead.name if lead else 'Lead'}",
+        "description": payload.notes,
+        "category": "followup",
+        "remind_at": remind_at,
+        "priority": "medium",
+        "repeat": "none",
+        "reminder_before": 30,
+    })
+
     return _followup_out(fu)
 
 
@@ -1798,6 +1905,25 @@ def create_site_visit(
     )
     db.commit()
     db.refresh(sv)
+
+    remind_time = time(9, 0)
+    if payload.time:
+        try:
+            parts = payload.time.split(":")
+            remind_time = time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+        except (ValueError, IndexError):
+            remind_time = time(9, 0)
+    remind_at = datetime.combine(payload.date, remind_time).replace(tzinfo=timezone.utc)
+    rsvc.create_reminder(db, current_user.id, {
+        "title": f"Site Visit - {lead.name}",
+        "description": payload.remarks,
+        "category": "meeting",
+        "remind_at": remind_at,
+        "priority": "medium",
+        "repeat": "none",
+        "reminder_before": 60,
+    })
+
     return _site_visit_out(sv)
 
 
@@ -2550,38 +2676,6 @@ def global_search(q: str, db: Session = Depends(get_db),
     )
 
 
-@router.get("/clients/search", response_model=list[dict])
-def client_search(
-    q: str | None = None,
-    limit: int = 20,
-    db: Session = Depends(get_db),
-    _=Depends(require_any_permission(*PERM_VIEW)),
-):
-    """Lightweight client search by name/CNIC/phone for global search bar."""
-    if not q or not q.strip():
-        return []
-    like = f"%{q.strip()}%"
-    clients = db.query(Client).filter(
-        Client.name.ilike(like) |
-        Client.cnic.ilike(like) |
-        Client.phone.ilike(like) |
-        Client.client_id.ilike(like) |
-        Client.tracking_id.ilike(like)
-    ).order_by(Client.created_at.desc()).limit(limit).all()
-    return [
-        {
-            "id": c.id,
-            "client_id": c.client_id,
-            "tracking_id": c.tracking_id,
-            "name": c.name,
-            "phone": c.phone,
-            "cnic": c.cnic,
-            "status": c.status,
-        }
-        for c in clients
-    ]
-
-
 # ── Activities (Quick Actions) ────────────────────────────────────────────────
 
 @router.get("/activities", response_model=list[ActivityOut])
@@ -2701,3 +2795,6 @@ def delete_activity(
     )
     db.delete(activity)
     db.commit()
+
+
+

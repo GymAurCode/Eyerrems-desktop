@@ -113,8 +113,8 @@ function SuperAdminTopbar() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
-    navigate("/superadmin/login", { replace: true });
+    navigate("/login", { replace: true });
+    requestAnimationFrame(() => logout());
   };
 
   return (

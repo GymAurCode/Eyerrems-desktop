@@ -13,13 +13,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func as safunc
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_any_permission, require_permissions
 from app.core.audit import log_action
 from app.core.activity_logger import log_activity
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.auth import User
-from app.models.rbac import ActivityLog
+from app.models.audit import AuditLog as ActivityLog
 from app.models.construction import (
     ConResourceItem, ConstructionDocument, ConstructionExpense, ConstructionNotification,
     ConstructionProject, ConstructionTask, Contractor, DailyProgress, GoodsReceiptNote,
@@ -56,8 +56,8 @@ from app.schemas.construction import (
 
 router = APIRouter()
 
-_admin_manager = require_roles("Admin", "Manager")
-_all_staff = require_roles("Admin", "Manager", "Staff", "Accountant", "Dealer")
+_admin_manager = require_any_permission("construction:create", "construction:manage")
+_all_staff = require_any_permission("construction:view")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -198,7 +198,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
 
 
 @router.delete("/projects/{project_id}", status_code=204)
-def delete_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles("Admin"))):
+def delete_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
     p = db.query(ConstructionProject).filter(ConstructionProject.id == project_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -553,10 +553,6 @@ def patch_budget(project_id: int, payload: BudgetUpdate, db: Session = Depends(g
     obj = db.query(ProjectBudget).filter(ProjectBudget.project_id == project_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="Budget not found")
-    if obj.status == "locked":
-        # Only users with override permission could edit; for now check admin role
-        if not current_user.role or current_user.role.name not in ("Admin",):
-            raise HTTPException(status_code=403, detail="Budget is locked. Admin override required.")
     for k, v in payload.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     obj.total_cost = sum([obj.material_cost, obj.labor_cost, obj.equipment_cost,
@@ -688,7 +684,7 @@ def update_contractor(contractor_id: int, payload: ContractorUpdate, db: Session
 
 @router.delete("/contractors/{contractor_id}", status_code=204)
 def delete_contractor(contractor_id: int, db: Session = Depends(get_db),
-                      current_user: User = Depends(require_roles("Admin"))):
+                      current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
     c = db.query(Contractor).filter(Contractor.id == contractor_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Contractor not found")
@@ -1237,7 +1233,7 @@ def mark_all_notifications_read(project_id: int = Query(...), db: Session = Depe
 
 @router.post("/projects/{project_id}/convert-to-property")
 def convert_project_to_property(project_id: int, payload: PropertyConversionRequest,
-                                 db: Session = Depends(get_db), current_user: User = Depends(require_roles("Admin"))):
+                                 db: Session = Depends(get_db), current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
     from app.models.property import Property, Floor, Unit
     from app.core.database import Base
     project = db.query(ConstructionProject).filter(ConstructionProject.id == project_id).first()
@@ -1369,19 +1365,19 @@ def dashboard_activity(limit: int = Query(10, ge=1, le=100),
     """Return recent construction activity logs."""
     logs = db.query(ActivityLog).filter(
         ActivityLog.module == "construction"
-    ).order_by(ActivityLog.timestamp.desc()).limit(limit).all()
+    ).order_by(ActivityLog.created_at.desc()).limit(limit).all()
     result = []
     for log in logs:
         result.append({
             "id": log.id,
             "action": log.action,
             "message": log.record_label or log.action,
-            "user_name": log.user_name or "System",
-            "user_email": log.user_email,
+            "user_name": log.full_name or "System",
+            "user_email": log.changed_by,
             "module": log.module,
-            "record_type": log.record_type,
+            "record_type": log.entity_type,
             "record_id": log.record_id,
-            "created_at": log.timestamp,
+            "created_at": log.created_at,
         })
     return result
 

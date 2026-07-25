@@ -25,6 +25,7 @@ from app.schemas.mail import (
     MoveToTrashPayload,
 )
 from app.services.mail import AccountService, MailService
+from app.core.activity_logger import log_activity
 
 router = APIRouter()
 
@@ -60,6 +61,7 @@ def create_account(
         except Exception:
             # If test fails, account is still created but not verified
             pass
+        log_activity(db=db, user=current_user, action="create", module="mail", record_type="email_account", record_id=str(account.id), record_label=account.email_address)
         return account
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -78,7 +80,9 @@ def update_account(
     current_user: User = Depends(get_current_user),
 ):
     account = _get_account_or_404(db, account_id, current_user.id)
-    return AccountService.update(db, account, payload)
+    updated = AccountService.update(db, account, payload)
+    log_activity(db=db, user=current_user, action="update", module="mail", record_type="email_account", record_id=str(account_id), record_label=account.email_address)
+    return updated
 
 
 @router.delete("/accounts/{account_id}", status_code=204)
@@ -89,6 +93,7 @@ def delete_account(
 ):
     account = _get_account_or_404(db, account_id, current_user.id)
     AccountService.delete(db, account)
+    log_activity(db=db, user=current_user, action="delete", module="mail", record_type="email_account", record_id=str(account_id), record_label=account.email_address)
 
 
 @router.post("/accounts/{account_id}/test", response_model=ConnectionTestResult)
@@ -102,6 +107,7 @@ def test_account_connection(
     result = AccountService.test_connection(account)
     if result["smtp_ok"] and result["imap_ok"]:
         AccountService.mark_verified(db, account)
+    log_activity(db=db, user=current_user, action="test", module="mail", record_type="email_account", record_id=str(account_id), record_label=account.email_address)
     return result
 
 
@@ -136,8 +142,10 @@ def sync_inbox(
         raise HTTPException(400, "Account not verified — test connection first")
     try:
         new_count = MailService.sync_inbox(db, account)
+        log_activity(db=db, user=current_user, action="sync", module="mail", record_type="email_account", record_id=str(account_id), record_label=account.email_address)
         return {"synced": new_count}
     except Exception as exc:
+        db.rollback()
         raise HTTPException(500, f"Sync failed: {exc}")
 
 
@@ -252,8 +260,10 @@ async def send_email(
 
     try:
         sent = MailService.send_email(db, account, payload, attachment_files or None)
+        log_activity(db=db, user=current_user, action="send", module="mail", record_type="email", record_id=str(sent.id), record_label=sent.subject)
         return sent
     except Exception as exc:
+        db.rollback()
         raise HTTPException(500, f"Failed to send email: {exc}")
 
 
@@ -269,7 +279,9 @@ def save_draft(
 ):
     account = _get_account_or_404(db, payload.account_id, current_user.id)
     try:
-        return MailService.save_draft(db, account, payload)
+        draft = MailService.save_draft(db, account, payload)
+        log_activity(db=db, user=current_user, action="draft", module="mail", record_type="email", record_id=str(draft.id), record_label=draft.subject)
+        return draft
     except ValueError as e:
         raise HTTPException(404, str(e))
 
@@ -287,6 +299,7 @@ def mark_read(
 ):
     _get_account_or_404(db, account_id, current_user.id)
     count = MailService.mark_read(db, payload.email_ids, account_id, payload.is_read)
+    log_activity(db=db, user=current_user, action="mark_read", module="mail", record_type="email", record_id=",".join(str(i) for i in payload.email_ids), record_label=f"Marked {count} emails as read")
     return {"updated": count}
 
 
@@ -299,6 +312,7 @@ def move_to_trash(
 ):
     _get_account_or_404(db, account_id, current_user.id)
     count = MailService.move_to_trash(db, payload.email_ids, account_id)
+    log_activity(db=db, user=current_user, action="trash", module="mail", record_type="email", record_id=",".join(str(i) for i in payload.email_ids), record_label=f"Moved {count} emails to trash")
     return {"moved": count}
 
 
@@ -310,9 +324,11 @@ def delete_email(
     current_user: User = Depends(get_current_user),
 ):
     _get_account_or_404(db, account_id, current_user.id)
-    deleted = MailService.delete_permanently(db, email_id, account_id)
-    if not deleted:
+    email_obj = MailService.get_email(db, email_id, account_id)
+    if not email_obj:
         raise HTTPException(404, "Email not found")
+    MailService.delete_permanently(db, email_id, account_id)
+    log_activity(db=db, user=current_user, action="delete", module="mail", record_type="email", record_id=str(email_id), record_label=email_obj.subject)
 
 
 # ─────────────────────────────────────────────

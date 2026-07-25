@@ -127,7 +127,7 @@ export default function EmailPreview({ email, onClose, onReply, onTrash }: Props
             <iframe
               srcDoc={email.body_html}
               className="w-full min-h-[400px] border-0 rounded-lg"
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts"
               title="Email body"
               onLoad={(e) => {
                 const iframe = e.currentTarget;
