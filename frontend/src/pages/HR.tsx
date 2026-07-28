@@ -1,13 +1,13 @@
 /**
  * HR Management Page
- * Tabs: Dashboard · Employees · Attendance · Leaves · Payroll · Setup
+ * Tabs: Dashboard · Employees · Attendance · Leaves · Payroll · Performance · Setup
  */
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Users, Calendar, FileText, DollarSign, Settings2, Plus,
   RefreshCw, Search, CheckCircle, XCircle, Clock,
   Building2, MapPin, Briefcase, UserCheck,
-  TrendingUp, ArrowDownRight, Printer, Eye, Edit2, Trash2,
+  TrendingUp, ArrowDownRight, Printer, Eye, Edit2, Trash2, BarChart3,
 } from "lucide-react";
 import AppDialog from "../components/ui/AppDialog";
 import { formatCurrency } from "../lib/currency";
@@ -29,19 +29,27 @@ import {
 } from "../lib/hrApi";
 import { useNotifStore } from "../store/notifications";
 import { useLookup } from "../hooks/useLookup";
+import { usePermissions } from "../hooks/usePermissions";
+import PerformanceTab from "./hr/PerformanceTab";
 
-type Tab = "dashboard" | "employees" | "attendance" | "leaves" | "payroll" | "setup";
+type Tab = "dashboard" | "employees" | "attendance" | "leaves" | "payroll" | "performance" | "setup";
 
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+const TAB_PERM_MAP: Record<string, string> = {
+  employees: "Employees",
+  attendance: "Attendance",
+  leaves: "Leaves",
+  payroll: "Payroll",
+};
+
+const ALL_TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard",  label: "Dashboard",  icon: TrendingUp },
   { id: "employees",  label: "Employees",  icon: Users },
   { id: "attendance", label: "Attendance", icon: Calendar },
   { id: "leaves",     label: "Leaves",     icon: FileText },
-  { id: "payroll",    label: "Payroll",    icon: DollarSign },
-  { id: "setup",      label: "Setup",      icon: Settings2 },
+  { id: "payroll",    label: "Payroll",       icon: DollarSign },
+  { id: "performance",label: "Performance",   icon: BarChart3 },
+  { id: "setup",      label: "Setup",         icon: Settings2 },
 ];
-
-const TAB_ITEMS = TABS.map((t) => ({ label: t.label, value: t.id, icon: t.icon }));
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -89,7 +97,16 @@ const inputStyle = { border: "1px solid var(--border)", background: "var(--dialo
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function HRPage() {
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const { canAccessTab } = usePermissions();
+
+  const visibleTabs = ALL_TABS.filter(t => {
+    const dbTabKey = TAB_PERM_MAP[t.id];
+    return dbTabKey ? canAccessTab("hr", dbTabKey) : true;
+  });
+  const TAB_ITEMS = visibleTabs.map((t) => ({ label: t.label, value: t.id, icon: t.icon }));
+
+  const defaultTab = TAB_ITEMS.length > 0 ? TAB_ITEMS[0].value as Tab : "dashboard" as Tab;
+  const [tab, setTab] = useState<Tab>(defaultTab);
   const [employees,   setEmployees]   = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions,   setPositions]   = useState<Position[]>([]);
@@ -142,6 +159,7 @@ export default function HRPage() {
         {tab === "attendance" && <AttendanceTab employees={employees} departments={departments} />}
         {tab === "leaves"     && <LeavesTab employees={employees} leaveTypes={leaveTypes} />}
         {tab === "payroll"    && <PayrollTab employees={employees} departments={departments} />}
+        {tab === "performance"&& <PerformanceTab employees={employees} departments={departments} />}
         {tab === "setup"      && <SetupTab departments={departments} positions={positions} branches={branches} leaveTypes={leaveTypes} holidays={holidays} onRefresh={loadMaster} />}
       </div>
     </div>

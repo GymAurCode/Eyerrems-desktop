@@ -5,8 +5,16 @@ import { useNotifStore } from "../store/notifications";
 import { useChatStore } from "../store/chat";
 import type { SystemEventType } from "../services/chat/ChatService";
 
-// Exponential backoff: 1s, 2s, 4s — then give up (max 3 retries)
 const BACKOFF_MS = [1_000, 2_000, 4_000];
+
+let _rbacEventListeners: Array<(event: string, payload: Record<string, unknown>) => void> = [];
+
+export function addRbacEventListener(fn: (event: string, payload: Record<string, unknown>) => void) {
+  _rbacEventListeners.push(fn);
+  return () => {
+    _rbacEventListeners = _rbacEventListeners.filter((f) => f !== fn);
+  };
+}
 
 export function useRealtimeSocket(token: string | null) {
   const { fetchUnreadCount, pushToast, soundEnabled } = useNotifStore();
@@ -33,6 +41,18 @@ export function useRealtimeSocket(token: string | null) {
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data) as { event: string; payload: Record<string, unknown> };
+
+          // RBAC events
+          if (msg.event?.startsWith("rbac.")) {
+            _rbacEventListeners.forEach((fn) => fn(msg.event, msg.payload));
+            return;
+          }
+
+          // Audit log events
+          if (msg.event === "audit_log.created") {
+            _rbacEventListeners.forEach((fn) => fn(msg.event, msg.payload));
+            return;
+          }
 
           if (msg.event === "reminder_fired") {
             const p = msg.payload;
@@ -72,21 +92,17 @@ export function useRealtimeSocket(token: string | null) {
         }
       };
 
-      ws.onerror = () => {
-        /* onerror is always followed by onclose — delegate retry there */
-      };
+      ws.onerror = () => {};
 
       ws.onclose = (evt) => {
         if (destroyed) return;
 
-        // Code 1008 = policy violation (auth failed) — do NOT retry
         if (evt.code === 1008) {
           console.warn("[WS] Auth rejected (1008) — not retrying");
           gaveUpRef.current = true;
           return;
         }
 
-        // Exponential backoff with max retries
         const delay = BACKOFF_MS[retryCount.current];
         if (delay === undefined) {
           console.warn("[WS] Max retries reached — giving up");

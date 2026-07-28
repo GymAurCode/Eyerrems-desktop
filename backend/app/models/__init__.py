@@ -28,7 +28,7 @@ from app.models.reminders import (
 from app.models.hr import (
     Department, Position, Branch, ShiftTemplate, Employee, SalaryStructure,
     AllowanceType, DeductionType, Attendance, LeaveType, Leave,
-    Payroll, LeaveBalance, Holiday
+    Payroll, LeaveBalance, Holiday, EmployeeTask, PerformanceReview
 )
 from app.models.mail import EmailAccount, EmailThread, Email, EmailAttachment
 from app.models.town import Town, Block, Plot, TownUnit, TownTransaction
@@ -43,4 +43,6 @@ from app.models.import_batch import ImportBatch, ImportRowLog
 from app.models.spreadsheet_audit import SpreadsheetAuditLog  # noqa: F401
 from app.models.attachment import Attachment  # noqa: F401
 from app.models.lookup import LookupValue  # noqa: F401
+from app.models.rbac import Role, RolePermission  # noqa: F401
+from app.models.backup import Backup, BackupSetting  # noqa: F401
 

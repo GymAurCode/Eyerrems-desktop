@@ -35,6 +35,7 @@ import { attachmentApi } from "../lib/attachmentApi";
 import FileUpload from "../components/ui/FileUpload";
 import ModuleTabs from "../components/ui/ModuleTabs";
 import { MODULE_COLORS } from "../config/moduleColors";
+import { usePermissions } from "../hooks/usePermissions";
 import AppDialog from "../components/ui/AppDialog";
 import InvoicesTab from "../components/finance/InvoicesTab";
 import MakePaymentDialog from "../components/finance/MakePaymentDialog";
@@ -47,7 +48,17 @@ import JournalsTab from "../components/finance/JournalsTab";
 type Tab = "dashboard" | "accounts" | "journals" | "invoices" | "payments"
        | "bank" | "cash" | "commissions" | "expenses" | "ledger" | "reports" | "operations";
 
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+const TAB_PERM_MAP: Record<string, string> = {
+  dashboard: "Overview",
+  accounts: "Accounts",
+  invoices: "Invoices",
+  payments: "Payments",
+  commissions: "Commissions",
+  expenses: "Expenses",
+  ledger: "Ledger",
+};
+
+const ALL_TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard",   label: "Dashboard",   icon: BarChart3 },
   { id: "accounts",    label: "Accounts",    icon: BookOpen },
   { id: "journals",    label: "Journals",    icon: FileText },
@@ -61,8 +72,6 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "reports",     label: "Reports",     icon: BarChart3 },
   { id: "operations",  label: "Operations",  icon: Layers },
 ];
-
-const TAB_ITEMS = TABS.map((t) => ({ label: t.label, value: t.id, icon: t.icon }));
 
 const ACCENT = MODULE_COLORS.finance.primary;
 
@@ -156,6 +165,15 @@ function EmptyState({ icon: Icon, title, sub, action }: any) {
 
 export default function FinancePage() {
   const location = useLocation();
+  const { canAccessTab, canAccessModule } = usePermissions();
+
+  const visibleTabs = ALL_TABS.filter(t => {
+    const dbTabKey = TAB_PERM_MAP[t.id];
+    return dbTabKey ? canAccessTab("finance", dbTabKey) : canAccessModule("finance");
+  });
+
+  const TAB_ITEMS = visibleTabs.map((t) => ({ label: t.label, value: t.id, icon: t.icon }));
+
   const [tab, setTab] = useState<Tab>("dashboard");
   const [dlg, setDlg] = useState<string | null>(null);
   const accounts = useDataStore((s) => s.accounts);

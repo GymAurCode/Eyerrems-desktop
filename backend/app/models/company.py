@@ -5,9 +5,10 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class Company(Base):
+class Company(Base, SoftDeleteMixin):
     __tablename__ = "companies"
 
     id            = Column(Integer, primary_key=True, index=True)

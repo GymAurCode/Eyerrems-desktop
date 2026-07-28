@@ -9,6 +9,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
 # ── Lookup / Reference Tables ──────────────────────────────────────────────
@@ -28,7 +29,7 @@ class ConstructionUnit(Base):
 
 # ── Construction Project ───────────────────────────────────────────────────
 
-class ConstructionProject(Base):
+class ConstructionProject(Base, SoftDeleteMixin):
     __tablename__ = "construction_projects"
 
     id              = Column(Integer, primary_key=True)
@@ -55,9 +56,6 @@ class ConstructionProject(Base):
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    is_deleted      = Column(Boolean, nullable=False, default=False)
-    deleted_at      = Column(DateTime, nullable=True)
-
     creator      = relationship("User", foreign_keys=[created_by])
     town         = relationship("Town", foreign_keys=[town_id])
     block        = relationship("Block", foreign_keys=[block_id])
@@ -82,7 +80,7 @@ class ConstructionProject(Base):
 
 # ── Project Phases & Tasks ─────────────────────────────────────────────────
 
-class ProjectPhase(Base):
+class ProjectPhase(Base, SoftDeleteMixin):
     __tablename__ = "construction_phases"
 
     id          = Column(Integer, primary_key=True)
@@ -100,7 +98,7 @@ class ProjectPhase(Base):
     tasks   = relationship("ConstructionTask", back_populates="phase", cascade="all, delete-orphan")
 
 
-class ConstructionTask(Base):
+class ConstructionTask(Base, SoftDeleteMixin):
     __tablename__ = "construction_tasks"
 
     id                = Column(Integer, primary_key=True)
@@ -401,7 +399,7 @@ class ConVendor(Base):
 
 # ── Contractors ────────────────────────────────────────────────────────────
 
-class Contractor(Base):
+class Contractor(Base, SoftDeleteMixin):
     __tablename__ = "construction_contractors"
 
     id             = Column(Integer, primary_key=True)
@@ -438,7 +436,7 @@ class ProjectContractor(Base):
 
 # ── Legacy Procurement (keep for backward compatibility) ───────────────────
 
-class Procurement(Base):
+class Procurement(Base, SoftDeleteMixin):
     __tablename__ = "construction_procurements"
 
     id           = Column(Integer, primary_key=True)
@@ -465,7 +463,7 @@ class Procurement(Base):
 
 # ── Execution / Daily Progress ─────────────────────────────────────────────
 
-class DailyProgress(Base):
+class DailyProgress(Base, SoftDeleteMixin):
     __tablename__ = "construction_daily_progress"
 
     id                  = Column(Integer, primary_key=True)
@@ -491,7 +489,7 @@ class DailyProgress(Base):
 
 # ── Expenses / Finance ─────────────────────────────────────────────────────
 
-class ConstructionExpense(Base):
+class ConstructionExpense(Base, SoftDeleteMixin):
     __tablename__ = "construction_expenses"
 
     id           = Column(Integer, primary_key=True)
@@ -527,7 +525,7 @@ class VendorPayment(Base):
 
 # ── Quality Inspection ─────────────────────────────────────────────────────
 
-class QualityInspection(Base):
+class QualityInspection(Base, SoftDeleteMixin):
     __tablename__ = "con_quality_inspections"
 
     id            = Column(Integer, primary_key=True)
@@ -565,7 +563,7 @@ class InspectionChecklistItem(Base):
 
 # ── Safety ─────────────────────────────────────────────────────────────────
 
-class SafetyIncident(Base):
+class SafetyIncident(Base, SoftDeleteMixin):
     __tablename__ = "con_safety_incidents"
 
     id          = Column(Integer, primary_key=True)
@@ -589,7 +587,7 @@ class SafetyIncident(Base):
 
 # ── Documents ──────────────────────────────────────────────────────────────
 
-class ConstructionDocument(Base):
+class ConstructionDocument(Base, SoftDeleteMixin):
     __tablename__ = "construction_documents"
 
     id          = Column(Integer, primary_key=True)

@@ -92,7 +92,19 @@ export const MODULE_TAB_CONFIG = [
     key: 'admin',
     label: 'Admin',
     icon: 'Shield',
-    tabs: ['Settings']
+    tabs: ['Settings', 'Roles', 'Users', 'Audit Logs']
+  },
+  {
+    key: 'recycle_bin',
+    label: 'Recycle Bin',
+    icon: 'Trash2',
+    tabs: ['General']
+  },
+  {
+    key: 'backup',
+    label: 'Backup & Restore',
+    icon: 'Shield',
+    tabs: ['General']
   },
   {
     key: 'history',

@@ -21,9 +21,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class Booking(Base):
+class Booking(Base, SoftDeleteMixin):
     """
     Official property/unit reservation with full financial commitment.
 

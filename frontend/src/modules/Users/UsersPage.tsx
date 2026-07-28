@@ -27,9 +27,9 @@ interface UserRow {
 export default function UsersPage() {
   const [tab, setTab] = useState("list");
   const user = useAuthStore((s) => s.user);
-  const { isAdmin } = usePermissions();
+  const { isSuperAdmin } = usePermissions();
 
-  const canApprove = isAdmin || user?.role === "Admin" || user?.roles?.includes("Admin");
+  const canApprove = isSuperAdmin;
 
   return (
     <div className="p-6 space-y-5 animate-slide-up">

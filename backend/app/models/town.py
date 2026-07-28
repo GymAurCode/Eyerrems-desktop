@@ -21,11 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
 # ── Town (Society / Project) ──────────────────────────────────────────────────
 
-class Town(Base):
+class Town(Base, SoftDeleteMixin):
     __tablename__ = "towns"
 
     id          = Column(Integer, primary_key=True)
@@ -47,7 +48,7 @@ class Town(Base):
 
 # ── Block / Phase / Sector ────────────────────────────────────────────────────
 
-class Block(Base):
+class Block(Base, SoftDeleteMixin):
     __tablename__ = "blocks"
 
     id          = Column(Integer, primary_key=True)
@@ -76,7 +77,7 @@ class Block(Base):
 
 # ── Plot (legacy — kept for backward compatibility) ───────────────────────────
 
-class Plot(Base):
+class Plot(Base, SoftDeleteMixin):
     __tablename__ = "plots"
 
     id           = Column(Integer, primary_key=True)
@@ -121,7 +122,7 @@ UNIT_STATUSES = {
 }
 
 
-class TownUnit(Base):
+class TownUnit(Base, SoftDeleteMixin):
     """
     A property unit within a town block.
     Replaces the plot-only model with a flexible multi-type system.

@@ -10,9 +10,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class Department(Base):
+class Department(Base, SoftDeleteMixin):
     """Department/Division within organization"""
     __tablename__ = "departments"
 
@@ -32,7 +33,7 @@ class Department(Base):
     employees = relationship("Employee", foreign_keys="Employee.department_id", back_populates="department")
 
 
-class Position(Base):
+class Position(Base, SoftDeleteMixin):
     """Job position/designation"""
     __tablename__ = "positions"
 
@@ -51,7 +52,7 @@ class Position(Base):
     employees = relationship("Employee", back_populates="position")
 
 
-class Branch(Base):
+class Branch(Base, SoftDeleteMixin):
     """Branch/Office location"""
     __tablename__ = "branches"
 
@@ -74,7 +75,7 @@ class Branch(Base):
     employees = relationship("Employee", back_populates="branch")
 
 
-class ShiftTemplate(Base):
+class ShiftTemplate(Base, SoftDeleteMixin):
     """Shift/Duty Time Template"""
     __tablename__ = "shift_templates"
 
@@ -96,7 +97,7 @@ class ShiftTemplate(Base):
     employees = relationship("Employee", back_populates="shift_template")
 
 
-class Employee(Base):
+class Employee(Base, SoftDeleteMixin):
     """Employee master record"""
     __tablename__ = "employees"
 
@@ -180,7 +181,7 @@ class Employee(Base):
     payroll_records = relationship("Payroll", back_populates="employee")
 
 
-class SalaryStructure(Base):
+class SalaryStructure(Base, SoftDeleteMixin):
     """Employee salary structure with allowances and deductions"""
     __tablename__ = "salary_structures"
 
@@ -221,7 +222,7 @@ class SalaryStructure(Base):
     employee = relationship("Employee", back_populates="salary_structure")
 
 
-class AllowanceType(Base):
+class AllowanceType(Base, SoftDeleteMixin):
     """Master list of allowance types"""
     __tablename__ = "allowance_types"
 
@@ -235,7 +236,7 @@ class AllowanceType(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 
-class DeductionType(Base):
+class DeductionType(Base, SoftDeleteMixin):
     """Master list of deduction types"""
     __tablename__ = "deduction_types"
 
@@ -249,7 +250,7 @@ class DeductionType(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 
-class Attendance(Base):
+class Attendance(Base, SoftDeleteMixin):
     """Daily attendance records"""
     __tablename__ = "attendances"
 
@@ -290,7 +291,7 @@ class Attendance(Base):
     corrector = relationship("User", foreign_keys=[corrected_by])
 
 
-class LeaveType(Base):
+class LeaveType(Base, SoftDeleteMixin):
     """Master leave types"""
     __tablename__ = "leave_types"
 
@@ -311,7 +312,7 @@ class LeaveType(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 
-class Leave(Base):
+class Leave(Base, SoftDeleteMixin):
     """Leave requests"""
     __tablename__ = "leaves"
 
@@ -354,7 +355,7 @@ class Leave(Base):
     rejector = relationship("User", foreign_keys=[rejected_by])
 
 
-class Payroll(Base):
+class Payroll(Base, SoftDeleteMixin):
     """Monthly payroll records"""
     __tablename__ = "payrolls"
 
@@ -417,7 +418,7 @@ class Payroll(Base):
     approver = relationship("User", foreign_keys=[approved_by])
 
 
-class LeaveBalance(Base):
+class LeaveBalance(Base, SoftDeleteMixin):
     """Employee leave balance tracker"""
     __tablename__ = "leave_balances"
 
@@ -446,7 +447,7 @@ class LeaveBalance(Base):
     leave_type = relationship("LeaveType")
 
 
-class Holiday(Base):
+class Holiday(Base, SoftDeleteMixin):
     """Company holidays"""
     __tablename__ = "holidays"
 
@@ -462,3 +463,49 @@ class Holiday(Base):
 
     # Relationships
     branch = relationship("Branch")
+
+
+class EmployeeTask(Base, SoftDeleteMixin):
+    """Tasks assigned to employees for performance tracking"""
+    __tablename__ = "employee_tasks"
+
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    deadline = Column(Date, nullable=True)
+    priority = Column(String(20), nullable=False, default="medium")  # low, medium, high, critical
+    status = Column(String(30), nullable=False, default="pending")  # pending, in_progress, completed, overdue, not_fulfilled
+    assigned_date = Column(DateTime, nullable=False, server_default=func.now())
+    completed_date = Column(DateTime, nullable=True)
+    remark = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    employee = relationship("Employee", backref="tasks")
+    assigner = relationship("User", foreign_keys=[assigned_by])
+
+
+class PerformanceReview(Base, SoftDeleteMixin):
+    """Employee performance reviews / appraisals"""
+    __tablename__ = "performance_reviews"
+
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    review_date = Column(DateTime, nullable=False, server_default=func.now())
+    period_start = Column(Date, nullable=True)
+    period_end = Column(Date, nullable=True)
+    task_score = Column(Numeric(5, 2), nullable=True)  # auto-calculated 0-100
+    attendance_score = Column(Numeric(5, 2), nullable=True)  # auto-calculated 0-100
+    manual_score = Column(Numeric(5, 2), nullable=True)  # admin input 0-100
+    overall_rating = Column(Numeric(5, 2), nullable=True)  # weighted average
+    remarks = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    employee = relationship("Employee", backref="performance_reviews")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])

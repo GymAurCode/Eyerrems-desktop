@@ -9,7 +9,7 @@ from typing import Optional
 from collections import defaultdict
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import func as safunc
 from sqlalchemy.orm import Session, joinedload
 
@@ -53,6 +53,8 @@ from app.schemas.construction import (
     VendorCreate, VendorResponse,
     VendorPaymentCreate, VendorPaymentResponse,
 )
+
+from app.services.soft_delete_service import SoftDeleteService
 
 router = APIRouter()
 
@@ -198,14 +200,12 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
 
 
 @router.delete("/projects/{project_id}", status_code=204)
-def delete_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
+def delete_project(project_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
     p = db.query(ConstructionProject).filter(ConstructionProject.id == project_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
-    p.is_deleted = True
-    p.deleted_at = datetime.utcnow()
+    SoftDeleteService.soft_delete(db, p, current_user, "construction_projects", request=request)
     db.commit()
-    _log_construction(db, current_user, "DELETE", "project", project_id, f"Project: {p.name}")
 
 
 # ── Project child resources ────────────────────────────────────────────────
@@ -435,12 +435,13 @@ def update_phase(phase_id: int, payload: PhaseUpdate, db: Session = Depends(get_
 
 
 @router.delete("/phases/{phase_id}", status_code=204)
-def delete_phase(phase_id: int, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
+def delete_phase(phase_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
     phase = db.query(ProjectPhase).filter(ProjectPhase.id == phase_id).first()
     if not phase:
         raise HTTPException(status_code=404, detail="Phase not found")
-    db.delete(phase)
+    SoftDeleteService.soft_delete(db, phase, current_user, "construction_phases", request=request)
     db.commit()
+    _update_project_progress(db, phase.project_id)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -497,12 +498,13 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
+def delete_task(task_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
     task = db.query(ConstructionTask).filter(ConstructionTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    db.delete(task)
+    SoftDeleteService.soft_delete(db, task, current_user, "construction_tasks", request=request)
     db.commit()
+    _update_project_progress(db, task.project_id)
 
 
 @router.post("/tasks/dependencies", response_model=TaskDependencyResponse, status_code=201)
@@ -516,10 +518,14 @@ def add_task_dependency(payload: TaskDependencyCreate, db: Session = Depends(get
 
 
 @router.delete("/tasks/dependencies/{dep_id}", status_code=204)
-def remove_task_dependency(dep_id: int, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
+def remove_task_dependency(dep_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(_admin_manager)):
     dep = db.query(TaskDependency).filter(TaskDependency.id == dep_id).first()
     if not dep:
         raise HTTPException(status_code=404, detail="Dependency not found")
+    from app.services.activity_service import AuditLogService
+    AuditLogService.log_delete(db=db, actor=current_user, module="construction",
+                               entity_type="task_dependency", entity_id=dep_id,
+                               entity_name=f"Task dependency {dep_id}", request=request)
     db.delete(dep)
     db.commit()
 
@@ -638,7 +644,7 @@ def allocate_resource(payload: ResourceAllocationCreate, db: Session = Depends(g
 
 
 @router.delete("/resources/allocate/{allocation_id}", status_code=204)
-def release_resource(allocation_id: int, db: Session = Depends(get_db),
+def release_resource(allocation_id: int, request: Request, db: Session = Depends(get_db),
                      current_user: User = Depends(_admin_manager)):
     alloc = db.query(ResourceAllocation).filter(ResourceAllocation.id == allocation_id).first()
     if not alloc:
@@ -646,6 +652,10 @@ def release_resource(allocation_id: int, db: Session = Depends(get_db),
     resource = db.query(ConResourceItem).filter(ConResourceItem.id == alloc.resource_id).first()
     if resource:
         resource.availability = "available"
+    from app.services.activity_service import AuditLogService
+    AuditLogService.log_delete(db=db, actor=current_user, module="construction",
+                               entity_type="resource_allocation", entity_id=allocation_id,
+                               entity_name=f"Resource allocation {allocation_id}", request=request)
     db.delete(alloc)
     db.commit()
 
@@ -683,12 +693,12 @@ def update_contractor(contractor_id: int, payload: ContractorUpdate, db: Session
 
 
 @router.delete("/contractors/{contractor_id}", status_code=204)
-def delete_contractor(contractor_id: int, db: Session = Depends(get_db),
+def delete_contractor(contractor_id: int, request: Request, db: Session = Depends(get_db),
                       current_user: User = Depends(require_any_permission("construction:delete", "construction:manage"))):
     c = db.query(Contractor).filter(Contractor.id == contractor_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Contractor not found")
-    db.delete(c)
+    SoftDeleteService.soft_delete(db, c, current_user, "construction_contractors", request=request)
     db.commit()
 
 
@@ -710,11 +720,15 @@ def assign_contractor(payload: ProjectContractorCreate, db: Session = Depends(ge
 
 
 @router.delete("/contractors/assign/{assignment_id}", status_code=204)
-def remove_contractor_assignment(assignment_id: int, db: Session = Depends(get_db),
+def remove_contractor_assignment(assignment_id: int, request: Request, db: Session = Depends(get_db),
                                  current_user: User = Depends(_admin_manager)):
     pc = db.query(ProjectContractor).filter(ProjectContractor.id == assignment_id).first()
     if not pc:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    from app.services.activity_service import AuditLogService
+    AuditLogService.log_delete(db=db, actor=current_user, module="construction",
+                               entity_type="contractor_assignment", entity_id=assignment_id,
+                               entity_name=f"Contractor assignment {assignment_id}", request=request)
     db.delete(pc)
     db.commit()
 
@@ -765,12 +779,12 @@ def update_procurement_status(procurement_id: int, payload: ProcurementStatusUpd
 
 
 @router.delete("/procurement/{procurement_id}", status_code=204)
-def delete_procurement(procurement_id: int, db: Session = Depends(get_db),
+def delete_procurement(procurement_id: int, request: Request, db: Session = Depends(get_db),
                        current_user: User = Depends(_admin_manager)):
     pr = db.query(Procurement).filter(Procurement.id == procurement_id).first()
     if not pr:
         raise HTTPException(status_code=404, detail="Procurement not found")
-    db.delete(pr)
+    SoftDeleteService.soft_delete(db, pr, current_user, "construction_procurement", request=request)
     db.commit()
 
 
@@ -931,12 +945,12 @@ def update_progress(progress_id: int, payload: DailyProgressUpdate, db: Session 
 
 
 @router.delete("/progress/{progress_id}", status_code=204)
-def delete_progress(progress_id: int, db: Session = Depends(get_db),
+def delete_progress(progress_id: int, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(_admin_manager)):
     log = db.query(DailyProgress).filter(DailyProgress.id == progress_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Progress record not found")
-    db.delete(log)
+    SoftDeleteService.soft_delete(db, log, current_user, "construction_daily_progress", request=request)
     db.commit()
 
 
@@ -1002,11 +1016,11 @@ def update_expense(expense_id: int, payload: ConstructionExpenseUpdate, db: Sess
 
 
 @router.delete("/expenses/{expense_id}", status_code=204)
-def delete_expense(expense_id: int, db: Session = Depends(get_db), user: User = Depends(_admin_manager)):
+def delete_expense(expense_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(_admin_manager)):
     expense = db.query(ConstructionExpense).filter(ConstructionExpense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
-    db.delete(expense)
+    SoftDeleteService.soft_delete(db, expense, user, "construction_expenses", request=request)
     db.commit()
 
 
@@ -1068,12 +1082,12 @@ def update_inspection(inspection_id: int, payload: QualityInspectionUpdate, db: 
 
 
 @router.delete("/inspections/{inspection_id}", status_code=204)
-def delete_inspection(inspection_id: int, db: Session = Depends(get_db),
+def delete_inspection(inspection_id: int, request: Request, db: Session = Depends(get_db),
                        current_user: User = Depends(_admin_manager)):
     insp = db.query(QualityInspection).filter(QualityInspection.id == inspection_id).first()
     if not insp:
         raise HTTPException(status_code=404, detail="Inspection not found")
-    db.delete(insp)
+    SoftDeleteService.soft_delete(db, insp, current_user, "construction_inspections", request=request)
     db.commit()
 
 
@@ -1107,12 +1121,12 @@ def update_safety_incident(incident_id: int, payload: SafetyIncidentUpdate, db: 
 
 
 @router.delete("/safety/{incident_id}", status_code=204)
-def delete_safety_incident(incident_id: int, db: Session = Depends(get_db),
+def delete_safety_incident(incident_id: int, request: Request, db: Session = Depends(get_db),
                             current_user: User = Depends(_admin_manager)):
     si = db.query(SafetyIncident).filter(SafetyIncident.id == incident_id).first()
     if not si:
         raise HTTPException(status_code=404, detail="Safety incident not found")
-    db.delete(si)
+    SoftDeleteService.soft_delete(db, si, current_user, "construction_safety", request=request)
     db.commit()
 
 
@@ -1151,18 +1165,12 @@ async def upload_document(project_id: int, folder: str = Query(default="Other"),
 
 
 @router.delete("/documents/{document_id}", status_code=204)
-def delete_document(document_id: int, db: Session = Depends(get_db),
+def delete_document(document_id: int, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(_admin_manager)):
     doc = db.query(ConstructionDocument).filter(ConstructionDocument.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    try:
-        file_path = Path(settings.upload_dir).parent / doc.file_url.lstrip("/")
-        if file_path.exists():
-            file_path.unlink()
-    except Exception:
-        pass
-    db.delete(doc)
+    SoftDeleteService.soft_delete(db, doc, current_user, "construction_documents", request=request)
     db.commit()
 
 

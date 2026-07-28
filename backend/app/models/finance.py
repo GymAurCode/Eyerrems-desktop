@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, Nu
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
 class Account(Base):
@@ -28,7 +29,7 @@ class Account(Base):
     journal_entries = relationship("JournalEntry", back_populates="account")
 
 
-class Journal(Base):
+class Journal(Base, SoftDeleteMixin):
     """ERP General Journal - double-entry accounting backbone"""
     __tablename__ = "journals"
 
@@ -94,7 +95,6 @@ class Journal(Base):
     user_agent = Column(String(500), nullable=True)
 
     # Soft delete & timestamps
-    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -250,7 +250,7 @@ class InvoiceItem(Base):
     invoice = relationship("Invoice", back_populates="items")
 
 
-class Payment(Base):
+class Payment(Base, SoftDeleteMixin):
     """ERP Payment — settles receivables. Never creates invoices."""
     __tablename__ = "payments"
 
@@ -306,7 +306,6 @@ class Payment(Base):
     reversed_at = Column(DateTime, nullable=True)
     refunded_at = Column(DateTime, nullable=True)
     cancelled_at = Column(DateTime, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by_user_id = Column(Integer, nullable=True)
@@ -417,7 +416,7 @@ class ExpenseItem(Base):
     expense = relationship("Expense", back_populates="items")
 
 
-class Expense(Base):
+class Expense(Base, SoftDeleteMixin):
     """Professional ERP Accounts Payable & Expense Management System"""
     __tablename__ = "expenses"
 
@@ -517,7 +516,6 @@ class Expense(Base):
     receipt_path = Column(String(500), nullable=True)
 
     # Soft delete & timestamps
-    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by_user_id = Column(Integer, nullable=True)
@@ -547,7 +545,7 @@ class SyncLog(Base):
     retry_count = Column(Integer, nullable=False, default=0)
 
 
-class Vendor(Base):
+class Vendor(Base, SoftDeleteMixin):
     """ERP Vendor/Supplier Management - integrated with Accounts Payable"""
     __tablename__ = "vendors"
 
@@ -567,7 +565,6 @@ class Vendor(Base):
     notes = Column(Text, nullable=True)
 
     # Soft delete & timestamps
-    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by_user_id = Column(Integer, nullable=True)

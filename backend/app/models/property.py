@@ -7,6 +7,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
 class PropertyCategory(Base):
@@ -50,7 +51,7 @@ class Amenity(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class Property(Base):
+class Property(Base, SoftDeleteMixin):
     __tablename__ = "properties"
 
     id                      = Column(Integer, primary_key=True)
@@ -109,7 +110,7 @@ class Property(Base):
     asset_gl_account    = relationship("Account", foreign_keys=[asset_gl_account_id], primaryjoin="Account.id == Property.asset_gl_account_id")
 
 
-class Floor(Base):
+class Floor(Base, SoftDeleteMixin):
     __tablename__ = "floors"
 
     id          = Column(Integer, primary_key=True)
@@ -122,7 +123,7 @@ class Floor(Base):
     units    = relationship("Unit", back_populates="floor", cascade="all, delete-orphan")
 
 
-class Unit(Base):
+class Unit(Base, SoftDeleteMixin):
     __tablename__ = "units"
     __table_args__ = (UniqueConstraint("floor_id", "unit_number", name="uq_floor_unit_number"),)
 
@@ -183,7 +184,7 @@ class PropertyAttachment(Base):
     property = relationship("Property", back_populates="attachments")
 
 
-class Lease(Base):
+class Lease(Base, SoftDeleteMixin):
     __tablename__ = "leases"
 
     id           = Column(Integer, primary_key=True)
@@ -282,7 +283,7 @@ class LeaseDocument(Base):
     lease = relationship("Lease", back_populates="documents")
 
 
-class Contact(Base):
+class Contact(Base, SoftDeleteMixin):
     """Unified contacts table — replaces both Buyer and Seller."""
     __tablename__ = "contacts"
 
@@ -352,7 +353,7 @@ class ContactInteraction(Base):
     contact = relationship("Contact", back_populates="interactions")
 
 
-class Buyer(Base):
+class Buyer(Base, SoftDeleteMixin):
     """Legacy — kept for FK backward compat with PropertySale. Prefer Contact."""
     __tablename__ = "buyers"
 
@@ -368,7 +369,7 @@ class Buyer(Base):
     purchases = relationship("PropertySale", back_populates="buyer", foreign_keys="PropertySale.buyer_id")
 
 
-class Seller(Base):
+class Seller(Base, SoftDeleteMixin):
     """Legacy — kept for FK backward compat with PropertySale. Prefer Contact."""
     __tablename__ = "sellers"
 
@@ -384,7 +385,7 @@ class Seller(Base):
     sales = relationship("PropertySale", back_populates="seller", foreign_keys="PropertySale.seller_id")
 
 
-class PropertySale(Base):
+class PropertySale(Base, SoftDeleteMixin):
     __tablename__ = "property_sales"
 
     id          = Column(Integer, primary_key=True)

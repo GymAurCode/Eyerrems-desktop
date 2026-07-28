@@ -63,6 +63,8 @@ const AIIntelligencePage = lazy(() => import("./pages/AIIntelligence"));
 const ImportCenter = lazy(() => import("./pages/ImportCenter"));
 const HistoryPage = lazy(() => import("./pages/History"));
 const RecentActivityPage = lazy(() => import("./pages/RecentActivity"));
+const RecycleBinPage = lazy(() => import("./pages/RecycleBin"));
+const BackupRestorePage = lazy(() => import("./pages/BackupRestore"));
 const SpreadsheetWorkspace = lazy(() => import("./spreadsheet/SpreadsheetWorkspace"));
 const ProductSpreadsheetPage = lazy(() => import("./pages/ProductSpreadsheetPage"));
 const AdvanceOptionsPage = lazy(() => import("./pages/AdvanceOptions"));
@@ -70,6 +72,7 @@ const ReportsPage = lazy(() => import("./pages/ReportsHub"));
 const ReportDetailPage = lazy(() => import("./pages/ReportDetail"));
 
 const ChangePasswordPage = lazy(() => import("./pages/ChangePassword"));
+const DocumentationPage = lazy(() => import("./pages/Documentation"));
 
 
 // ── Module loading spinner ────────────────────────────────────────────────────
@@ -112,6 +115,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/products/spreadsheet": "Product Spreadsheet",
   "/advance-options": "Advance Options",
   "/reports":        "Reports",
+  "/recycle-bin":    "Recycle Bin",
+  "/docs":           "Documentation",
 };
 
 function DisabledModule() {
@@ -260,7 +265,7 @@ export default function App() {
         {/* ── Property module ──────────────────────────────────────────────── */}
         <Route path="/property" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="properties"><PropertyPage /></ModuleGuard>
@@ -271,7 +276,7 @@ export default function App() {
         } />
         <Route path="/property/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="properties"><PropertyViewPage /></ModuleGuard>
@@ -284,7 +289,7 @@ export default function App() {
         {/* ── Town Management module ───────────────────────────────────────── */}
         <Route path="/towns" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="properties"><TownListPage /></ModuleGuard>
@@ -295,7 +300,7 @@ export default function App() {
         } />
         <Route path="/towns/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="property_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="properties"><TownDetailPage /></ModuleGuard>
@@ -308,7 +313,7 @@ export default function App() {
         {/* ── CRM module ───────────────────────────────────────────────────── */}
         <Route path="/crm" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><CRMPage /></ModuleGuard>
@@ -319,7 +324,7 @@ export default function App() {
         } />
         <Route path="/crm/leads/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><LeadDetail /></ModuleGuard>
@@ -330,7 +335,7 @@ export default function App() {
         } />
         <Route path="/crm/clients/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><ClientDetail /></ModuleGuard>
@@ -341,7 +346,7 @@ export default function App() {
         } />
         <Route path="/crm/deals/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><DealDetail /></ModuleGuard>
@@ -352,7 +357,7 @@ export default function App() {
         } />
         <Route path="/crm/deals/:id/installment-plan" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><InstallmentPlanBuilder /></ModuleGuard>
@@ -363,7 +368,7 @@ export default function App() {
         } />
         <Route path="/crm/dealers/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><DealerDetail /></ModuleGuard>
@@ -374,7 +379,7 @@ export default function App() {
         } />
         <Route path="/crm/bookings" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><BookingsPage /></ModuleGuard>
@@ -385,7 +390,7 @@ export default function App() {
         } />
         <Route path="/crm/bookings/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Dealer","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="crm_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="crm"><BookingDetailPage /></ModuleGuard>
@@ -397,7 +402,7 @@ export default function App() {
         {/* ── Finance module ───────────────────────────────────────────────── */}
         <Route path="/finance" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="finance_module" fallback={<DisabledModule />}>
                   <ErrorBoundary>
@@ -412,8 +417,12 @@ export default function App() {
         {/* ── Ledger → Finance (unified workspace) ─────────────────────────── */}
         <Route path="/ledger" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Accountant"]}>
-              <Navigate to="/finance" replace state={{ financeTab: "ledger" }} />
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ModuleGuard module="finance">
+                  <Navigate to="/finance" replace state={{ financeTab: "ledger" }} />
+                </ModuleGuard>
+              </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />
@@ -423,7 +432,7 @@ export default function App() {
           <RoleUserGuard>
             <ProtectedRoute>
               <CompanyLayout>
-                <ReportsPage />
+                <ModuleGuard module="reports"><ReportsPage /></ModuleGuard>
               </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -432,7 +441,7 @@ export default function App() {
           <RoleUserGuard>
             <ProtectedRoute>
               <CompanyLayout>
-                <ReportsPage />
+                <ModuleGuard module="reports"><ReportsPage /></ModuleGuard>
               </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -441,7 +450,7 @@ export default function App() {
           <RoleUserGuard>
             <ProtectedRoute>
               <CompanyLayout>
-                <ReportDetailPage />
+                <ModuleGuard module="reports"><ReportDetailPage /></ModuleGuard>
               </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -450,7 +459,7 @@ export default function App() {
         {/* ── Tenant module ────────────────────────────────────────────────── */}
         <Route path="/tenants" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="tenants"><TenantPage /></ModuleGuard>
@@ -461,7 +470,7 @@ export default function App() {
         } />
         <Route path="/tenants/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="tenants"><TenantDetailPage /></ModuleGuard>
@@ -472,7 +481,7 @@ export default function App() {
         } />
         <Route path="/maintenance" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="tenant_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="maintenance"><MaintenancePage /></ModuleGuard>
@@ -485,15 +494,37 @@ export default function App() {
         {/* ── Admin ────────────────────────────────────────────────────────── */}
         <Route path="/admin" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <CompanyLayout><AdminPage /></CompanyLayout>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ModuleGuard module="admin"><AdminPage /></ModuleGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+        {/* ── Recycle Bin ──────────────────────────────────────────────────── */}
+        <Route path="/recycle-bin" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ModuleGuard module="recycle_bin"><RecycleBinPage /></ModuleGuard>
+              </CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+        {/* ── Backup & Restore ──────────────────────────────────────────────── */}
+        <Route path="/backup-restore" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout>
+                <ModuleGuard module="backup"><BackupRestorePage /></ModuleGuard>
+              </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />
         {/* ── Construction module ──────────────────────────────────────────── */}
         <Route path="/construction" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="construction"><ConstructionDashboard /></ModuleGuard>
@@ -504,7 +535,7 @@ export default function App() {
         } />
         <Route path="/construction/projects" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="construction"><ProjectList /></ModuleGuard>
@@ -515,7 +546,7 @@ export default function App() {
         } />
         <Route path="/construction/projects/:id/view" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="construction"><ProjectView /></ModuleGuard>
@@ -526,7 +557,7 @@ export default function App() {
         } />
         <Route path="/construction/projects/:id" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Manager","Staff","Accountant"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="construction_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="construction"><ProjectDetails /></ModuleGuard>
@@ -539,20 +570,22 @@ export default function App() {
         {/* ── Spreadsheet ──────────────────────────────────────────────────── */}
         <Route path="/spreadsheet" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff"]}>
-              <div className="app-shell flex h-screen overflow-hidden bg-base gap-4"
-                data-theme={useUIStore.getState().theme}
-                style={{ '--module-primary': '#008080', '--module-light': 'rgba(0,128,128,0.1)', '--module-medium': '#006666', '--module-dark': '#004040', '--module-text': '#008080' } as React.CSSProperties}
-              >
-                <Sidebar />
-                <div className="flex-1 flex flex-col min-w-0 my-0 mr-0 overflow-hidden p-0"
-                  style={{ background: "var(--bg-surface)" }}
+            <ProtectedRoute>
+              <ModuleGuard module="spreadsheet">
+                <div className="app-shell flex h-screen overflow-hidden bg-base gap-4"
+                  data-theme={useUIStore.getState().theme}
+                  style={{ '--module-primary': '#008080', '--module-light': 'rgba(0,128,128,0.1)', '--module-medium': '#006666', '--module-dark': '#004040', '--module-text': '#008080' } as React.CSSProperties}
                 >
-                  <main className="flex-1 overflow-hidden p-0">
-                    <SpreadsheetWorkspace />
-                  </main>
+                  <Sidebar />
+                  <div className="flex-1 flex flex-col min-w-0 my-0 mr-0 overflow-hidden p-0"
+                    style={{ background: "var(--bg-surface)" }}
+                  >
+                    <main className="flex-1 overflow-hidden p-0">
+                      <SpreadsheetWorkspace />
+                    </main>
+                  </div>
                 </div>
-              </div>
+              </ModuleGuard>
             </ProtectedRoute>
           </RoleUserGuard>
         } />
@@ -560,9 +593,9 @@ export default function App() {
         {/* ── Product Spreadsheet ──────────────────────────────────────────── */}
         <Route path="/products/spreadsheet" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Staff"]}>
+            <ProtectedRoute>
               <CompanyLayout>
-                <ProductSpreadsheetPage />
+                <ModuleGuard module="spreadsheet"><ProductSpreadsheetPage /></ModuleGuard>
               </CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -571,8 +604,8 @@ export default function App() {
         {/* ── Advance Options ──────────────────────────────────────────────── */}
         <Route path="/advance-options" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <CompanyLayout><AdvanceOptionsPage /></CompanyLayout>
+            <ProtectedRoute>
+              <CompanyLayout><ModuleGuard module="admin"><AdvanceOptionsPage /></ModuleGuard></CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />
@@ -593,7 +626,7 @@ export default function App() {
         {/* ── HR module ────────────────────────────────────────────────────── */}
         <Route path="/hr" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin","Manager"]}>
+            <ProtectedRoute>
               <CompanyLayout>
                 <FeatureGuard feature="hr_module" fallback={<DisabledModule />}>
                   <ModuleGuard module="hr"><HRPage /></ModuleGuard>
@@ -633,7 +666,7 @@ export default function App() {
         {/* ── AI Intelligence Center ────────────────────────────────────────── */}
         <Route path="/ai" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
+            <ProtectedRoute>
               <CompanyLayout><ModuleGuard module="ai"><AIIntelligencePage /></ModuleGuard></CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
@@ -642,8 +675,8 @@ export default function App() {
         {/* ── Activity History ────────────────────────────────────────────── */}
         <Route path="/history" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin", "Staff", "Manager", "Accountant", "Dealer"]}>
-              <CompanyLayout><HistoryPage /></CompanyLayout>
+            <ProtectedRoute>
+              <CompanyLayout><ModuleGuard module="history"><HistoryPage /></ModuleGuard></CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />
@@ -651,8 +684,17 @@ export default function App() {
         {/* ── Recent Activity ──────────────────────────────────────────────── */}
         <Route path="/activity" element={
           <RoleUserGuard>
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <CompanyLayout><RecentActivityPage /></CompanyLayout>
+            <ProtectedRoute>
+              <CompanyLayout><ModuleGuard module="history"><RecentActivityPage /></ModuleGuard></CompanyLayout>
+            </ProtectedRoute>
+          </RoleUserGuard>
+        } />
+
+        {/* ── Documentation ─────────────────────────────────────────────── */}
+        <Route path="/docs" element={
+          <RoleUserGuard>
+            <ProtectedRoute>
+              <CompanyLayout><DocumentationPage /></CompanyLayout>
             </ProtectedRoute>
           </RoleUserGuard>
         } />

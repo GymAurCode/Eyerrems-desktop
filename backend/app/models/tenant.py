@@ -8,9 +8,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class Tenant(Base):
+class Tenant(Base, SoftDeleteMixin):
     __tablename__ = "tenants"
 
     id          = Column(Integer, primary_key=True)
@@ -28,7 +29,7 @@ class Tenant(Base):
     payments    = relationship("TenantPayment", back_populates="tenant", cascade="all, delete-orphan")
 
 
-class TenantLease(Base):
+class TenantLease(Base, SoftDeleteMixin):
     __tablename__ = "tenant_leases"
 
     id                = Column(Integer, primary_key=True)
@@ -52,7 +53,7 @@ class TenantLease(Base):
     increases    = relationship("RentIncrease", back_populates="lease", cascade="all, delete-orphan")
 
 
-class RentRecord(Base):
+class RentRecord(Base, SoftDeleteMixin):
     __tablename__ = "rent_records"
 
     id           = Column(Integer, primary_key=True)
@@ -71,7 +72,7 @@ class RentRecord(Base):
     tenant_rel   = relationship("Tenant", foreign_keys=[tenant_id])
 
 
-class RentIncrease(Base):
+class RentIncrease(Base, SoftDeleteMixin):
     __tablename__ = "rent_increases"
 
     id             = Column(Integer, primary_key=True)
@@ -85,7 +86,7 @@ class RentIncrease(Base):
     lease = relationship("TenantLease", back_populates="increases")
 
 
-class TenantPayment(Base):
+class TenantPayment(Base, SoftDeleteMixin):
     __tablename__ = "tenant_payments"
 
     id             = Column(Integer, primary_key=True)
@@ -101,7 +102,7 @@ class TenantPayment(Base):
     rent_record = relationship("RentRecord", foreign_keys=[rent_record_id])
 
 
-class Maintenance(Base):
+class Maintenance(Base, SoftDeleteMixin):
     __tablename__ = "maintenance_records"
 
     id             = Column(Integer, primary_key=True)

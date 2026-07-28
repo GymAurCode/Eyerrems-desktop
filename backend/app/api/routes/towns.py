@@ -3,7 +3,7 @@
 Hierarchy: Town → Block → Plot
 All routes are tenant-isolated via company_id.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_any_permission
@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.tid import next_tid
 from app.models.auth import User
 from app.models.town import Block, Plot, Town
+from app.services.soft_delete_service import SoftDeleteService
 from app.schemas.town import (
     BlockCreate, BlockOut, BlockUpdate, BlockWithPlots,
     PlotCreate, PlotOut, PlotUpdate,
@@ -31,21 +32,21 @@ def _get_company_id(current_user: User) -> int | None:
 
 
 def _town_query(db: Session, company_id: int | None):
-    q = db.query(Town)
+    q = db.query(Town).filter(Town.is_deleted == False)
     if company_id is not None:
         q = q.filter(Town.company_id == company_id)
     return q
 
 
 def _block_query(db: Session, company_id: int | None):
-    q = db.query(Block)
+    q = db.query(Block).filter(Block.is_deleted == False)
     if company_id is not None:
         q = q.filter(Block.company_id == company_id)
     return q
 
 
 def _plot_query(db: Session, company_id: int | None):
-    q = db.query(Plot)
+    q = db.query(Plot).filter(Plot.is_deleted == False)
     if company_id is not None:
         q = q.filter(Plot.company_id == company_id)
     return q
@@ -203,6 +204,7 @@ def update_town(
 @router.delete("/{town_id}", status_code=204)
 def delete_town(
     town_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
@@ -210,7 +212,7 @@ def delete_town(
     town = _town_query(db, company_id).filter(Town.id == town_id).first()
     if not town:
         raise HTTPException(404, "Town not found")
-    db.delete(town)
+    SoftDeleteService.soft_delete(db, town, current_user, "towns", request=request)
     db.commit()
 
 
@@ -315,6 +317,7 @@ def update_block(
 @router.delete("/blocks/{block_id}", status_code=204)
 def delete_block(
     block_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
@@ -322,7 +325,7 @@ def delete_block(
     block = _block_query(db, company_id).filter(Block.id == block_id).first()
     if not block:
         raise HTTPException(404, "Block not found")
-    db.delete(block)
+    SoftDeleteService.soft_delete(db, block, current_user, "blocks", request=request)
     db.commit()
 
 
@@ -428,6 +431,7 @@ def update_plot(
 @router.delete("/plots/{plot_id}", status_code=204)
 def delete_plot(
     plot_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
@@ -435,7 +439,7 @@ def delete_plot(
     plot = _plot_query(db, company_id).filter(Plot.id == plot_id).first()
     if not plot:
         raise HTTPException(404, "Plot not found")
-    db.delete(plot)
+    SoftDeleteService.soft_delete(db, plot, current_user, "plots", request=request)
     db.commit()
 
 
@@ -455,7 +459,7 @@ from sqlalchemy import func
 
 
 def _unit_query(db: Session, company_id: int | None):
-    q = db.query(TownUnit)
+    q = db.query(TownUnit).filter(TownUnit.is_deleted == False)
     if company_id is not None:
         q = q.filter(TownUnit.company_id == company_id)
     return q
@@ -774,6 +778,7 @@ def update_unit(
 @router.delete("/units/{unit_id}", status_code=204)
 def delete_unit(
     unit_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
@@ -781,9 +786,8 @@ def delete_unit(
     unit = _unit_query(db, company_id).filter(TownUnit.id == unit_id).first()
     if not unit:
         raise HTTPException(404, "Unit not found")
-    db.delete(unit)
+    SoftDeleteService.soft_delete(db, unit, current_user, "town_units", request=request)
     db.commit()
-    return Response(status_code=204)
 
 
 # ── Standalone Router /town-units CRUD endpoints with strict validations ──────
@@ -915,6 +919,7 @@ def root_update_unit(
 @town_units_router.delete("/{unit_id}", status_code=204)
 def root_delete_unit(
     unit_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
 ):
@@ -922,9 +927,8 @@ def root_delete_unit(
     unit = _unit_query(db, company_id).filter(TownUnit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
-    db.delete(unit)
+    SoftDeleteService.soft_delete(db, unit, current_user, "town_units", request=request)
     db.commit()
-    return Response(status_code=204)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

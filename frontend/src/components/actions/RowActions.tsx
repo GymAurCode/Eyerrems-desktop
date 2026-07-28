@@ -45,6 +45,7 @@ import type { ActionConfig, RowActionsProps, QuickRowActionsProps } from "./type
 import { ACTION_DEFAULTS } from "./actionConfig";
 import { ACTION_ICONS } from "./actionIcons";
 import { useAuthStore } from "../../store/auth";
+import { usePermissions } from "../../hooks/usePermissions";
 import ActionButton from "./ActionButton";
 import ActionDropdown from "./ActionDropdown";
 import ConfirmDialog from "./ConfirmDialog";
@@ -60,15 +61,15 @@ export default function RowActions<T>({
   className = "",
 }: RowActionsProps<T>) {
   const [pendingAction, setPendingAction] = useState<ActionConfig<T> | null>(null);
-  const hasPermission = useAuthStore(s => s.hasPermission);
-  const isAdmin = useAuthStore(s => s.isAdmin);
-  const isSuperAdmin = useAuthStore(s => s.isSuperAdmin);
+  const authIsSuperAdmin = useAuthStore(s => s.isSuperAdmin);
+  const { can } = usePermissions();
 
   // Filter actions by permission and visibility
   const visibleActions = actions.filter(action => {
-    // Permission check — super-admin and admin always pass
-    if (action.permission && !isSuperAdmin && !isAdmin() && !hasPermission(action.permission)) {
-      return false;
+    // Permission check — super-admin bypasses all
+    if (action.permission) {
+      if (authIsSuperAdmin) return true;
+      if (!can(action.permission)) return false;
     }
     // Row-level visibility check
     if (action.visible && !action.visible(row)) return false;

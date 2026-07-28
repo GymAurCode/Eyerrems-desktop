@@ -1,6 +1,14 @@
+import { usePermissions } from "./usePermissions";
+
 export function useModuleAccessV3(moduleSlug: string) {
-  return {
-    canView: true, canCreate: true, canEdit: true,
-    canDelete: true, canExport: true, canApprove: true,
-  };
+  const { can, canAccessModule } = usePermissions();
+
+  const canView = canAccessModule(moduleSlug);
+  const canCreate = can(moduleSlug, "*", "add");
+  const canEdit = can(moduleSlug, "*", "edit");
+  const canDelete = can(moduleSlug, "*", "delete");
+  const canExport = can(moduleSlug, "*", "view");
+  const canApprove = false;
+
+  return { canView, canCreate, canEdit, canDelete, canExport, canApprove };
 }

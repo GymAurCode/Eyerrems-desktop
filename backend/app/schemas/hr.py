@@ -722,6 +722,121 @@ class LeaveReport(BaseModel):
     data: List[LeaveSummary]
 
 
+# ==================== EMPLOYEE TASK SCHEMAS ====================
+
+class EmployeeTaskBase(BaseModel):
+    title: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    deadline: Optional[date] = None
+    priority: str = Field("medium", max_length=20)
+    status: str = Field("pending", max_length=30)
+
+
+class EmployeeTaskCreate(EmployeeTaskBase):
+    employee_id: int
+
+
+class EmployeeTaskUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    deadline: Optional[date] = None
+    priority: Optional[str] = Field(None, max_length=20)
+    status: Optional[str] = Field(None, max_length=30)
+    remark: Optional[str] = None
+
+
+class EmployeeTaskResponse(EmployeeTaskBase):
+    id: int
+    employee_id: int
+    assigned_by: Optional[int] = None
+    assigned_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    remark: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== PERFORMANCE REVIEW SCHEMAS ====================
+
+class PerformanceReviewBase(BaseModel):
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
+    manual_score: Optional[float] = Field(None, ge=0, le=100)
+    remarks: Optional[str] = None
+
+
+class PerformanceReviewCreate(PerformanceReviewBase):
+    employee_id: int
+
+
+class PerformanceReviewUpdate(BaseModel):
+    manual_score: Optional[float] = Field(None, ge=0, le=100)
+    remarks: Optional[str] = None
+
+
+class PerformanceReviewResponse(PerformanceReviewBase):
+    id: int
+    employee_id: int
+    reviewer_id: Optional[int] = None
+    review_date: Optional[datetime] = None
+    task_score: Optional[float] = None
+    attendance_score: Optional[float] = None
+    overall_rating: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== PERFORMANCE AGGREGATE SCHEMA ====================
+
+class TaskStats(BaseModel):
+    total: int = 0
+    pending: int = 0
+    in_progress: int = 0
+    completed: int = 0
+    overdue: int = 0
+    not_fulfilled: int = 0
+    completion_rate: float = 0.0
+
+
+class MonthlyTaskCount(BaseModel):
+    month: str
+    assigned: int = 0
+    completed: int = 0
+
+
+class AttendanceBreakdown(BaseModel):
+    total_days: int = 0
+    present: int = 0
+    absent: int = 0
+    late: int = 0
+    half_day: int = 0
+    on_leave: int = 0
+
+
+class EmployeePerformanceData(BaseModel):
+    employee_id: int
+    employee_name: str
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    photo: Optional[str] = None
+    employment_status: Optional[str] = None
+    joining_date: Optional[date] = None
+    task_stats: TaskStats
+    tasks: List[EmployeeTaskResponse] = []
+    attendance_rate: float = 0.0
+    attendance_breakdown: Optional[AttendanceBreakdown] = None
+    task_monthly_trend: List[MonthlyTaskCount] = []
+    current_review: Optional[PerformanceReviewResponse] = None
+    review_history: List[PerformanceReviewResponse] = []
+    overall_score: float = 0.0
+    rank_in_dept: int = 0
+    total_in_dept: int = 0
+
+
 # Update forward references
 DepartmentTree.update_forward_refs()
 EmployeeDetail.update_forward_refs()

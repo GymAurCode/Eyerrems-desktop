@@ -6,6 +6,8 @@ export type User = {
   email: string;
   full_name: string;
   role: string | null;
+  role_name: string | null;
+  role_id: number | null;
   approval_status: string;
   status: string;
   is_active: boolean;
@@ -91,6 +93,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isSuperAdmin,
       _bootstrapFetchedAt: null,
     });
+    // Update user partial with role info from login response
+    const existingUser = get().user;
+    if (data.role_name || data.role_id) {
+      set({
+        user: {
+          ...(existingUser || { id: 0, email, full_name: '', status: 'active', is_approved: true, is_active: true, approval_status: 'approved', features: {} }),
+          role_name: data.role_name ?? null,
+          role_id: data.role_id ?? null,
+          role: data.role_name ?? null,
+        },
+      });
+    }
   },
   loginSuperAdmin: async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
@@ -112,8 +126,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchMe: async () => {
     try {
       const { data } = await api.get("/auth/me");
+      const roleName = data.role_name ?? data.role ?? null;
       set({
-        user: data,
+        user: { ...data, role: roleName, role_name: roleName },
         features: data.features ?? {},
         companyId: data.company_id ?? null,
         isSuperAdmin: data.is_super_admin ?? false,
@@ -134,8 +149,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data } = await api.get<BootstrapData>("/bootstrap");
       const userData = data.user;
       const isSuperAdmin = userData.is_super_admin ?? false;
+      const roleName = userData.role_name ?? userData.role ?? null;
       set({
-        user: userData,
+        user: { ...userData, role: roleName, role_name: roleName },
         features: userData.features ?? {},
         companyId: userData.company_id ?? null,
         isSuperAdmin,
@@ -178,8 +194,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  hasPermission: () => true,
-  hasAnyPermission: () => true,
+  hasPermission: (perm: string) => {
+    const state = get();
+    if (state.isSuperAdmin) return true;
+    return true; // Overridden by usePermissions hook
+  },
+  hasAnyPermission: (...perms: string[]) => {
+    return perms.some((p) => get().hasPermission(p));
+  },
 
   isAdmin: () => {
     const { isSuperAdmin } = get();

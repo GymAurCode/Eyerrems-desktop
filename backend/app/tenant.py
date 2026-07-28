@@ -66,6 +66,7 @@ def lookup_company(x_company_id: str) -> Optional[dict]:
                 {"cid": x_company_id},
             ).fetchone()
         except Exception:
+            conn.rollback()
             row = None
 
         if not row:
@@ -77,11 +78,12 @@ def lookup_company(x_company_id: str) -> Optional[dict]:
                         SELECT m.id, m.name, m.schema_name, m.status, m.expiry_date
                         FROM master.companies m
                         JOIN public.companies c ON c.slug = m.slug
-                        WHERE c.id = :cid::integer
+                        WHERE c.id = CAST(:cid AS INTEGER)
                     """),
                     {"cid": x_company_id},
                 ).fetchone()
             except Exception:
+                conn.rollback()
                 row = None
 
         if not row:
@@ -91,11 +93,12 @@ def lookup_company(x_company_id: str) -> Optional[dict]:
                     text("""
                         SELECT NULL as id, c.name, c.slug as schema_name, c.status, c.expiry_date
                         FROM public.companies c
-                        WHERE c.id = :cid::integer
+                        WHERE c.id = CAST(:cid AS INTEGER)
                     """),
                     {"cid": x_company_id},
                 ).fetchone()
             except Exception:
+                conn.rollback()
                 row = None
     if not row:
         return None

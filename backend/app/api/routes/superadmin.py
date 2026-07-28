@@ -279,6 +279,8 @@ def create_company(
             "reports": {"enabled": True, "tabs": {}},
             "reminders": {"enabled": True, "tabs": {}},
             "settings": {"enabled": True, "tabs": {}},
+            "recycle_bin": {"enabled": True, "tabs": {"general": True}},
+            "backup": {"enabled": True, "tabs": {"general": True}},
         }
         db.execute(
             text("""

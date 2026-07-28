@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo, useMemo, useCallback, useDeferredValue } from "react";
+import { useEffect, useState, memo, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, Search, Circle, Eye, Edit2, Trash2, Printer, FileText, MessageCircle, AlertTriangle, UserX, Building2, FileBarChart } from "lucide-react";
 import { useLookup } from "../hooks/useLookup";
@@ -22,8 +22,9 @@ import { DialogCancelButton, DialogSubmitButton } from "../components/ui/DialogB
 import { MODULE_COLORS } from "../config/moduleColors";
 import { useNotifStore } from "../store/notifications";
 import ConfirmDialog from "../components/actions/ConfirmDialog";
+import { usePermissions } from "../hooks/usePermissions";
 
-const TABS = ["Dashboard", "Leads", "Clients", "Dealers", "Deals", "Bookings", "Follow Ups", "Site Visits", "Payments"];
+const ALL_TABS = ["Dashboard", "Leads", "Clients", "Dealers", "Deals", "Bookings", "Follow Ups", "Site Visits", "Payments"];
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   new:       { bg: "rgba(59,130,246,0.12)",  text: "#3b82f6" },
@@ -69,9 +70,13 @@ interface LeadsTabProps {
   onRefresh: () => void;
   onPageChange: (config: any) => void;
   onFilterChange: (filters: any) => void;
+  onEdit: (lead: Lead) => void;
 }
 
-const LeadsTab = memo(function LeadsTab({ leads, leadsLoading, leadsErr, leadsTotal, leadsParams, navigate, onRefresh, onPageChange, onFilterChange }: LeadsTabProps) {
+const LeadsTab = memo(function LeadsTab({ leads, leadsLoading, leadsErr, leadsTotal, leadsParams, navigate, onRefresh, onPageChange, onFilterChange, onEdit }: LeadsTabProps) {
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
+
   const leadColumns = useMemo(() => [
     { key: "lead_id", label: "Lead ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "name", label: "Name", sortable: true, className: "font-medium text-primary" },
@@ -80,33 +85,59 @@ const LeadsTab = memo(function LeadsTab({ leads, leadsLoading, leadsErr, leadsTo
     { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
   ], []);
 
+  const handleDeleteLead = async () => {
+    if (!deleteTarget) return;
+    try {
+      await crmApi.deleteLead(deleteTarget.id);
+      pushToast({ title: "Success", message: "Lead deleted successfully", type: "success" });
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      pushToast({ title: "Error", message: err?.response?.data?.detail ?? "Failed to delete lead", priority: "urgent" });
+      setDeleteTarget(null);
+    }
+  };
+
   const leadActions = useMemo(() => [
     { key: "view", label: "View", icon: Eye, onClick: (row: Lead) => navigate(`/crm/leads/${row.lead_id}`) },
+    { key: "edit", label: "Edit", icon: Edit2, onClick: (row: Lead) => onEdit(row), permission: "crm:manage" },
     { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, onClick: (row: Lead) => {
       if (row.phone) window.open(`https://web.whatsapp.com/send?phone=${row.phone.replace(/[^0-9]/g, "")}`, "_blank");
     }},
     { key: "print", label: "Print", icon: Printer, onClick: (row: Lead) => printRecord(`Lead ${row.lead_id}`, [
       { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
-    ]) }
-  ], [navigate]);
+    ]) },
+    { key: "delete", label: "Delete", icon: Trash2, onClick: (row: Lead) => setDeleteTarget(row), variant: "danger" },
+  ], [navigate, onEdit]);
 
   return (
-    <AppTable
-      storageKey="rems_crm_leads_table"
-      title="Leads"
-      subtitle="Track and manage prospective customer leads"
-      data={leads}
-      columns={leadColumns}
-      rowActions={leadActions}
-      loading={leadsLoading}
-      error={leadsErr}
-      onRetry={onRefresh}
-      pagination={{ page: leadsParams.page, pageSize: leadsParams.pageSize, total: leadsTotal }}
-      onPageChange={onPageChange}
-      onFilterChange={onFilterChange}
-      showTypeFilter={false}
-      showStatusFilter={false}
-    />
+    <>
+      <AppTable
+        storageKey="rems_crm_leads_table"
+        title="Leads"
+        subtitle="Track and manage prospective customer leads"
+        data={leads}
+        columns={leadColumns}
+        rowActions={leadActions}
+        loading={leadsLoading}
+        error={leadsErr}
+        onRetry={onRefresh}
+        pagination={{ page: leadsParams.page, pageSize: leadsParams.pageSize, total: leadsTotal }}
+        onPageChange={onPageChange}
+        onFilterChange={onFilterChange}
+        showTypeFilter={false}
+        showStatusFilter={false}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Lead"
+        message={`Are you sure you want to delete lead "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteLead}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 });
 
@@ -120,9 +151,13 @@ interface ClientsTabProps {
   onRefresh: () => void;
   onPageChange: (config: any) => void;
   onFilterChange: (filters: any) => void;
+  onEdit: (client: Client) => void;
 }
 
-const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsErr, clientsTotal, clientsParams, navigate, onRefresh, onPageChange, onFilterChange }: ClientsTabProps) {
+const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsErr, clientsTotal, clientsParams, navigate, onRefresh, onPageChange, onFilterChange, onEdit }: ClientsTabProps) {
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+
   const clientColumns = useMemo(() => [
     { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "client_id", label: "Client ID", sortable: true, className: "font-mono text-xs" },
@@ -131,30 +166,56 @@ const ClientsTab = memo(function ClientsTab({ clients, clientsLoading, clientsEr
     { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
   ], []);
 
+  const handleDeleteClient = async () => {
+    if (!deleteTarget) return;
+    try {
+      await crmApi.deleteClient(deleteTarget.id);
+      pushToast({ title: "Success", message: "Client deleted successfully", type: "success" });
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      pushToast({ title: "Error", message: err?.response?.data?.detail ?? "Failed to delete client", priority: "urgent" });
+      setDeleteTarget(null);
+    }
+  };
+
   const clientActions = useMemo(() => [
     { key: "view", label: "View", icon: Eye, onClick: (row: Client) => navigate(`/crm/clients/${row.client_id}`) },
+    { key: "edit", label: "Edit", icon: Edit2, onClick: (row: Client) => onEdit(row), permission: "crm:manage" },
     { key: "print", label: "Print", icon: Printer, onClick: (row: Client) => printRecord(`Client ${row.client_id}`, [
       { label: "Name", value: row.name }, { label: "Phone", value: row.phone ?? "—" }, { label: "Status", value: row.status },
     ]) },
-  ], [navigate]);
+    { key: "delete", label: "Delete", icon: Trash2, onClick: (row: Client) => setDeleteTarget(row), variant: "danger" },
+  ], [navigate, onEdit]);
 
   return (
-    <AppTable
-      storageKey="rems_crm_clients_table"
-      title="Clients"
-      subtitle="View and manage converted leads and clients"
-      data={clients}
-      columns={clientColumns}
-      rowActions={clientActions}
-      loading={clientsLoading}
-      error={clientsErr}
-      onRetry={onRefresh}
-      pagination={{ page: clientsParams.page, pageSize: clientsParams.pageSize, total: clientsTotal }}
-      onPageChange={onPageChange}
-      onFilterChange={onFilterChange}
-      showTypeFilter={false}
-      showStatusFilter={false}
-    />
+    <>
+      <AppTable
+        storageKey="rems_crm_clients_table"
+        title="Clients"
+        subtitle="View and manage converted leads and clients"
+        data={clients}
+        columns={clientColumns}
+        rowActions={clientActions}
+        loading={clientsLoading}
+        error={clientsErr}
+        onRetry={onRefresh}
+        pagination={{ page: clientsParams.page, pageSize: clientsParams.pageSize, total: clientsTotal }}
+        onPageChange={onPageChange}
+        onFilterChange={onFilterChange}
+        showTypeFilter={false}
+        showStatusFilter={false}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Client"
+        message={`Are you sure you want to delete client "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteClient}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 });
 
@@ -359,9 +420,13 @@ interface DealsTabProps {
   onRefresh: () => void;
   onPageChange: (config: any) => void;
   onFilterChange: (filters: any) => void;
+  onEdit: (deal: Deal) => void;
 }
 
-const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTotal, dealsParams, navigate, onRefresh, onPageChange, onFilterChange }: DealsTabProps) {
+const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTotal, dealsParams, navigate, onRefresh, onPageChange, onFilterChange, onEdit }: DealsTabProps) {
+  const pushToast = useNotifStore((s) => s.pushToast);
+  const [deleteTarget, setDeleteTarget] = useState<Deal | null>(null);
+
   const dealColumns = useMemo(() => [
     { key: "tracking_id", label: "Tracking ID", sortable: true, className: "font-mono text-xs text-blue-400 font-semibold" },
     { key: "deal_id", label: "Deal ID", sortable: true, className: "font-mono text-xs" },
@@ -371,30 +436,56 @@ const DealsTab = memo(function DealsTab({ deals, dealsLoading, dealsErr, dealsTo
     { key: "status", label: "Status", render: (val: string) => <Badge status={val} /> }
   ], []);
 
+  const handleDeleteDeal = async () => {
+    if (!deleteTarget) return;
+    try {
+      await crmApi.deleteDeal(deleteTarget.id);
+      pushToast({ title: "Success", message: "Deal deleted successfully", type: "success" });
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      pushToast({ title: "Error", message: err?.response?.data?.detail ?? "Failed to delete deal", priority: "urgent" });
+      setDeleteTarget(null);
+    }
+  };
+
   const dealActions = useMemo(() => [
     { key: "view", label: "View", icon: Eye, onClick: (row: Deal) => navigate(`/crm/deals/${row.deal_id}`) },
+    { key: "edit", label: "Edit", icon: Edit2, onClick: (row: Deal) => onEdit(row), permission: "crm:manage" },
     { key: "print", label: "Print", icon: Printer, onClick: (row: Deal) => printRecord(`Deal ${row.deal_id}`, [
       { label: "Title", value: row.deal_title ?? "—" }, { label: "Client", value: row.client_name ?? "—" }, { label: "Value", value: String(row.deal_value) }, { label: "Status", value: row.status },
     ]) },
-  ], [navigate]);
+    { key: "delete", label: "Delete", icon: Trash2, onClick: (row: Deal) => setDeleteTarget(row), variant: "danger" },
+  ], [navigate, onEdit]);
 
   return (
-    <AppTable
-      storageKey="rems_crm_deals_table"
-      title="Deals"
-      subtitle="Track client transactions, bookings, and pipeline progress"
-      data={deals}
-      columns={dealColumns}
-      rowActions={dealActions}
-      loading={dealsLoading}
-      error={dealsErr}
-      onRetry={onRefresh}
-      pagination={{ page: dealsParams.page, pageSize: dealsParams.pageSize, total: dealsTotal }}
-      onPageChange={onPageChange}
-      onFilterChange={onFilterChange}
-      showTypeFilter={false}
-      showStatusFilter={false}
-    />
+    <>
+      <AppTable
+        storageKey="rems_crm_deals_table"
+        title="Deals"
+        subtitle="Track client transactions, bookings, and pipeline progress"
+        data={deals}
+        columns={dealColumns}
+        rowActions={dealActions}
+        loading={dealsLoading}
+        error={dealsErr}
+        onRetry={onRefresh}
+        pagination={{ page: dealsParams.page, pageSize: dealsParams.pageSize, total: dealsTotal }}
+        onPageChange={onPageChange}
+        onFilterChange={onFilterChange}
+        showTypeFilter={false}
+        showStatusFilter={false}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Deal"
+        message={`Are you sure you want to delete deal "${deleteTarget?.deal_title || deleteTarget?.deal_id}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteDeal}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 });
 
@@ -409,10 +500,28 @@ const defaultParams = {
   status: "",
 };
 
+const TAB_PERM_MAP: Record<string, string> = {
+  Dashboard: "Dashboard",
+  Leads: "Leads",
+  Clients: "Clients",
+  Dealers: "Dealers",
+  Deals: "Deals",
+  Bookings: "Bookings",
+  "Follow Ups": "Follow-ups",
+  "Site Visits": "Site Visits",
+  Payments: "Payments",
+};
+
 const MemoCRMPage = memo(function CRMPage() {
   const navigate = useNavigate();
+  const { canAccessTab, canAccessModule } = usePermissions();
+  const pushToast = useNotifStore((s) => s.pushToast);
   const { options: LEAD_STATUS_OPTS } = useLookup('lead_status');
   const [tab, setTab] = useState(0);
+  const TABS = useMemo(() => ALL_TABS.filter(t => {
+    const dbTabKey = TAB_PERM_MAP[t];
+    return dbTabKey ? canAccessTab("crm", dbTabKey) : canAccessModule("crm");
+  }), [canAccessTab, canAccessModule]);
   const [leads, setLeads]     = useState<Lead[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [dealers, setDealers] = useState<Dealer[]>([]);
@@ -439,11 +548,14 @@ const MemoCRMPage = memo(function CRMPage() {
   const [dealsParams, setDealsParams] = useState(defaultParams);
 
   // Modals
-  const [leadModal, setLeadModal]     = useState(false);
-  const [clientModal, setClientModal] = useState(false);
-  const [dealerModal, setDealerModal] = useState(false);
-  const [dealModal, setDealModal]     = useState(false);
-  const [editDealer, setEditDealer]   = useState<Dealer | null>(null);
+  const [leadModal, setLeadModal]       = useState(false);
+  const [clientModal, setClientModal]   = useState(false);
+  const [dealerModal, setDealerModal]   = useState(false);
+  const [dealModal, setDealModal]       = useState(false);
+  const [editLead, setEditLead]         = useState<Lead | null>(null);
+  const [editClient, setEditClient]     = useState<Client | null>(null);
+  const [editDealer, setEditDealer]     = useState<Dealer | null>(null);
+  const [editDeal, setEditDeal]         = useState<Deal | null>(null);
 
   // Search
   const [searchQ, setSearchQ] = useState("");
@@ -648,6 +760,7 @@ const MemoCRMPage = memo(function CRMPage() {
           onRefresh={refreshLeads}
           onPageChange={onLeadsPageChange}
           onFilterChange={onLeadsFilterChange}
+          onEdit={setEditLead}
         />
       )}
       {tab === 2 && (
@@ -661,6 +774,7 @@ const MemoCRMPage = memo(function CRMPage() {
           onRefresh={refreshClients}
           onPageChange={onClientsPageChange}
           onFilterChange={onClientsFilterChange}
+          onEdit={setEditClient}
         />
       )}
       {tab === 3 && (
@@ -688,6 +802,7 @@ const MemoCRMPage = memo(function CRMPage() {
           onRefresh={refreshDeals}
           onPageChange={onDealsPageChange}
           onFilterChange={onDealsFilterChange}
+          onEdit={setEditDeal}
         />
       )}
       {tab === 5 && <MemoBookingList />}
@@ -706,10 +821,22 @@ const MemoCRMPage = memo(function CRMPage() {
           pushToast({ title: "Lead Created", message: `Lead "${lead.name}" added successfully`, type: "success" });
         }}
       />
+      <LeadFormDialog
+        open={!!editLead}
+        onClose={() => setEditLead(null)}
+        initial={editLead}
+        onSaved={() => { setEditLead(null); refreshLeads(); }}
+      />
       <ClientFormDialog
         open={clientModal}
         onClose={() => setClientModal(false)}
         onSaved={() => { setClientModal(false); refreshClients(); }}
+      />
+      <ClientFormDialog
+        open={!!editClient}
+        onClose={() => setEditClient(null)}
+        initial={editClient}
+        onSaved={() => { setEditClient(null); refreshClients(); }}
       />
       <DealerForm
         open={dealerModal}
@@ -726,6 +853,12 @@ const MemoCRMPage = memo(function CRMPage() {
         open={dealModal}
         onClose={() => setDealModal(false)}
         onSaved={() => { setDealModal(false); refreshDeals(); }}
+      />
+      <DealForm
+        open={!!editDeal}
+        onClose={() => setEditDeal(null)}
+        initial={editDeal}
+        onSaved={() => { setEditDeal(null); refreshDeals(); }}
       />
     </div>
   );

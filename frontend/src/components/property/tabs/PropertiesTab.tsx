@@ -4,13 +4,15 @@ import {
   Plus, Building2, ChevronDown, ChevronRight,
   ImagePlus, X, Trash2, Hash, AlertTriangle,
   Eye, Edit2, FileText, Upload, DollarSign, Archive,
-  Printer
+  Printer, MapPin, Wrench
 } from "lucide-react";
 import AppDialog from "../../ui/AppDialog";
 import ConfirmDialog from "../../actions/ConfirmDialog";
 import LocationPicker from "../LocationPicker";
 import AmenityPicker from "../AmenityPicker";
 import { propApi, Property, PropertyCategory, PropertyAttachment } from "../../../lib/propertyApi";
+import { townApi } from "../../../lib/townApi";
+import { constructionApi } from "../../../lib/constructionApi";
 import { formatCurrency } from "../../../lib/currency";
 import { SmartTable } from "../../data-table";
 import { api } from "../../../lib/api";
@@ -148,6 +150,16 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
   const [expenseGlId, setExpenseGlId]   = useState("");
   const [assetGlId, setAssetGlId]       = useState("");
   const [costCentre, setCostCentre]     = useState("");
+
+  // Town assign
+  const [townAssignTarget, setTownAssignTarget] = useState<Property | null>(null);
+  const [townOptions, setTownOptions] = useState<SearchableOption[]>([]);
+  const [selectedTownId, setSelectedTownId] = useState("");
+
+  // Construction assign
+  const [constructionAssignTarget, setConstructionAssignTarget] = useState<Property | null>(null);
+  const [constructionOptions, setConstructionOptions] = useState<SearchableOption[]>([]);
+  const [selectedConstructionId, setSelectedConstructionId] = useState("");
 
   // ── 5. Location ──
   const [locationId, setLocationId]   = useState<number | null>(null);
@@ -486,6 +498,56 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
     onRefresh();
   };
 
+  const openTownAssign = async (row: Property) => {
+    if (townOptions.length === 0) {
+      try {
+        const towns = await townApi.listTowns();
+        const opts: SearchableOption[] = towns.map(t => ({
+          value: String(t.id),
+          label: t.name,
+          sublabel: t.region || undefined,
+        }));
+        setTownOptions(opts);
+      } catch { return; }
+    }
+    setSelectedTownId(row.town_id ? String(row.town_id) : "");
+    setTownAssignTarget(row);
+  };
+
+  const saveTownLink = async () => {
+    const target = townAssignTarget;
+    if (!target) return;
+    await propApi.updateProperty(target.id, { town_id: selectedTownId ? Number(selectedTownId) : null } as any);
+    setTownAssignTarget(null);
+    pushToast({ title: "Success", message: "Town updated", type: "success" });
+    onRefresh();
+  };
+
+  const openConstructionAssign = async (row: Property) => {
+    if (constructionOptions.length === 0) {
+      try {
+        const projects = await constructionApi.listProjects();
+        const opts: SearchableOption[] = projects.map(p => ({
+          value: String(p.id),
+          label: `${p.project_code ? p.project_code + ' - ' : ''}${p.name}`,
+          sublabel: p.status,
+        }));
+        setConstructionOptions(opts);
+      } catch { return; }
+    }
+    setSelectedConstructionId(row.construction_project_id ? String(row.construction_project_id) : "");
+    setConstructionAssignTarget(row);
+  };
+
+  const saveConstructionLink = async () => {
+    const target = constructionAssignTarget;
+    if (!target) return;
+    await propApi.updateProperty(target.id, { construction_project_id: selectedConstructionId ? Number(selectedConstructionId) : null } as any);
+    setConstructionAssignTarget(null);
+    pushToast({ title: "Success", message: "Construction project linked", type: "success" });
+    onRefresh();
+  };
+
   // ── Columns ──
   const columns = [
     {
@@ -559,6 +621,18 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
       label: "Edit",
       icon: Edit2,
       onClick: (row: Property) => openEditDialog(row),
+    },
+    {
+      key: "assign_town",
+      label: "Assign to Town",
+      icon: MapPin,
+      onClick: (row: Property) => void openTownAssign(row),
+    },
+    {
+      key: "link_construction",
+      label: "Link Construction",
+      icon: Wrench,
+      onClick: (row: Property) => void openConstructionAssign(row),
     },
     {
       key: "delete",
@@ -1037,6 +1111,60 @@ export default function PropertiesTab({ onView, refresh, onRefresh }: Props) {
             </button>
           </div>
         </form>
+      </AppDialog>
+
+      {/* ── Town Assign Modal ── */}
+      <AppDialog isOpen={!!townAssignTarget} onClose={() => setTownAssignTarget(null)} title={`Assign to Town — ${townAssignTarget?.tid ?? ""}`}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Town</label>
+            <SearchableSelect
+              options={townOptions}
+              value={selectedTownId}
+              onChange={setSelectedTownId}
+              placeholder="Search town…"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setTownAssignTarget(null)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void saveTownLink()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#3b82f6" }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+
+      {/* ── Construction Assign Modal ── */}
+      <AppDialog isOpen={!!constructionAssignTarget} onClose={() => setConstructionAssignTarget(null)} title={`Link to Construction — ${constructionAssignTarget?.tid ?? ""}`}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Construction Project</label>
+            <SearchableSelect
+              options={constructionOptions}
+              value={selectedConstructionId}
+              onChange={setSelectedConstructionId}
+              placeholder="Search project…"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setConstructionAssignTarget(null)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void saveConstructionLink()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#3b82f6" }}>
+              Save
+            </button>
+          </div>
+        </div>
       </AppDialog>
 
       {/* ── Delete Confirmation ── */}

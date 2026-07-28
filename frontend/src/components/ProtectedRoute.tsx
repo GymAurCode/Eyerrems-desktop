@@ -4,12 +4,6 @@ import { useAuthStore } from '../store/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: string[];
-  permission?: string;
-  anyPermissions?: string[];
-  allPermissions?: string[];
-  fallback?: React.ReactNode;
-  redirectTo?: string;
 }
 
 function isTokenExpired(token: string): boolean {
@@ -25,8 +19,6 @@ function isTokenExpired(token: string): boolean {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  fallback = null,
-  redirectTo = '/login',
 }) => {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);

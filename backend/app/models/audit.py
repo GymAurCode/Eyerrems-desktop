@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Index, String, Text
+from sqlalchemy import Column, DateTime, Index, Integer, String, Text
 from sqlalchemy import TypeDecorator, JSON
 
 from app.core.database import Base
@@ -22,6 +22,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id              = Column(String(36), primary_key=True, default=_uuid)
+    company_id      = Column(Integer, nullable=True, index=True)
     module          = Column(String(100), nullable=False, index=True)
     action          = Column(String(50), nullable=False, index=True)
     record_id       = Column(String(255), nullable=True)

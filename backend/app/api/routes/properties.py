@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.tid import next_tid
 from app.models.auth import User
 from app.core.websocket_manager import ws_manager
+from app.services.soft_delete_service import SoftDeleteService
 from app.models.property import (
     Amenity, Buyer, Contact, ContactDocument, ContactInteraction,
     Floor, Lease, LeaseDocument, LeasePdc, LeasePayment, Location,
@@ -72,6 +73,7 @@ def property_search(
             Property.name.ilike(like) |
             Property.address.ilike(like)
         )
+        .filter(Property.is_deleted == False)
         .order_by(Property.name.asc())
         .limit(limit)
         .all()
@@ -321,6 +323,7 @@ def list_properties(
             joinedload(Property.expense_gl_account),
             joinedload(Property.asset_gl_account),
         )
+        .filter(Property.is_deleted == False)
         .order_by(Property.id.desc())
     )
     if property_type:
@@ -478,6 +481,7 @@ async def delete_property(
     property_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
+    request: Request = None,
 ):
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
@@ -495,8 +499,7 @@ async def delete_property(
         record_label=f"Property: {prop.name}",
         old_values=old_data,
     )
-    db.commit()
-    db.delete(prop)
+    SoftDeleteService.soft_delete(db, prop, current_user, "properties", request=request)
     db.commit()
     await ws_manager.broadcast("dashboard_refresh", {})
 
@@ -509,7 +512,7 @@ def list_floors(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    return db.query(Floor).filter(Floor.property_id == property_id).order_by(Floor.floor_number).all()
+    return db.query(Floor).filter(Floor.property_id == property_id, Floor.is_deleted == False).order_by(Floor.floor_number).all()
 
 
 @router.post("/floors", response_model=FloorOut)
@@ -546,6 +549,7 @@ def delete_floor(
     floor_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission(*PERM_MANAGE)),
+    request: Request = None,
 ):
     floor = db.query(Floor).filter(Floor.id == floor_id).first()
     if not floor:
@@ -563,8 +567,7 @@ def delete_floor(
         record_label=f"Floor: {floor.floor_number}",
         old_values=old_data,
     )
-    db.commit()
-    db.delete(floor)
+    SoftDeleteService.soft_delete(db, floor, current_user, "floors", request=request)
     db.commit()
 
 
@@ -596,6 +599,7 @@ def list_all_units(
         db.query(Unit)
         .join(Floor)
         .options(joinedload(Unit.property), joinedload(Unit.floor).joinedload(Floor.property))
+        .filter(Unit.is_deleted == False)
         .order_by(Unit.id)
     )
     if property_id:
@@ -628,6 +632,7 @@ def list_property_units(
         .join(Floor)
         .options(joinedload(Unit.property), joinedload(Unit.floor).joinedload(Floor.property))
         .filter(Floor.property_id == property_id)
+        .filter(Unit.is_deleted == False)
         .order_by(Unit.id)
         .all()
     )
@@ -884,6 +889,7 @@ def list_leases(
     query = (
         db.query(Lease)
         .options(joinedload(Lease.unit), joinedload(Lease.property), joinedload(Lease.tenant))
+        .filter(Lease.is_deleted == False)
         .order_by(Lease.start_date.desc())
     )
     if property_id:
@@ -1202,7 +1208,7 @@ def list_contacts(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Contact).filter(Contact.archived == False)
+    query = db.query(Contact).filter(Contact.archived == False, Contact.is_deleted == False)
     if role == "buyer":
         query = query.filter(Contact.role.like("%buyer%"))
     elif role == "seller":
@@ -1446,7 +1452,7 @@ def list_buyers(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Buyer).order_by(Buyer.id.desc())
+    query = db.query(Buyer).filter(Buyer.is_deleted == False).order_by(Buyer.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Buyer,
@@ -1504,7 +1510,7 @@ def list_sellers(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(Seller).order_by(Seller.id.desc())
+    query = db.query(Seller).filter(Seller.is_deleted == False).order_by(Seller.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Seller,
@@ -1564,7 +1570,7 @@ def list_sales(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(PropertySale).order_by(PropertySale.created_at.desc())
+    query = db.query(PropertySale).filter(PropertySale.is_deleted == False).order_by(PropertySale.created_at.desc())
     if sale_stage:
         query = query.filter(PropertySale.sale_stage == sale_stage)
     if property_id:

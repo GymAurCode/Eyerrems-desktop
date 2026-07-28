@@ -25,7 +25,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { path: "/ai",           label: "AI Intel",     icon: "ti-robot",              requiredPermission: "ai.view" },
   { path: "/communication",label: "Communication",icon: "ti-mail",               requiredPermission: "communication.view" },
   { path: "/reminders",    label: "Reminders",    icon: "ti-bell-ringing",       requiredPermission: "reminders.view" },
-  { path: "/admin",       label: "Admin",        icon: "ti-settings",           requiredPermission: "admin.view" },
+  { path: "/admin",        label: "Admin",         icon: "ti-settings",              requiredPermission: "admin.view" },
+  { path: "/recycle-bin",  label: "Recycle Bin",   icon: "ti-trash",                 requiredPermission: "recycle_bin.view" },
+  { path: "/backup-restore", label: "Backup & Restore", icon: "ti-shield",         requiredPermission: "backup.view" },
 ];
 
 function NavItem({ path, label, icon, badge }: { path: string; label: string; icon?: string; badge?: boolean }) {
@@ -170,11 +172,11 @@ function MiniSidebar({ user, onSignOut, navSections }: { user: { full_name?: str
 }
 
 function useFilteredNavSections() {
-  const { can, isAdmin } = usePermissions();
+  const { can, isSuperAdmin } = usePermissions();
 
   return useMemo(() => {
     const filterItem = (item: NavItem) => {
-      if (isAdmin) return true;
+      if (isSuperAdmin) return true;
       return can(item.requiredPermission);
     };
 
@@ -206,13 +208,13 @@ function useFilteredNavSections() {
       {
         label: "System",
         items: ALL_NAV_ITEMS.filter((i) =>
-          ["admin"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
+          ["admin","recycle_bin","backup"].includes(i.requiredPermission.split(".")[0]) && filterItem(i)
         ),
       },
     ];
 
     return sections.filter((s) => s.items.length > 0);
-  }, [isAdmin, can]);
+  }, [isSuperAdmin, can]);
 }
 
 export default function Sidebar() {
@@ -304,7 +306,7 @@ export default function Sidebar() {
             className="text-[8px] truncate"
             style={{ color: "#5a9999" }}
           >
-            {user?.role || "Admin"}
+            {user?.role_name || user?.role || "User"}
           </p>
         </div>
         <button

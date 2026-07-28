@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import { useUIStore } from "../store/ui";
 import NotificationBell from "./notifications/NotificationBell";
-function IconBtn({ onClick, label, children }: { onClick?: () => void; label: string; children: React.ReactNode }) {
+function IconBtn({ onClick, label, title, children }: { onClick?: () => void; label: string; title?: string; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
+      title={title ?? label}
       className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 relative"
       style={{ color: "var(--text-secondary)" }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
@@ -68,6 +69,11 @@ export default function Topbar({ title }: { title?: string }) {
         {/* Advance Options */}
         <IconBtn onClick={() => navigate("/advance-options")} label="Advance Options">
           <i className="ti ti-adjustments-horizontal text-base" />
+        </IconBtn>
+
+        {/* Docs */}
+        <IconBtn onClick={() => navigate("/docs")} label="Documentation" title="Documentation">
+          <i className="ti ti-book-2 text-base" />
         </IconBtn>
 
         {/* Theme toggle */}

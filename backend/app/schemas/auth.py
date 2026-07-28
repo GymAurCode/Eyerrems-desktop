@@ -24,6 +24,8 @@ class AuthToken(BaseModel):
     is_super_admin: bool = False
     company_id: Optional[str] = None
     company_name: Optional[str] = None
+    role_name: Optional[str] = None
+    role_id: Optional[int] = None
 
 
 class UserResponse(BaseModel):
@@ -49,6 +51,8 @@ class UserDetailResponse(UserResponse):
     features: dict[str, bool] = {}
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
+    role_name: Optional[str] = None
+    role_id: Optional[int] = None
 
 
 class UserApprovalRequest(BaseModel):

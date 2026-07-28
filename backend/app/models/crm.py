@@ -11,12 +11,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 from app.models.finance import Journal  # noqa: F401 — for InstallmentPayment FK
 
 
 # ── Lead ──────────────────────────────────────────────────────────────────────
 
-class Lead(Base):
+class Lead(Base, SoftDeleteMixin):
     __tablename__ = "leads"
 
     id         = Column(Integer, primary_key=True)
@@ -76,7 +77,7 @@ class Lead(Base):
 
 # ── FollowUp ──────────────────────────────────────────────────────────────────
 
-class FollowUp(Base):
+class FollowUp(Base, SoftDeleteMixin):
     """Dedicated follow-up management."""
     __tablename__ = "followups"
 
@@ -101,7 +102,7 @@ class FollowUp(Base):
 
 # ── SiteVisit ─────────────────────────────────────────────────────────────────
 
-class SiteVisit(Base):
+class SiteVisit(Base, SoftDeleteMixin):
     """Site visit management."""
     __tablename__ = "site_visits"
 
@@ -176,7 +177,7 @@ class CrmTimelineEntry(Base):
 
 # ── Client ────────────────────────────────────────────────────────────────────
 
-class Client(Base):
+class Client(Base, SoftDeleteMixin):
     __tablename__ = "clients"
 
     id                     = Column(Integer, primary_key=True)
@@ -241,7 +242,7 @@ class ClientAttachment(Base):
 
 # ── Dealer ────────────────────────────────────────────────────────────────────
 
-class Dealer(Base):
+class Dealer(Base, SoftDeleteMixin):
     __tablename__ = "dealers"
 
     id               = Column(Integer, primary_key=True)
@@ -293,7 +294,7 @@ class InstallmentType(Base):
 
 # ── Deal ──────────────────────────────────────────────────────────────────────
 
-class Deal(Base):
+class Deal(Base, SoftDeleteMixin):
     """
     Deal with full lifecycle: draft → negotiation → won → lost / cancelled.
     When status becomes `won`, a Booking should be created automatically.

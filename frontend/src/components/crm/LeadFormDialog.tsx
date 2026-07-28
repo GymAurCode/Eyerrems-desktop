@@ -1,5 +1,5 @@
-import { FormEvent, useState, useRef } from "react";
-import { Paperclip, X, Upload, UserPlus } from "lucide-react";
+import { FormEvent, useState, useRef, useEffect } from "react";
+import { Paperclip, X, Upload, UserPlus, Pencil } from "lucide-react";
 import AppDialog from "../ui/AppDialog";
 import { FormSection, FormRow, FormField } from "../ui/DialogForm";
 import { DialogCancelButton, DialogSubmitButton } from "../ui/DialogButtons";
@@ -11,9 +11,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSaved: (lead: Lead) => void;
+  initial?: Lead | null;
 }
 
-export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
+export default function LeadFormDialog({ open, onClose, onSaved, initial }: Props) {
+  const editing = !!initial;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -31,6 +33,31 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setName(initial.name ?? "");
+      setPhone(initial.phone ?? "");
+      setEmail(initial.email ?? "");
+      setSource(initial.source ?? "");
+      setBudgetMin(initial.budget_min != null ? String(initial.budget_min) : "");
+      setBudgetMax(initial.budget_max != null ? String(initial.budget_max) : "");
+      setPreferredTown(initial.preferred_town ?? "");
+      setPreferredProject(initial.preferred_project ?? "");
+      setInvestorType(initial.investor_type ?? "");
+      setNotes(initial.notes ?? "");
+      setStatus(initial.status ?? "new");
+      setDealerId(initial.assigned_dealer_id ?? null);
+      setFiles([]);
+    } else {
+      setName(""); setPhone(""); setEmail(""); setSource("");
+      setBudgetMin(""); setBudgetMax(""); setPreferredTown("");
+      setInvestorType(""); setNotes(""); setStatus("new"); setPreferredProject("");
+      setDealerId(null); setFiles([]);
+    }
+    setErr(""); setSaving(false);
+  }, [open, initial]);
+
   const reset = () => {
     setName(""); setPhone(""); setEmail(""); setSource("");
     setBudgetMin(""); setBudgetMax(""); setPreferredTown("");
@@ -43,7 +70,7 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
     if (!name.trim()) { setErr("Name is required"); return; }
     setErr(""); setSaving(true);
     try {
-      const lead = await crmApi.createLead({
+      const payload = {
         name: name.trim(),
         phone: phone.trim() || null,
         email: email.trim() || null,
@@ -56,7 +83,15 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
         notes: notes.trim() || null,
         status,
         assigned_dealer_id: dealerId,
-      });
+      };
+
+      let lead: Lead;
+      if (editing && initial) {
+        await crmApi.updateLead(initial.id, payload);
+        lead = { ...initial, ...payload } as Lead;
+      } else {
+        lead = await crmApi.createLead(payload);
+      }
 
       if (files.length > 0) {
         await Promise.allSettled(
@@ -84,14 +119,14 @@ export default function LeadFormDialog({ open, onClose, onSaved }: Props) {
   };
 
   return (
-    <AppDialog isOpen={open} onClose={onClose} title="New Lead"
-      icon={<UserPlus size={18} />}
-      subtitle="Enter lead information and property requirements"
+    <AppDialog isOpen={open} onClose={onClose} title={editing ? "Edit Lead" : "New Lead"}
+      icon={editing ? <Pencil size={18} /> : <UserPlus size={18} />}
+      subtitle={editing ? "Update lead information and property requirements" : "Enter lead information and property requirements"}
       size="lg"
       footer={
         <>
           <DialogCancelButton onClick={onClose} />
-          <DialogSubmitButton onClick={handleSubmit} label="Save Lead" loading={saving} />
+          <DialogSubmitButton onClick={handleSubmit} label={editing ? "Update Lead" : "Save Lead"} loading={saving} />
         </>
       }
     >

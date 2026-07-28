@@ -8,9 +8,10 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, 
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class Contract(Base):
+class Contract(Base, SoftDeleteMixin):
     """Signed agreement between client and company for a booking."""
     __tablename__ = "contracts"
 
@@ -48,7 +49,7 @@ class Contract(Base):
     deal    = relationship("Deal",    foreign_keys=[deal_id])
 
 
-class ReceiptVoucher(Base):
+class ReceiptVoucher(Base, SoftDeleteMixin):
     """Auto-generated receipt voucher for every financial transaction.
     Each voucher posts to both SubsidiaryLedger and General Ledger.
     """
@@ -90,7 +91,7 @@ class ReceiptVoucher(Base):
     created_by  = relationship("User",        foreign_keys=[created_by_user_id])
 
 
-class Transfer(Base):
+class Transfer(Base, SoftDeleteMixin):
     """Ownership transfer of a booking to a new client."""
     __tablename__ = "transfers"
 
@@ -113,7 +114,7 @@ class Transfer(Base):
     approved_by = relationship("User",    foreign_keys=[approved_by_id])
 
 
-class Handover(Base):
+class Handover(Base, SoftDeleteMixin):
     """Property possession/handover to client after completion."""
     __tablename__ = "handovers"
 
@@ -138,7 +139,7 @@ class Handover(Base):
     unit    = relationship("Unit",    foreign_keys=[unit_id])
 
 
-class AfterSalesTicket(Base):
+class AfterSalesTicket(Base, SoftDeleteMixin):
     """Post-possession service/maintenance requests from the client."""
     __tablename__ = "after_sales_tickets"
 

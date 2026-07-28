@@ -12,6 +12,9 @@ export interface Payroll { id: number; [key: string]: any; }
 export interface Holiday { id: number; [key: string]: any; }
 export interface SalaryStructure { [key: string]: any; }
 export interface PayslipData { [key: string]: any; }
+export interface EmployeeTask { id: number; [key: string]: any; }
+export interface PerformanceReview { id: number; [key: string]: any; }
+export interface EmployeePerformanceData { [key: string]: any; }
 
 export const departmentsApi = {
   list: async (): Promise<Department[]> => {
@@ -182,5 +185,48 @@ export const holidaysApi = {
   },
   delete: async (id: number): Promise<void> => {
     await api.delete(`/hr/holidays/${id}`);
+  },
+};
+
+export const tasksApi = {
+  list: async (params?: { employee_id?: number; status?: string }): Promise<EmployeeTask[]> => {
+    const { data } = await api.get("/hr/tasks", { params });
+    return Array.isArray(data) ? data : data.items ?? data.data ?? [];
+  },
+  create: async (payload: any): Promise<EmployeeTask> => {
+    const { data } = await api.post("/hr/tasks", payload);
+    return data;
+  },
+  update: async (id: number, payload: any): Promise<EmployeeTask> => {
+    const { data } = await api.patch(`/hr/tasks/${id}`, payload);
+    return data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/hr/tasks/${id}`);
+  },
+};
+
+export const performanceApi = {
+  getEmployeePerformance: async (employeeId: number): Promise<EmployeePerformanceData> => {
+    const { data } = await api.get(`/hr/performance/employee/${employeeId}`);
+    return data;
+  },
+  getRankings: async (departmentId?: number): Promise<any[]> => {
+    const { data } = await api.get("/hr/performance/rankings", { params: { department_id: departmentId } });
+    return Array.isArray(data) ? data : [];
+  },
+  createReview: async (payload: any): Promise<PerformanceReview> => {
+    const { data } = await api.post("/hr/performance/reviews", payload);
+    return data;
+  },
+  updateReview: async (id: number, payload: any): Promise<PerformanceReview> => {
+    const { data } = await api.patch(`/hr/performance/reviews/${id}`, payload);
+    return data;
+  },
+  reportData: async (employeeId: number, periodStart?: string, periodEnd?: string): Promise<any> => {
+    const { data } = await api.get(`/hr/performance/report-data/${employeeId}`, {
+      params: { period_start: periodStart, period_end: periodEnd },
+    });
+    return data;
   },
 };

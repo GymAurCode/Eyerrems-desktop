@@ -81,6 +81,7 @@ def get_current_user(
             cid = 1
         request.state.company_id = cid
         request.state.is_super_admin = True
+        user.is_super_admin = True  # force to match token, bypass DB inconsistency
         return user
 
     from app.core.tenant_manager import tenant_manager
@@ -133,6 +134,21 @@ def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def require_admin_role(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if current_user.is_super_admin:
+        return current_user
+    if not current_user.role_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    from app.models.rbac import Role as RbacRole
+    role = db.query(RbacRole).filter(RbacRole.id == current_user.role_id).first()
+    if not role or role.name.lower() != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return current_user
+
+
 def optional_user(
     request: Request,
     db: Session = Depends(get_db),
@@ -147,7 +163,8 @@ def optional_user(
 
 
 from app.core.rbac import (
-    require_permission as _new_require_permission,
+    require_permission as _new_require_permission_structured,
+    require_permissions as _new_require_permissions_flat,
     require_any_permission as _new_require_any_permission,
     get_user_permissions as _new_get_user_permissions,
     seed_all_v3_permissions,
@@ -157,8 +174,8 @@ from app.core.rbac import (
 
 
 def require_permissions(*required_permissions: str):
-    normalized = {p.replace(":", ".") for p in required_permissions}
-    return _new_require_permission(*normalized)
+    """Backward-compatible permission check using flat strings like 'finance:manage'."""
+    return _new_require_permissions_flat(*required_permissions)
 
 
 def require_any_permission(*permissions: str):
@@ -178,3 +195,11 @@ def require_roles(*required_roles: str):
 
 
 _get_user_permissions = _new_get_user_permissions
+
+# Re-export the structured require_permission for use in new routes
+def require_permission(module_key: str, tab_key: str, action: str):
+    """Structured permission check: require 'module:tab:action' exactly.
+
+    Usage: Depends(require_permission("finance", "Invoices", "view"))
+    """
+    return _new_require_permission_structured(module_key, tab_key, action)

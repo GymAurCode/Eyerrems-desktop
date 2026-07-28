@@ -1,4 +1,4 @@
-"""CRM routes — full ERP-grade implementation."""
+"""CRM routes â€” full ERP-grade implementation."""
 import shutil
 import uuid
 from datetime import datetime, date, timedelta, time, timezone
@@ -60,13 +60,15 @@ from app.schemas.crm import (
     TimelineEntryOut,
 )
 
+from app.services.soft_delete_service import SoftDeleteService
+
 router = APIRouter()
 
 PERM_VIEW   = ("crm:manage", "crm:view")
 PERM_MANAGE = ("crm:manage",)
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _next_lead_id(db: Session) -> str:
     count = db.query(func.count(Lead.id)).scalar() or 0
@@ -158,7 +160,7 @@ def _record_dealer_lead_cost(db: Session, lead: Lead, current_user: User) -> Non
         dealer_id=dealer.id,
         lead_id=lead.id,
         entry_date=datetime.utcnow(),
-        description=f"Lead cost — {lead.lead_id} ({lead.name})",
+        description=f"Lead cost â€” {lead.lead_id} ({lead.name})",
         entry_type="lead_cost",
         debit=cost,
         credit=Decimal("0"),
@@ -186,7 +188,7 @@ def _deal_out(deal: Deal) -> dict:
     return d
 
 
-# ── Leads ─────────────────────────────────────────────────────────────────────
+# â”€â”€ Leads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/leads", response_model=PaginatedLeads)
 def list_leads(
@@ -202,7 +204,7 @@ def list_leads(
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
     print("CRM Query Params:", request.query_params)
-    query = db.query(Lead).options(joinedload(Lead.client)).order_by(Lead.id.desc())
+    query = SoftDeleteService.apply_soft_delete_filter(db.query(Lead), Lead).options(joinedload(Lead.client)).order_by(Lead.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Lead,
@@ -296,7 +298,7 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
     if not lead:
         raise HTTPException(404, "Lead not found")
 
-    # ── Linear pipeline enforcement ───────────────────────────────────────────
+    # â”€â”€ Linear pipeline enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if payload.status and payload.status != lead.status:
         new_stage = payload.status
         old_stage = lead.status
@@ -315,7 +317,7 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
                 f"Cannot move from '{old_stage}' to '{new_stage}'. "
                 f"Pipeline stages are forward-only (current: {old_stage})."
             )
-        # Skip stages check — allow skipping for flexibility,
+        # Skip stages check â€” allow skipping for flexibility,
         # but enforce "converted" is reached only through deal_won
         if new_stage == "converted" and old_stage != "deal_won":
             raise HTTPException(400,
@@ -323,7 +325,7 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
                 f"Current stage is '{old_stage}'."
             )
 
-    # ── Auto-record dealer lead cost when dealer assigned/changed ────────────
+    # â”€â”€ Auto-record dealer lead cost when dealer assigned/changed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     old_dealer_id = lead.assigned_dealer_id
     old_data = {k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')}
     old_status = lead.status
@@ -362,31 +364,18 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/leads/{lead_id}", status_code=204)
-def delete_lead(lead_id: int, db: Session = Depends(get_db),
+def delete_lead(lead_id: int, request: Request, db: Session = Depends(get_db),
                 current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
     if lead.client:
         raise HTTPException(400, "Cannot delete a converted lead")
-    old_data = {k: str(v) for k, v in lead.__dict__.items() if not k.startswith('_')}
-    log_action(
-        db=db, module="crm", action="DELETE",
-        record_id=str(lead_id), record_label=f"Lead: {lead.name}",
-        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
-        old_data=old_data,
-    )
-    log_activity(
-        db=db, user=current_user, action="delete", module="crm",
-        record_type="lead", record_id=lead.lead_id,
-        record_label=f"Lead {lead.name}",
-        old_values=old_data,
-    )
-    db.delete(lead)
+    SoftDeleteService.soft_delete(db, lead, current_user, "crm_leads", request=request)
     db.commit()
 
 
-# ── Clients ───────────────────────────────────────────────────────────────────
+# â”€â”€ Clients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _load_client(db: Session, client_id: str | int) -> Client:
     c = None
@@ -442,12 +431,10 @@ def list_clients(
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
     print("CRM Query Params:", request.query_params)
-    query = (
-        db.query(Client)
+    query = (SoftDeleteService.apply_soft_delete_filter(db.query(Client), Client)
         .options(joinedload(Client.lead), joinedload(Client.assigned_dealer),
                  joinedload(Client.attachments))
-        .order_by(Client.id.desc())
-    )
+        .order_by(Client.id.desc()))
     query, total = apply_table_filters(
         query=query,
         model=Client,
@@ -550,7 +537,7 @@ def convert_lead_to_client(lead_id: int, payload: ConvertLeadToClient,
     return _client_out(_load_client(db, client.id))
 
 
-# ── Client Search (MUST be before /clients/{client_id} dynamic route) ─────────
+# â”€â”€ Client Search (MUST be before /clients/{client_id} dynamic route) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/clients/search")
 def client_search(
@@ -629,7 +616,7 @@ def upload_client_attachment(client_id: int, file: UploadFile = File(...),
     return att
 
 
-# ── Dealers ───────────────────────────────────────────────────────────────────
+# â”€â”€ Dealers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _load_dealer(db: Session, dealer_id: str | int) -> Dealer:
     d = None
@@ -662,7 +649,7 @@ def list_dealers(
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
     print("CRM Query Params:", request.query_params)
-    query = db.query(Dealer).options(joinedload(Dealer.attachments)).order_by(Dealer.id.desc())
+    query = SoftDeleteService.apply_soft_delete_filter(db.query(Dealer), Dealer).options(joinedload(Dealer.attachments)).order_by(Dealer.id.desc())
     query, total = apply_table_filters(
         query=query,
         model=Dealer,
@@ -728,7 +715,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
     first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     first_of_last_month = (first_of_month - timedelta(days=1)).replace(day=1)
 
-    # ── Ledger totals ──────────────────────────────────────────────────────
+    # â”€â”€ Ledger totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     last_entry = db.query(DealerLedgerEntry.running_balance).filter(
         DealerLedgerEntry.dealer_id == did
     ).order_by(DealerLedgerEntry.id.desc()).first()
@@ -782,7 +769,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         current_month_lead_cost=current_month_lead_cost,
     )
 
-    # ── Lead stats ─────────────────────────────────────────────────────────
+    # â”€â”€ Lead stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     all_leads = db.query(Lead).filter(Lead.assigned_dealer_id == did).all()
     total_leads = len(all_leads)
     status_counts: dict[str, int] = {}
@@ -811,7 +798,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         lost_rate=round((lost_count / closed * 100) if closed > 0 else 0, 2),
     )
 
-    # ── Lead cost summary ──────────────────────────────────────────────────
+    # â”€â”€ Lead cost summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     cost_per_lead = dealer.cost_per_lead or Decimal("0")
     charged_leads_count = db.query(DealerLedgerEntry).filter(
         DealerLedgerEntry.dealer_id == did,
@@ -832,7 +819,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         cost_recovery_pct=round(float(total_commission_earned / total_lead_cost * 100), 2) if total_lead_cost > 0 else 0.0,
     )
 
-    # ── Commission summary ─────────────────────────────────────────────────
+    # â”€â”€ Commission summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     won_deals = db.query(Deal).filter(
         Deal.dealer_id == did,
         Deal.status == "won",
@@ -855,7 +842,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
         commission_last_month=last_month_comm_raw or Decimal("0"),
     )
 
-    # ── Recent assigned leads (top 10) ─────────────────────────────────────
+    # â”€â”€ Recent assigned leads (top 10) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     recent_leads_data = db.query(Lead).filter(
         Lead.assigned_dealer_id == did,
     ).order_by(Lead.created_at.desc()).limit(10).all()
@@ -875,7 +862,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
             status=l.status or "new",
         ))
 
-    # ── Recent ledger entries (top 10) ─────────────────────────────────────
+    # â”€â”€ Recent ledger entries (top 10) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     recent_entries = (
         db.query(DealerLedgerEntry)
         .filter(DealerLedgerEntry.dealer_id == did)
@@ -901,7 +888,7 @@ def _build_dealer_detail(db: Session, dealer_id: str) -> DealerDetailOut:
             "lead_name": lead_name, "dealer_name": dealer.name,
         })
 
-    # ── Assigned clients + active deals ────────────────────────────────────
+    # â”€â”€ Assigned clients + active deals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     assigned_clients = (
         db.query(Client).options(joinedload(Client.attachments))
         .filter(Client.dealer_id == did).all()
@@ -964,7 +951,7 @@ def update_dealer(dealer_id: int, payload: DealerUpdate, db: Session = Depends(g
 
 
 @router.delete("/dealers/{dealer_id}", status_code=204)
-def delete_dealer(dealer_id: int, force: bool = Query(False),
+def delete_dealer(dealer_id: int, request: Request, force: bool = Query(False),
                   db: Session = Depends(get_db),
                   current_user: User = Depends(require_any_permission(*PERM_MANAGE))):
     dealer = _load_dealer(db, dealer_id)
@@ -1003,14 +990,7 @@ def delete_dealer(dealer_id: int, force: bool = Query(False),
             comm.dealer_id = None
         db.flush()
 
-    old_data = {k: str(v) for k, v in dealer.__dict__.items() if not k.startswith('_')}
-    log_action(
-        db=db, module="crm", action="DELETE",
-        record_id=str(dealer_id), record_label=f"Dealer: {dealer.name}",
-        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
-        old_data=old_data,
-    )
-    db.delete(dealer)
+    SoftDeleteService.soft_delete(db, dealer, current_user, "crm_dealers", request=request)
     db.commit()
 
 
@@ -1027,7 +1007,7 @@ def upload_dealer_attachment(dealer_id: int, file: UploadFile = File(...),
     return att
 
 
-# ── Dealer Ledger ──────────────────────────────────────────────────────────────
+# â”€â”€ Dealer Ledger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/dealers/{dealer_id}/ledger", response_model=list[DealerLedgerEntryOut])
 def list_dealer_ledger(
@@ -1203,7 +1183,7 @@ def create_dealer_payout(
     }
 
 
-# ── Installment Types ─────────────────────────────────────────────────────────
+# â”€â”€ Installment Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/installment-types", response_model=list[InstallmentTypeOut])
 def list_installment_types(db: Session = Depends(get_db),
@@ -1246,7 +1226,7 @@ def delete_installment_type(type_id: int, db: Session = Depends(get_db),
     db.commit()
 
 
-# ── Deals ─────────────────────────────────────────────────────────────────────
+# â”€â”€ Deals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _load_deal(db: Session, deal_id: str | int) -> Deal:
     def q():
@@ -1287,12 +1267,10 @@ def list_deals(
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
     print("CRM Query Params:", request.query_params)
-    query = (
-        db.query(Deal)
+    query = (SoftDeleteService.apply_soft_delete_filter(db.query(Deal), Deal)
         .options(joinedload(Deal.client), joinedload(Deal.dealer),
                  joinedload(Deal.property), joinedload(Deal.attachments))
-        .order_by(Deal.id.desc())
-    )
+        .order_by(Deal.id.desc()))
     query, total = apply_table_filters(
         query=query,
         model=Deal,
@@ -1355,7 +1333,7 @@ async def create_deal(payload: DealCreate, db: Session = Depends(get_db),
     return _deal_out(_load_deal(db, deal.id))
 
 
-# ── Deals Search (MUST be before /deals/{deal_id} dynamic route) ───────────────
+# â”€â”€ Deals Search (MUST be before /deals/{deal_id} dynamic route) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/deals/search")
 def deal_search(
@@ -1466,7 +1444,7 @@ def update_deal(deal_id: int, payload: DealUpdate, db: Session = Depends(get_db)
     if old_unit_id is not None and old_unit_id != deal.unit_id:
         sync_unit_status(db, old_unit_id)
 
-    # ── Finance sync: journalize down payment when marked paid ────────────
+    # â”€â”€ Finance sync: journalize down payment when marked paid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if payload.down_payment_status == "paid" and deal.down_payment and float(deal.down_payment) > 0:
         try:
             cash_account = db.query(Account).filter(Account.code == "1100").first()
@@ -1494,12 +1472,12 @@ def update_deal(deal_id: int, payload: DealUpdate, db: Session = Depends(get_db)
                     ],
                     reference_type="deal_down_payment",
                     reference_id=str(deal.id),
-                    description=f"Deal {deal.deal_id} down payment — {deal.down_payment}",
+                    description=f"Deal {deal.deal_id} down payment â€” {deal.down_payment}",
                 )
         except ValueError:
             pass
 
-    # ── Auto-create commission entry when deal status changes to won ──────
+    # â”€â”€ Auto-create commission entry when deal status changes to won â”€â”€â”€â”€â”€â”€
     if payload.status == "won" and deal.status != "won" and deal.dealer_id:
         dealer_obj = db.query(Dealer).filter(Dealer.id == deal.dealer_id).first()
         if dealer_obj and dealer_obj.commission_rate:
@@ -1520,7 +1498,7 @@ def update_deal(deal_id: int, payload: DealUpdate, db: Session = Depends(get_db)
                     dealer_id=deal.dealer_id,
                     deal_id=deal.id,
                     entry_date=datetime.utcnow(),
-                    description=f"Commission — {deal.deal_id} ({deal.deal_title or 'Deal'})",
+                    description=f"Commission â€” {deal.deal_id} ({deal.deal_title or 'Deal'})",
                     entry_type="commission",
                     commission_rate=dealer_obj.commission_rate,
                     gross_commission=commission_amt,
@@ -1565,7 +1543,7 @@ def upload_deal_attachment(deal_id: int, file: UploadFile = File(...),
     return att
 
 
-# ── CRM Dashboard ──────────────────────────────────────────────────────────────
+# â”€â”€ CRM Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/dashboard", response_model=CrmDashboardData)
 def get_crm_dashboard(
@@ -1705,7 +1683,7 @@ def get_crm_dashboard(
     )
 
 
-# ── FollowUps ─────────────────────────────────────────────────────────────────
+# â”€â”€ FollowUps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/followups", response_model=PaginatedFollowUps)
 def list_followups(
@@ -1716,7 +1694,7 @@ def list_followups(
     fu_status: str | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(FollowUp).options(
+    query = SoftDeleteService.apply_soft_delete_filter(db.query(FollowUp), FollowUp).options(
         joinedload(FollowUp.lead), joinedload(FollowUp.assigned_user),
     ).order_by(FollowUp.created_at.desc())
     if lead_id:
@@ -1848,7 +1826,7 @@ def complete_followup(
     return {"ok": True}
 
 
-# ── Site Visits ────────────────────────────────────────────────────────────────
+# â”€â”€ Site Visits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/site-visits", response_model=PaginatedSiteVisits)
 def list_site_visits(
@@ -1859,7 +1837,7 @@ def list_site_visits(
     sv_status: str | None = None,
     _=Depends(require_any_permission(*PERM_VIEW)),
 ):
-    query = db.query(SiteVisit).options(
+    query = SoftDeleteService.apply_soft_delete_filter(db.query(SiteVisit), SiteVisit).options(
         joinedload(SiteVisit.lead), joinedload(SiteVisit.property),
         joinedload(SiteVisit.dealer),
     ).order_by(SiteVisit.created_at.desc())
@@ -1964,7 +1942,7 @@ def update_site_visit(
     return _site_visit_out(sv)
 
 
-# ── Payments (standalone) ──────────────────────────────────────────────────────
+# â”€â”€ Payments (standalone) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/payments", response_model=PaginatedPayments)
 def list_payments(
@@ -2015,7 +1993,7 @@ def create_payment(
     db.add(pm)
     db.flush()
 
-    # ── Finance sync: post journal entry ──────────────────────────────────
+    # â”€â”€ Finance sync: post journal entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     cash_code = "1010" if payload.payment_method == "cash" else "1100"
     cash_account = db.query(Account).filter(Account.code == cash_code).first()
 
@@ -2034,18 +2012,18 @@ def create_payment(
                 db=db,
                 entries=[
                     JournalEntryData(account_id=cash_account.id, debit=payload.amount,
-                                     description=f"CRM payment {pm.payment_id} — {client.name}"),
+                                     description=f"CRM payment {pm.payment_id} â€” {client.name}"),
                     JournalEntryData(account_id=revenue_account.id, credit=payload.amount,
-                                     description=f"CRM payment {pm.payment_id} — {client.name}"),
+                                     description=f"CRM payment {pm.payment_id} â€” {client.name}"),
                 ],
                 reference_type="crm_payment",
                 reference_id=str(pm.id),
-                description=f"CRM payment {pm.payment_id} from {client.name} — {payload.amount}",
+                description=f"CRM payment {pm.payment_id} from {client.name} â€” {payload.amount}",
                 date=payload.payment_date or datetime.utcnow(),
             )
             pm.journal_id = journal.id
         except ValueError:
-            pass  # journal creation failed silently — payment still recorded
+            pass  # journal creation failed silently â€” payment still recorded
 
     _add_timeline_entry(
         db, entity_type="client", entity_id=payload.client_id,
@@ -2158,7 +2136,7 @@ def payment_ledger(
             "receipt": None,
             "finance_posted": False,
             "status": "completed",
-            "notes": f"Booking token — {b.booking_id}",
+            "notes": f"Booking token â€” {b.booking_id}",
         })
 
     # Sort by date descending
@@ -2174,7 +2152,7 @@ def payment_ledger(
     return {"items": entries, "total": total, "limit": limit, "offset": offset}
 
 
-# ── Timeline ───────────────────────────────────────────────────────────────────
+# â”€â”€ Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/timeline", response_model=list[TimelineEntryOut])
 def list_timeline(
@@ -2201,7 +2179,7 @@ def list_timeline(
     return result
 
 
-# ── Automation Rules ───────────────────────────────────────────────────────────
+# â”€â”€ Automation Rules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/automation-rules", response_model=list[AutomationRuleOut])
 def list_automation_rules(
@@ -2240,7 +2218,7 @@ def toggle_automation_rule(
     return rule
 
 
-# ── Installment Plans ─────────────────────────────────────────────────────────
+# â”€â”€ Installment Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _generate_schedule(rules, start_offset: int = 0) -> list[dict]:
     """
@@ -2352,7 +2330,7 @@ def list_installments(deal_id: int | None = None, db: Session = Depends(get_db),
 @router.get("/installments/{deal_id}", response_model=list, include_in_schema=False)
 def get_installments_for_deal(deal_id: int, db: Session = Depends(get_db),
                                _=Depends(require_any_permission(*PERM_VIEW))):
-    """Schedule view endpoint — returns flat list of installments for a deal."""
+    """Schedule view endpoint â€” returns flat list of installments for a deal."""
     plan = db.query(InstallmentPlan).filter(InstallmentPlan.deal_id == deal_id).first()
     if not plan:
         return []
@@ -2572,7 +2550,7 @@ def pay_installment(inst_id: int, payload: InstallmentPaymentCreate,
         raise HTTPException(400, str(e))
 
 
-# ── Communications ────────────────────────────────────────────────────────────
+# â”€â”€ Communications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/communications", response_model=list[CommunicationOut])
 def list_communications(tracking_id: str | None = None, db: Session = Depends(get_db),
@@ -2616,7 +2594,7 @@ def upload_comm_attachment(comm_id: int, file: UploadFile = File(...),
     return comm
 
 
-# ── Global Search ─────────────────────────────────────────────────────────────
+# â”€â”€ Global Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/search", response_model=GlobalSearchResult)
 def global_search(q: str, db: Session = Depends(get_db),
@@ -2676,7 +2654,7 @@ def global_search(q: str, db: Session = Depends(get_db),
     )
 
 
-# ── Activities (Quick Actions) ────────────────────────────────────────────────
+# â”€â”€ Activities (Quick Actions) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/activities", response_model=list[ActivityOut])
 def list_activities(
@@ -2795,6 +2773,11 @@ def delete_activity(
     )
     db.delete(activity)
     db.commit()
+
+
+
+
+
 
 
 

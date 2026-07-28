@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, R
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from app.core.table_query import apply_table_filters
+from app.services.soft_delete_service import SoftDeleteService
 
 from app.api.deps import get_current_user, require_permissions, require_any_permission
 from app.core.audit import log_action
@@ -253,7 +254,7 @@ def list_tenants(
     status: str | None = None,
     _: User = Depends(require_any_permission("tenant:view", "tenants:view", "tenant:manage")),
 ):
-    query = db.query(Tenant).order_by(Tenant.id.desc())
+    query = db.query(Tenant).filter(Tenant.is_deleted == False).order_by(Tenant.id.desc())
     if status:
         if status.lower() == "active":
             query = query.filter(Tenant.is_active == True)
@@ -506,7 +507,7 @@ def list_maintenance(
     db: Session = Depends(get_db),
     _: User = Depends(require_any_permission("tenant:view", "tenants:view")),
 ):
-    q = db.query(Maintenance).options(
+    q = db.query(Maintenance).filter(Maintenance.is_deleted == False).options(
         joinedload(Maintenance.property_rel),
         joinedload(Maintenance.unit_rel),
         joinedload(Maintenance.tenant_rel),
@@ -780,9 +781,7 @@ def delete_maintenance(
         record_label=f"Maintenance {record.description[:80] if record.description else ''}",
         old_values=old_data,
     )
-    db.commit()
-
-    db.delete(record)
+    SoftDeleteService.soft_delete(db, record, current_user, "maintenance", request=request)
     db.commit()
 
 
@@ -878,6 +877,7 @@ def update_tenant(
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_tenant(
     tenant_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_any_permission("tenant:manage")),
 ):
@@ -895,21 +895,7 @@ def delete_tenant(
                 unit.current_tenant_name = None
                 unit.lease_end_date = None
                 unit.status = "available"
-    old_data = {k: str(v) for k, v in tenant.__dict__.items() if not k.startswith('_')}
-    log_action(
-        db=db, module="tenant", action="DELETE",
-        record_id=str(tenant_id), record_label=f"Tenant: {tenant.name}",
-        changed_by=current_user.email, changed_by_role=getattr(getattr(current_user, 'role', None), 'name', None),
-        old_data=old_data,
-    )
-    log_activity(
-        db=db, user=current_user, action="delete", module="tenant",
-        record_type="tenant", record_id=tenant_id,
-        record_label=f"Tenant {tenant.name}",
-        old_values=old_data,
-    )
-    db.commit()
-    db.delete(tenant)
+    SoftDeleteService.soft_delete(db, tenant, current_user, "tenants", request=request)
     db.commit()
 
 

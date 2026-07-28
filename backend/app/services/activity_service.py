@@ -163,7 +163,7 @@ class AuditLogService:
     """Single entry-point for recording audit events across all modules."""
 
     INSERT_COLS = """
-        id, module, action, record_id, record_label,
+        id, company_id, module, action, record_id, record_label,
         changed_by, changed_by_role,
         user_id, username, full_name, role, department,
         entity_type, entity_id, entity_name,
@@ -174,7 +174,7 @@ class AuditLogService:
     """
 
     INSERT_PARAMS = """
-        :id, :module, :action, :record_id, :record_label,
+        :id, :company_id, :module, :action, :record_id, :record_label,
         :changed_by, :changed_by_role,
         :user_id, :username, :full_name, :role, :department,
         :entity_type, :entity_id, :entity_name,
@@ -199,6 +199,7 @@ class AuditLogService:
         ip_address: Optional[str] = None,
         request: Optional[Request] = None,
         status: str = "Success",
+        company_id: Optional[int] = None,
     ) -> None:
         """Record one audit event. Never raises — logs failures."""
         log.info("AuditService: action=%s module=%s entity=%s/%s",
@@ -206,6 +207,10 @@ class AuditLogService:
 
         user_id, email, full_name, role, department = _extract_actor_info(actor)
         meta = _extract_request_meta(request)
+
+        # Resolve company_id from actor if not provided
+        if company_id is None and actor is not None and not isinstance(actor, dict):
+            company_id = getattr(actor, "company_id", None)
 
         # Override ip if explicitly provided
         if ip_address:
@@ -223,6 +228,7 @@ class AuditLogService:
         action_upper = action.upper().replace(" ", "_")
         entity_type_value = entity_type or module
 
+        log_id = str(uuid.uuid4())
         try:
             with db.begin_nested():
                 db.execute(
@@ -231,7 +237,8 @@ class AuditLogService:
                         VALUES ({AuditLogService.INSERT_PARAMS.format(ts=_now_expr(db))})
                     """),
                     {
-                        "id": str(uuid.uuid4()),
+                        "id": log_id,
+                        "company_id": company_id,
                         "module": module,
                         "action": action_upper,
                         "record_id": str(entity_id) if entity_id is not None else None,
@@ -259,6 +266,31 @@ class AuditLogService:
                     },
                 )
                 db.flush()
+
+            # Broadcast audit event via WebSocket
+            if company_id:
+                try:
+                    import asyncio
+                    from app.core.websocket_manager import ws_manager
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.ensure_future(ws_manager.broadcast_to_company(
+                            company_id,
+                            "audit_log.created",
+                            {
+                                "id": log_id,
+                                "module": module,
+                                "action": action_upper,
+                                "user_id": user_id,
+                                "full_name": full_name,
+                                "entity_name": entity_name,
+                                "entity_type": entity_type_value,
+                                "created_at": datetime.utcnow().isoformat(),
+                            },
+                        ))
+                except Exception as ws_err:
+                    log.debug("Audit WS broadcast skipped: %s", ws_err)
+
             log.info("AuditService: INSERT OK — %s %s %s", action, module, entity_id)
         except Exception as e:
             log.error("AuditService: INSERT FAILED — %s %s %s: %s",

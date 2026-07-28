@@ -7,6 +7,8 @@ import {
   Archive, Landmark, TrendingUp, Wrench, Banknote, X, ChevronLeft,
 } from "lucide-react";
 import { propApi, PropertyDetail, PropertyAttachment, Location, Amenity } from "../lib/propertyApi";
+import { townApi } from "../lib/townApi";
+import { constructionApi } from "../lib/constructionApi";
 import { uploadsUrl } from "../lib/config";
 import { formatCurrency } from "../lib/currency";
 import { auditApi, AuditLogEntry } from "../lib/auditApi";
@@ -93,6 +95,16 @@ export default function PropertyViewPage() {
   const [editExpenseGl, setEditExpenseGl] = useState("");
   const [editAssetGl, setEditAssetGl] = useState("");
 
+  // Town assignment
+  const [townAssignOpen, setTownAssignOpen] = useState(false);
+  const [townOptions, setTownOptions] = useState<SearchableOption[]>([]);
+  const [selectedTownId, setSelectedTownId] = useState("");
+
+  // Construction assignment
+  const [constructionAssignOpen, setConstructionAssignOpen] = useState(false);
+  const [constructionOptions, setConstructionOptions] = useState<SearchableOption[]>([]);
+  const [selectedConstructionId, setSelectedConstructionId] = useState("");
+
   // Draft floors/units
   const [draftFloors, setDraftFloors] = useState<DraftFloor[]>([]);
   const [savingFloors, setSavingFloors] = useState(false);
@@ -166,6 +178,54 @@ export default function PropertyViewPage() {
       asset_gl_account_id: editAssetGl ? Number(editAssetGl) : null,
     } as any);
     setCoaEditOpen(false);
+    await load();
+  };
+
+  const openTownAssign = async () => {
+    if (!prop) return;
+    if (townOptions.length === 0) {
+      try {
+        const towns = await townApi.listTowns();
+        const opts: SearchableOption[] = towns.map(t => ({
+          value: String(t.id),
+          label: t.name,
+          sublabel: t.region || undefined,
+        }));
+        setTownOptions(opts);
+      } catch { return; }
+    }
+    setSelectedTownId(prop.town_id ? String(prop.town_id) : "");
+    setTownAssignOpen(true);
+  };
+
+  const saveTownLink = async () => {
+    if (!prop) return;
+    await propApi.updateProperty(propId, { town_id: selectedTownId ? Number(selectedTownId) : null } as any);
+    setTownAssignOpen(false);
+    await load();
+  };
+
+  const openConstructionAssign = async () => {
+    if (!prop) return;
+    if (constructionOptions.length === 0) {
+      try {
+        const projects = await constructionApi.listProjects();
+        const opts: SearchableOption[] = projects.map(p => ({
+          value: String(p.id),
+          label: `${p.project_code ? p.project_code + ' - ' : ''}${p.name}`,
+          sublabel: p.status,
+        }));
+        setConstructionOptions(opts);
+      } catch { return; }
+    }
+    setSelectedConstructionId(prop.construction_project_id ? String(prop.construction_project_id) : "");
+    setConstructionAssignOpen(true);
+  };
+
+  const saveConstructionLink = async () => {
+    if (!prop) return;
+    await propApi.updateProperty(propId, { construction_project_id: selectedConstructionId ? Number(selectedConstructionId) : null } as any);
+    setConstructionAssignOpen(false);
     await load();
   };
 
@@ -446,6 +506,69 @@ export default function PropertyViewPage() {
         </DetailSection>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* C) LINKED TOWN */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection
+          title="Linked Town"
+          icon={Landmark}
+          action={
+            <button type="button" onClick={() => void openTownAssign()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ border: "1px solid rgba(59,130,246,0.25)", color: "#60a5fa" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.08)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+              <Edit2 size={12} /> {prop.town_id ? "Change" : "Assign"}
+            </button>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg px-4 py-3"
+              style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
+              <p className="text-[10px] uppercase tracking-wider text-muted mb-1">Town</p>
+              {prop.town_name ? (
+                <p className="text-sm font-medium text-primary">{prop.town_name}</p>
+              ) : (
+                <p className="text-xs text-muted italic">Not linked to a town</p>
+              )}
+            </div>
+          </div>
+        </DetailSection>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* D) LINKED CONSTRUCTION PROJECT */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <DetailSection
+          title="Linked Construction Project"
+          icon={Wrench}
+          action={
+            <button type="button" onClick={() => void openConstructionAssign()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ border: "1px solid rgba(59,130,246,0.25)", color: "#60a5fa" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(59,130,246,0.08)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+              <Edit2 size={12} /> {prop.construction_project_id ? "Change" : "Assign"}
+            </button>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg px-4 py-3"
+              style={{ background: "var(--bg-surface2)", border: "1px solid var(--border)" }}>
+              <p className="text-[10px] uppercase tracking-wider text-muted mb-1">Construction Project</p>
+              {prop.construction_project_name ? (
+                <>
+                  <p className="text-sm font-medium text-primary">{prop.construction_project_name}</p>
+                  {prop.construction_project_code && (
+                    <p className="text-[10px] font-mono text-muted">{prop.construction_project_code}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted italic">Not linked to a construction project</p>
+              )}
+            </div>
+          </div>
+        </DetailSection>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* Section 2: Floors & Units */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <DetailSection
@@ -711,6 +834,60 @@ export default function PropertyViewPage() {
           <AttachmentPanel module="property" recordId={prop.id} />
         </DetailSection>
       </DetailBody>
+
+      {/* ── Town Assign Modal ── */}
+      <AppDialog isOpen={townAssignOpen} onClose={() => setTownAssignOpen(false)} title="Assign to Town">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Town</label>
+            <SearchableSelect
+              options={townOptions}
+              value={selectedTownId}
+              onChange={setSelectedTownId}
+              placeholder="Search town…"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setTownAssignOpen(false)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void saveTownLink()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#3b82f6" }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </AppDialog>
+
+      {/* ── Construction Assign Modal ── */}
+      <AppDialog isOpen={constructionAssignOpen} onClose={() => setConstructionAssignOpen(false)} title="Link to Construction Project">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Construction Project</label>
+            <SearchableSelect
+              options={constructionOptions}
+              value={selectedConstructionId}
+              onChange={setSelectedConstructionId}
+              placeholder="Search project…"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setConstructionAssignOpen(false)}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              Cancel
+            </button>
+            <button type="button" onClick={() => void saveConstructionLink()}
+              className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white"
+              style={{ background: "#3b82f6" }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </AppDialog>
 
       {/* ── COA Linkage Edit Modal ── */}
       <AppDialog isOpen={coaEditOpen} onClose={() => setCoaEditOpen(false)} title="Edit Linked GL Accounts">

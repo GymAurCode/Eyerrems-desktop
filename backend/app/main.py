@@ -47,16 +47,22 @@ from app.api.routes.users import router as users_router
 from app.api.routes.lookups import router as lookups_router
 from app.api.routes.async_select import router as async_select_router
 from app.api.routes.reports import router as reports_router
+from app.api.routes.rbac_routes import router as rbac_router
+from app.api.routes.recycle_bin import router as recycle_bin_router
+from app.api.routes.backup import router as backup_router
+from app.api.routes.clear_data import router as clear_data_router
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.default_coa import seed_default_coa
 from app.models.audit import AuditLog
+from app.models.rbac import RolePermission
 from app.core.master_db import sync_attachments_table
 from app.core.tenant_middleware import TenantMiddleware
 from app.services.reminder_scheduler import start_scheduler as start_reminder_scheduler, stop_scheduler as stop_reminder_scheduler
 from app.services.booking_scheduler import register_booking_expiry_job
 from app.services.mail.mail_sync_scheduler import register_mail_sync_job
 from app.services.crm.followup_scheduler import register_followup_job
+from app.services.backup_scheduler import register_backup_job
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -252,7 +258,31 @@ def _startup():
 
     try:
         with engine.connect() as conn:
-            for col, col_type in {
+            _safe_add_column(conn, "users", "role_id", "INTEGER")
+            _safe_add_column(conn, "audit_logs", "company_id", "INTEGER")
+    except Exception as e:
+        print(f"[REMS] columns check skipped: {e}")
+
+    # Repair role_permissions table if missing columns
+    try:
+        with engine.connect() as conn:
+            import sqlalchemy as sa
+            inspector = sa.inspect(engine)
+            if "role_permissions" in inspector.get_table_names():
+                cols = {c["name"] for c in inspector.get_columns("role_permissions")}
+                required = {"id", "role_id", "module_key", "tab_key", "can_view", "can_add", "can_edit", "can_delete"}
+                if not required.issubset(cols):
+                    print(f"[REMS] role_permissions table is missing columns: {required - cols} — recreating")
+                    conn.execute(text("DROP TABLE IF EXISTS role_permissions CASCADE"))
+                    conn.commit()
+                    Base.metadata.create_all(bind=engine)
+                    print("[REMS] role_permissions table recreated.")
+    except Exception as e:
+        print(f"[REMS] role_permissions repair skipped: {e}")
+
+    try:
+        with engine.connect() as conn:
+            for col, col_def in {
                 "user_id":      "VARCHAR(36)",
                 "username":     "VARCHAR(255)",
                 "full_name":    "VARCHAR(255)",
@@ -271,6 +301,30 @@ def _startup():
                 _safe_add_column(conn, "audit_logs", col, col_type)
     except Exception as e:
         print(f"[REMS] audit_logs enhanced columns check skipped: {e}")
+
+    # ── Soft delete columns for ALL models using SoftDeleteMixin ──────
+    # Dynamically discover all tables from ORM metadata that have is_deleted column.
+    _SOFT_DELETE_COLS = {
+        "is_deleted": "BOOLEAN DEFAULT FALSE",
+        "deleted_at": "TIMESTAMP",
+        "deleted_by": "INTEGER",
+        "restored_at": "TIMESTAMP",
+        "restored_by": "INTEGER",
+        "original_business_number": "VARCHAR(100)",
+        "restore_count": "INTEGER DEFAULT 0",
+    }
+    _soft_delete_tables = []
+    for table_name, table in Base.metadata.tables.items():
+        if "is_deleted" in table.c:
+            _soft_delete_tables.append(table_name)
+    print(f"[REMS] Found {len(_soft_delete_tables)} tables with soft delete columns: {', '.join(sorted(_soft_delete_tables))}")
+    for table in sorted(_soft_delete_tables):
+        try:
+            with engine.connect() as conn:
+                for col, col_def in _SOFT_DELETE_COLS.items():
+                    _safe_add_column(conn, table, col, col_def)
+        except Exception as e:
+            print(f"[REMS] {table} soft delete columns skipped: {e}")
 
     try:
         from app.tenant import get_master_session
@@ -435,6 +489,16 @@ def _startup():
                         }.items():
                             for col, col_type in cols.items():
                                 _tenant_add_col(tbl, col, col_type)
+                        # Repair role_permissions table if missing columns
+                        if "role_permissions" in insp.get_table_names():
+                            rp_cols = {c["name"] for c in insp.get_columns("role_permissions")}
+                            rp_required = {"id", "role_id", "module_key", "tab_key", "can_view", "can_add", "can_edit", "can_delete"}
+                            if not rp_required.issubset(rp_cols):
+                                print(f"[REMS] role_permissions table in schema '{schema_name}' missing columns — recreating")
+                                conn.execute(text("DROP TABLE IF EXISTS role_permissions CASCADE"))
+                                conn.commit()
+                                Base.metadata.create_all(bind=tenant_engine, tables=[RolePermission.__table__])
+                                print(f"[REMS] role_permissions table recreated in schema '{schema_name}'")
                         conn.commit()
                     tenant_engine.dispose()
 
@@ -520,6 +584,16 @@ def _startup():
                                             conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_types[col]}"))
                                         except Exception:
                                             pass
+                        # Repair role_permissions table if missing columns (SQLite)
+                        if "role_permissions" in insp.get_table_names():
+                            rp_cols = {c["name"] for c in insp.get_columns("role_permissions")}
+                            rp_required = {"id", "role_id", "module_key", "tab_key", "can_view", "can_add", "can_edit", "can_delete"}
+                            if not rp_required.issubset(rp_cols):
+                                print(f"[REMS] role_permissions table missing columns in SQLite tenant — recreating")
+                                conn.execute(text("DROP TABLE IF EXISTS role_permissions"))
+                                conn.commit()
+                                Base.metadata.create_all(bind=tenant_engine, tables=[RolePermission.__table__])
+                                print(f"[REMS] role_permissions table recreated in SQLite tenant")
                         conn.commit()
                     print(f"[REMS] Verified/created tables in SQLite tenant DB '{f}'")
                 finally:
@@ -587,6 +661,24 @@ def _startup():
     register_booking_expiry_job(_async_sched)
     _async_sched.start()
 
+    # Start backup scheduler
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler as _BgSched
+        _backup_sched = _BgSched(timezone="UTC")
+        register_backup_job(_backup_sched)
+        _backup_sched.start()
+        log.info("Backup scheduler started")
+    except Exception as e:
+        log.error("Failed to start backup scheduler: %s", e)
+
+    # Register all modules for soft delete / recycle bin
+    try:
+        from app.services.soft_delete_service import register_all_modules
+        register_all_modules()
+        log.info("All modules registered for soft delete and recycle bin")
+    except Exception as e:
+        log.error("Failed to register modules for soft delete: %s", e)
+
 
 app = FastAPI(title="REMS API", version="1.0.0", lifespan=lifespan)
 
@@ -624,6 +716,8 @@ app.add_middleware(TenantMiddleware)
 
 upload_root = Path(settings.upload_dir)
 upload_root.mkdir(parents=True, exist_ok=True)
+backup_dir = upload_root / "rems_backups"
+backup_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 
 app.include_router(auth_router,       prefix="/auth",       tags=["auth"])
@@ -660,6 +754,10 @@ app.include_router(lookups_router, prefix="/lookups", tags=["lookups"])
 app.include_router(async_select_router, prefix="/crm", tags=["async-select"])
 app.include_router(reports_router)
 app.include_router(users_router)
+app.include_router(rbac_router)
+app.include_router(recycle_bin_router)
+app.include_router(backup_router)
+app.include_router(clear_data_router)
 
 
 @app.get("/health/db")

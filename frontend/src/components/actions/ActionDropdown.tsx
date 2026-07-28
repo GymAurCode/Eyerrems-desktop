@@ -1,5 +1,5 @@
 /**
- * ActionDropdown — a "⋯" button that opens a floating dropdown menu.
+ * ActionDropdown - a "?" button that opens a floating dropdown menu.
  *
  * Used when:
  * - variant="dropdown" is set on RowActions
@@ -16,6 +16,7 @@ import type { ActionConfig } from "./types";
 import { ACTION_DEFAULTS } from "./actionConfig";
 import { ACTION_ICONS } from "./actionIcons";
 import { useAuthStore } from "../../store/auth";
+import { usePermissions } from "../../hooks/usePermissions";
 
 interface ActionDropdownProps<T> {
   row: T;
@@ -32,9 +33,8 @@ export default function ActionDropdown<T>({
 }: ActionDropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasPermission = useAuthStore(s => s.hasPermission);
-  const isAdmin = useAuthStore(s => s.isAdmin);
-  const isSuperAdmin = useAuthStore(s => s.isSuperAdmin);
+  const authIsSuperAdmin = useAuthStore(s => s.isSuperAdmin);
+  const { can } = usePermissions();
 
   // Close on outside click
   useEffect(() => {
@@ -60,8 +60,9 @@ export default function ActionDropdown<T>({
 
   // Filter visible actions
   const visibleActions = actions.filter(action => {
-    if (action.permission && !isSuperAdmin && !isAdmin() && !hasPermission(action.permission)) {
-      return false;
+    if (action.permission) {
+      if (authIsSuperAdmin) return true;
+      if (!can(action.permission)) return false;
     }
     if (action.visible && !action.visible(row)) return false;
     return true;

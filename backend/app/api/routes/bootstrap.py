@@ -43,12 +43,20 @@ def _set_cached(user_id: int, data: Any) -> None:
 
 
 def _build_bootstrap(user: User, db: Session) -> dict:
+    role_name = None
+    if user.role_id:
+        from app.models.rbac import Role as RbacRole
+        role_row = db.query(RbacRole).filter(RbacRole.id == user.role_id).first()
+        role_name = role_row.name if role_row else None
+
     user_data = {
         "id": user.id,
         "email": user.email,
         "full_name": user.full_name,
         "company_id": user.company_id,
         "is_super_admin": user.is_super_admin,
+        "role_name": role_name,
+        "role_id": user.role_id,
     }
 
     company_permissions = {}

@@ -14,6 +14,7 @@ from app.services.activity_service import ActivityService
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.auth import User
 from app.models.company import Company
+from app.models.rbac import Role
 from app.schemas.auth import (
     AuthToken,
     LoginRequest,
@@ -136,13 +137,20 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         ActivityService.log_login(db=db, actor=sa_user, success=True, request=request)
         db.commit()
 
-        token = create_access_token(subject=sa_user.email, company_id=None, is_super_admin=True)
+        token = create_access_token(
+            subject=sa_user.email,
+            company_id=None,
+            is_super_admin=True,
+            extra_payload={"user_id": sa_user.id, "role_id": None, "user_type": "superadmin"},
+        )
         log.info("Superadmin login success: %s", payload.email)
         return AuthToken(
             access_token=token,
             is_super_admin=True,
             company_id=None,
             company_name=None,
+            role_name="Super Admin",
+            role_id=None,
         )
 
     company_uuid = None
@@ -249,11 +257,23 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     ActivityService.log_login(db=db, actor=login_actor, success=True, request=request)
     db.commit()
 
+    user_id = login_user.id if login_user else None
+    role_id = login_user.role_id if login_user and hasattr(login_user, "role_id") else None
+    role_name = None
+    if role_id:
+        role_row = db.query(Role).filter(Role.id == role_id).first()
+        role_name = role_row.name if role_row else None
+
     token = create_access_token(
         subject=payload.email,
         company_id=company_uuid,
         is_super_admin=False,
-        extra_payload={"company_slug": company_slug},
+        extra_payload={
+            "company_slug": company_slug,
+            "user_id": user_id,
+            "role_id": role_id,
+            "user_type": role_name or "company_admin",
+        },
     )
 
     return AuthToken(
@@ -261,6 +281,8 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         is_super_admin=False,
         company_id=company_uuid,
         company_name=company_name,
+        role_name=role_name,
+        role_id=role_id,
     )
 
 
@@ -274,6 +296,13 @@ def get_current_user_info(
         from app.models.company import CompanyFeature
         rows = db.query(CompanyFeature).filter(CompanyFeature.company_id == current_user.company_id).all()
         features = {r.feature_key: r.enabled for r in rows}
+
+    role_name = None
+    role_id_val = None
+    if current_user.role_id:
+        role_row = db.query(Role).filter(Role.id == current_user.role_id).first()
+        role_name = role_row.name if role_row else None
+        role_id_val = current_user.role_id
 
     return UserDetailResponse(
         id=current_user.id,
@@ -290,6 +319,8 @@ def get_current_user_info(
         features=features,
         approved_by=current_user.approved_by,
         approved_at=current_user.approved_at,
+        role_name=role_name,
+        role_id=role_id_val,
     )
 
 

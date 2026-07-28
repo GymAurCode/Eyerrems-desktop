@@ -26,6 +26,7 @@ from app.models.tenant import Tenant
 from app.models.ledger import DealerLedgerEntry
 from app.core.tid import next_tid
 from app.services.commission_service import calculate_commission_amount, get_dealer_context
+from app.services.soft_delete_service import SoftDeleteService
 from app.schemas.finance import (
     AccountCreate, AccountResponse, AccountTreeNode, AccountUpdate, AccountWithBalance,
     CommissionCreate, CommissionResponse, CommissionCalculateRequest, CommissionCalculateResponse,
@@ -393,7 +394,7 @@ async def list_journals(
     db: Session = Depends(get_db),
     _=Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Journal).options(joinedload(Journal.entries)).filter(Journal.deleted_at.is_(None))
+    query = db.query(Journal).options(joinedload(Journal.entries)).filter(Journal.is_deleted == False)
     if reference_type:
         query = query.filter(Journal.reference_type == reference_type)
     if source:
@@ -430,7 +431,7 @@ async def get_journal(
     _=Depends(require_any_permission("finance:manage", "finance:view")),
 ):
     journal = db.query(Journal).options(joinedload(Journal.entries)).filter(
-        Journal.id == journal_id, Journal.deleted_at.is_(None)
+        Journal.id == journal_id, Journal.is_deleted == False
     ).first()
     if not journal:
         raise HTTPException(status_code=404, detail="Journal not found")
@@ -445,7 +446,7 @@ async def update_journal(
     user: User = Depends(require_permissions("finance:manage")),
     _role: User = Depends(require_any_permission("finance:create", "finance:approve", "finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     if journal.status != "draft":
@@ -497,7 +498,7 @@ async def submit_journal(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     try:
@@ -519,7 +520,7 @@ async def approve_journal(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     try:
@@ -541,7 +542,7 @@ async def reject_journal(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     try:
@@ -562,7 +563,7 @@ async def post_journal(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     try:
@@ -584,7 +585,7 @@ async def reverse_journal(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     try:
@@ -608,12 +609,12 @@ async def delete_journal(
     user: User = Depends(require_permissions("finance:manage")),
     _role: User = Depends(require_any_permission("finance:create", "finance:approve", "finance:manage")),
 ):
-    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.deleted_at.is_(None)).first()
+    journal = db.query(Journal).filter(Journal.id == journal_id, Journal.is_deleted == False).first()
     if not journal:
         raise HTTPException(404, "Journal not found")
     if journal.status not in ("draft",):
         raise HTTPException(400, "Only draft journals can be deleted")
-    journal.deleted_at = datetime.utcnow()
+    SoftDeleteService.soft_delete(db, journal, user, "finance_journals")
     db.commit()
     _log_audit(db, user, "DELETE", "journals", "Journal", str(journal.id),
                f"Deleted draft journal #{journal.journal_number}")
@@ -1510,7 +1511,7 @@ async def list_payments(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Payment).filter(Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     if status:
@@ -1549,7 +1550,7 @@ async def get_payment(
     query = db.query(Payment).options(
         joinedload(Payment.allocations),
         joinedload(Payment.attachments),
-    ).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    ).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1565,7 +1566,7 @@ async def update_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1598,7 +1599,7 @@ async def reverse_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1661,7 +1662,7 @@ async def refund_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1734,7 +1735,7 @@ async def cancel_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1763,7 +1764,7 @@ async def delete_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None))
+    query = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Payment.company_id == user.company_id)
     payment = query.first()
@@ -1772,7 +1773,7 @@ async def delete_payment(
     if payment.status == "completed":
         raise HTTPException(400, "Cannot delete a completed payment. Reverse or refund it instead.")
 
-    payment.deleted_at = datetime.utcnow()
+    SoftDeleteService.soft_delete(db, payment, user, "finance_payments")
     for alloc in payment.allocations:
         _update_invoice_status_from_payments(db, alloc.invoice_id)
 
@@ -1795,7 +1796,7 @@ async def post_payment_to_finance(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    payment = db.query(Payment).filter(Payment.id == payment_id, Payment.deleted_at.is_(None)).first()
+    payment = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
     if payment.posted_to_finance:
@@ -2114,7 +2115,7 @@ async def create_expense(
             existing = db.query(Expense).filter(
                 Expense.vendor_id == payload.vendor_id,
                 Expense.invoice_bill_no == payload.invoice_bill_no,
-                Expense.deleted_at.is_(None),
+                Expense.is_deleted == False,
             ).first()
             if existing:
                 raise HTTPException(400, f"Vendor invoice {payload.invoice_bill_no} already exists as expense {existing.expense_number}")
@@ -2337,7 +2338,7 @@ async def list_expenses(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Expense).filter(Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     if status:
@@ -2398,7 +2399,7 @@ async def get_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2415,7 +2416,7 @@ async def update_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2484,7 +2485,7 @@ async def submit_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2515,7 +2516,7 @@ async def approve_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2576,7 +2577,7 @@ async def reject_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2608,7 +2609,7 @@ async def record_expense_payment(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2677,7 +2678,7 @@ async def cancel_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2700,7 +2701,7 @@ async def delete_expense(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    query = db.query(Expense).filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
+    query = db.query(Expense).filter(Expense.id == expense_id, Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     expense = query.first()
@@ -2709,7 +2710,7 @@ async def delete_expense(
     if expense.status not in ("draft", "cancelled"):
         raise HTTPException(400, f"Cannot delete a {expense.status} expense. Only draft or cancelled expenses can be deleted.")
 
-    expense.deleted_at = datetime.utcnow()
+    SoftDeleteService.soft_delete(db, expense, user, "finance_expenses")
     db.commit()
     _log_audit(db, user, "DELETE", "expenses", "Expense", str(expense_id),
                f"Deleted expense {expense.expense_number}")
@@ -2728,7 +2729,7 @@ async def expense_report_by_category(
         Expense.expense_type,
         func.count(Expense.id).label("count"),
         func.sum(Expense.amount).label("total"),
-    ).filter(Expense.deleted_at.is_(None))
+    ).filter(Expense.is_deleted == False)
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     if start_date:
@@ -2752,7 +2753,7 @@ async def expense_report_by_vendor(
         func.count(Expense.id).label("count"),
         func.sum(Expense.amount).label("total"),
         func.sum(Expense.paid_amount).label("paid"),
-    ).filter(Expense.deleted_at.is_(None), Expense.vendor_name.isnot(None))
+    ).filter(Expense.is_deleted == False, Expense.vendor_name.isnot(None))
     if not user.is_super_admin:
         query = query.filter(Expense.company_id == user.company_id)
     if start_date:
@@ -2771,7 +2772,7 @@ async def accounts_payable_aging_report(
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
     query = db.query(Expense).filter(
-        Expense.deleted_at.is_(None),
+        Expense.is_deleted == False,
         Expense.status.in_(["approved", "submitted"]),
         Expense.remaining_amount > 0,
     )
@@ -2806,7 +2807,7 @@ async def budget_vs_actual_report(
         func.sum(Expense.amount).label("actual"),
         func.sum(Expense.approved_budget).label("budget"),
     ).filter(
-        Expense.deleted_at.is_(None),
+        Expense.is_deleted == False,
         Expense.department.isnot(None),
     )
     if not user.is_super_admin:
@@ -4208,7 +4209,7 @@ async def list_vendors(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    q = db.query(Vendor).filter(Vendor.deleted_at.is_(None))
+    q = db.query(Vendor).filter(Vendor.is_deleted == False)
     if not user.is_super_admin:
         q = q.filter(Vendor.company_id == user.company_id)
     if search:
@@ -4226,7 +4227,7 @@ async def search_vendors(
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
     """Quick search for vendor select/autocomplete"""
-    vendors = db.query(Vendor).filter(Vendor.deleted_at.is_(None), Vendor.is_active == True)
+    vendors = db.query(Vendor).filter(Vendor.is_deleted == False, Vendor.is_active == True)
     if not user.is_super_admin:
         vendors = vendors.filter(Vendor.company_id == user.company_id)
     if q:
@@ -4241,7 +4242,7 @@ async def get_vendor(
     db: Session = Depends(get_db),
     user: User = Depends(require_any_permission("finance:manage", "finance:view")),
 ):
-    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.deleted_at.is_(None))
+    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.is_deleted == False)
     if not user.is_super_admin:
         q = q.filter(Vendor.company_id == user.company_id)
     vendor = q.first()
@@ -4257,7 +4258,7 @@ async def update_vendor(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.deleted_at.is_(None))
+    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.is_deleted == False)
     if not user.is_super_admin:
         q = q.filter(Vendor.company_id == user.company_id)
     vendor = q.first()
@@ -4278,13 +4279,13 @@ async def delete_vendor(
     db: Session = Depends(get_db),
     user: User = Depends(require_permissions("finance:manage")),
 ):
-    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.deleted_at.is_(None))
+    q = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.is_deleted == False)
     if not user.is_super_admin:
         q = q.filter(Vendor.company_id == user.company_id)
     vendor = q.first()
     if not vendor:
         raise HTTPException(404, "Vendor not found")
-    vendor.deleted_at = datetime.utcnow()
+    SoftDeleteService.soft_delete(db, vendor, user, "finance_vendors")
     db.commit()
     log_activity(db, user, action="delete", resource="vendor", resource_id=vendor.id, description=f"Deleted vendor {vendor.name}")
     ws_manager.broadcast("vendor_deleted", {"id": vendor_id})

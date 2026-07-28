@@ -24,7 +24,7 @@ router = APIRouter(prefix="/company", tags=["Company Settings"])
 
 def _company_id_int(request: Request) -> int | None:
     """Return request.state.company_id as int, or None if invalid/absent."""
-    cid = request.state.company_id
+    cid = getattr(request.state, "company_id", None)
     if cid is None:
         return None
     try:

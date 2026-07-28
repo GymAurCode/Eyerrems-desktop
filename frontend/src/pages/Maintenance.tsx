@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Wrench, Plus, X, AlertCircle, DollarSign, CheckCircle,
   Clock, Zap, Building2, Users, BarChart2, RefreshCw,
@@ -20,6 +20,7 @@ import { MODULE_COLORS } from "../config/moduleColors";
 import { DataTable } from "../components/data-table";
 import ConfirmDialog from "../components/actions/ConfirmDialog";
 import { useNotifStore } from "../store/notifications";
+import { usePermissions } from "../hooks/usePermissions";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -971,10 +972,22 @@ function RequestsTab({ onSelect }: { onSelect: (m: Maintenance) => void }) {
 
 type Tab = "requests" | "analytics";
 
+const TAB_PERM_MAP: Record<string, string> = {
+  requests: "Requests",
+};
+
 export default function MaintenancePage() {
+  const { canAccessTab, canAccessModule } = usePermissions();
   const [tab,      setTab]      = useState<Tab>("requests");
   const [selected, setSelected] = useState<Maintenance | null>(null);
   const [stats,    setStats]    = useState({ total: 0, pending: 0, inProgress: 0, totalCost: 0 });
+  const allTabs = useMemo(() => ([
+    { label: "Requests", value: "requests", icon: Wrench },
+    { label: "Analytics", value: "analytics", icon: BarChart2 },
+  ] as const).filter(t => {
+    const dbTabKey = TAB_PERM_MAP[t.value];
+    return dbTabKey ? canAccessTab("maintenance", dbTabKey) : canAccessModule("maintenance");
+  }), [canAccessTab, canAccessModule]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -1025,10 +1038,7 @@ export default function MaintenancePage() {
 
       {/* Tabs */}
       <ModuleTabs
-        tabs={[
-          { label: "Requests", value: "requests", icon: Wrench },
-          { label: "Analytics", value: "analytics", icon: BarChart2 },
-        ]}
+        tabs={allTabs}
         activeTab={tab}
         onChange={(v) => setTab(v as Tab)}
         moduleColor={MODULE_COLORS.maintenance.primary}

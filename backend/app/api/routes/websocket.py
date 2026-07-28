@@ -27,35 +27,20 @@ def _authenticate(websocket: WebSocket) -> dict | None:
     return payload
 
 
-@router.websocket("/ws")
-async def ws_endpoint(websocket: WebSocket):
-    payload = _authenticate(websocket)
-    if payload is None:
-        await websocket.close(code=1008)
-        return
-    user_id = payload.get("user_id") or payload.get("sub")
-    log.info("[WS] Connection accepted for user %s", user_id)
-    await ws_manager.connect(websocket, user_id=payload.get("user_id"))
+async def _handle_ws(websocket: WebSocket, name: str):
+    """Common WebSocket handler: accept, auth, then listen."""
+    await websocket.accept()
+    user_id = None
+    company_id = None
     try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        ws_manager.disconnect(websocket, user_id=payload.get("user_id"))
-    except Exception as exc:
-        log.warning("[WS] Unexpected error: %s", exc)
-        ws_manager.disconnect(websocket, user_id=payload.get("user_id"))
-
-
-@router.websocket("/reminders/ws")
-async def reminders_ws_endpoint(websocket: WebSocket):
-    payload = _authenticate(websocket)
-    if payload is None:
-        await websocket.close(code=4001)
-        return
-    user_id = payload.get("user_id") or payload.get("sub")
-    log.info("[reminders-ws] Connection accepted for user %s", user_id)
-    await ws_manager.connect(websocket, user_id=payload.get("user_id"))
-    try:
+        payload = _authenticate(websocket)
+        if payload is None:
+            await websocket.close(code=4401)
+            return
+        user_id = payload.get("user_id") or payload.get("sub")
+        company_id = payload.get("company_id")
+        log.info("[%s] Connected user %s company %s", name, user_id, company_id)
+        await ws_manager.connect(websocket, user_id=user_id, company_id=company_id)
         while True:
             data = await websocket.receive_text()
             if data:
@@ -67,7 +52,17 @@ async def reminders_ws_endpoint(websocket: WebSocket):
                 except Exception:
                     pass
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket, user_id=payload.get("user_id"))
+        ws_manager.disconnect(websocket, user_id=user_id, company_id=company_id)
     except Exception as exc:
-        log.warning("[reminders-ws] Unexpected error: %s", exc)
-        ws_manager.disconnect(websocket, user_id=payload.get("user_id"))
+        log.warning("[%s] Error: %s", name, exc)
+        ws_manager.disconnect(websocket, user_id=user_id, company_id=company_id)
+
+
+@router.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket):
+    await _handle_ws(websocket, "ws")
+
+
+@router.websocket("/reminders/ws")
+async def reminders_ws_endpoint(websocket: WebSocket):
+    await _handle_ws(websocket, "reminders-ws")

@@ -11,9 +11,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.models.soft_delete_mixin import SoftDeleteMixin
 
 
-class EmailAccount(Base):
+class EmailAccount(Base, SoftDeleteMixin):
     """Company email account configuration (SMTP + IMAP)."""
     __tablename__ = "email_accounts"
 
