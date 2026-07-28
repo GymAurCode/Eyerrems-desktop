@@ -20,6 +20,17 @@ def _has_column(table, column):
     return column in cols
 
 
+def _has_index(table, index_name):
+    conn = op.get_bind()
+    insp = inspect(conn)
+    indexes = [ix["name"] for ix in insp.get_indexes(table)]
+    return index_name in indexes
+
+
+def _has_table(name):
+    return inspect(op.get_bind()).has_table(name)
+
+
 def upgrade():
     conn = op.get_bind()
     inspector = inspect(conn)
@@ -29,7 +40,7 @@ def upgrade():
         op.create_table(
             "rbac_user_approvals",
             sa.Column("id", sa.Integer(), nullable=False),
-            sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+            sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
             sa.Column("requested_by", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
             sa.Column("approved_by", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
             sa.Column("action", sa.String(20), nullable=False),
@@ -39,6 +50,7 @@ def upgrade():
             sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
             sa.PrimaryKeyConstraint("id"),
         )
+    if not _has_index("rbac_user_approvals", "ix_rbac_user_approvals_user_id"):
         op.create_index(op.f("ix_rbac_user_approvals_user_id"), "rbac_user_approvals", ["user_id"])
 
     # ── Company settings: auto_approve_admin_created ──────────────────────────
@@ -55,6 +67,7 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table("rbac_user_approvals")
+    if _has_table("rbac_user_approvals"):
+        op.drop_table("rbac_user_approvals")
     if _has_column("companies", "auto_approve_admin_created"):
         op.drop_column("companies", "auto_approve_admin_created")
