@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 revision = "0055_add_shift_template_id_to_employees"
-down_revision = "0054_add_branch_id_to_holidays"
+down_revision = "0054a_create_shift_templates"
 branch_labels = None
 depends_on = None
 

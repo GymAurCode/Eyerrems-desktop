@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 revision = "0067_add_dealer_ledger_lead_id"
-down_revision = "0066_finance_invoice_payment_separation"
+down_revision = "0066a_create_ledger_tables"
 branch_labels = None
 depends_on = None
 

@@ -5,7 +5,7 @@ that has SoftDeleteMixin columns (is_deleted, deleted_at, etc.) and
 adds any columns that the table does not yet have.
 
 Revision ID: 0076
-Revises: 73280885add4
+Revises: 0078
 Create Date: 2026-07-27
 """
 import logging
@@ -22,7 +22,7 @@ from app.models import *  # noqa: F401,F403 — registers all ORM models
 log = logging.getLogger("alembic.migration")
 
 revision: str = "0076"
-down_revision: Union[str, None] = "73280885add4"
+down_revision: Union[str, None] = "0078"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

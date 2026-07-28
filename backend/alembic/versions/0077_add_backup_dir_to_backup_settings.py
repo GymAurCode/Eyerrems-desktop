@@ -12,7 +12,7 @@ from sqlalchemy import inspect
 
 
 revision: str = "0077"
-down_revision: Union[str, None] = "0076"
+down_revision: Union[str, None] = "0076a_create_backup_tables"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
