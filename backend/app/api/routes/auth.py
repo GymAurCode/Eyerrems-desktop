@@ -109,18 +109,13 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     from app.tenant import get_master_session
     from sqlalchemy import text
 
-    if payload.email == app_settings.superadmin_email:
-        sa_user = db.query(User).filter(
-            User.email == payload.email,
-            User.is_super_admin == True,
-        ).first()
+    # ── Super admin path — any user with is_super_admin=True ─────────
+    sa_user = db.query(User).filter(
+        User.email == payload.email,
+        User.is_super_admin == True,
+    ).first()
 
-        if not sa_user:
-            log.warning("Superadmin login failed: user not found for %s", payload.email)
-            ActivityService.log_login(db=db, actor={"email": payload.email, "role": "superadmin"}, success=False, request=request)
-            db.commit()
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    if sa_user:
         if not verify_password(payload.password, sa_user.hashed_password):
             log.warning("Superadmin login failed: wrong password for %s", payload.email)
             ActivityService.log_login(db=db, actor=sa_user, success=False, request=request)
@@ -137,22 +132,29 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         ActivityService.log_login(db=db, actor=sa_user, success=True, request=request)
         db.commit()
 
+        company_id_str = str(sa_user.company_id) if sa_user.company_id else None
+        company_name = None
+        if sa_user.company_id:
+            company = db.query(Company).filter(Company.id == sa_user.company_id).first()
+            company_name = company.name if company else None
+
         token = create_access_token(
             subject=sa_user.email,
-            company_id=None,
+            company_id=company_id_str,
             is_super_admin=True,
             extra_payload={"user_id": sa_user.id, "role_id": None, "user_type": "superadmin"},
         )
-        log.info("Superadmin login success: %s", payload.email)
+        log.info("Superadmin login success: %s (company_id=%s)", payload.email, company_id_str)
         return AuthToken(
             access_token=token,
             is_super_admin=True,
-            company_id=None,
-            company_name=None,
+            company_id=company_id_str,
+            company_name=company_name,
             role_name="Super Admin",
             role_id=None,
         )
 
+    # ── Company admin path ───────────────────────────────────────────
     company_uuid = None
     company_name = None
     company_slug = None
