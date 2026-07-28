@@ -87,7 +87,7 @@ def _startup():
     if not settings.jwt_secret_key:
         log.error("[ENV] JWT_SECRET_KEY is not set! Authentication will fail!")
     if not settings.database_url:
-        log.warning("[ENV] DATABASE_URL not set — will use SQLite fallback (local dev only)")
+        log.warning("[ENV] DATABASE_URL not set — will use SQLite fallback (local dev)")
 
     try:
         from app.tenant import get_master_session
@@ -95,26 +95,26 @@ def _startup():
         mdb = get_master_session()
         try:
             ensure_master_schema(mdb)
-            print("[REMS] Master schema and companies table ensured.")
+            log.info("[SETUP] Master schema and companies table ensured.")
         finally:
             mdb.close()
     except Exception as e:
-        print(f"[REMS] Master schema setup skipped: {e}")
+        log.warning("[SETUP] Master schema setup skipped: %s", e)
 
     try:
         Base.metadata.create_all(bind=engine)
-        print("[REMS] Verified database schema before seeding.")
+        log.info("[SETUP] Verified database schema before seeding.")
     except Exception as e:
-        print(f"[REMS] Schema verification skipped: {e}")
+        log.warning("[SETUP] Schema verification skipped: %s", e)
 
     try:
         from alembic.config import Config as AlembicConfig
         from alembic import command
         alembic_cfg = AlembicConfig(str(BASE_DIR / "alembic.ini"))
         command.upgrade(alembic_cfg, "head")
-        print("[REMS] Alembic upgrade head completed.")
+        log.info("[SETUP] Alembic upgrade head completed.")
     except Exception as e:
-        print(f"[REMS] Alembic upgrade skipped: {e}")
+        log.warning("[SETUP] Alembic upgrade skipped: %s", e)
 
     try:
         from app.core.tenant_manager import tenant_manager as _tm
@@ -137,41 +137,52 @@ def _startup():
                     {"email": settings.superadmin_email, "name": "Super Admin", "pw": pw_hash, "now": now},
                 )
                 sa_session.commit()
-                print("[REMS] Superadmin user seeded.")
+                log.info("[SETUP] Superadmin user seeded.")
             else:
-                print("[REMS] Superadmin user already exists.")
+                log.info("[SETUP] Superadmin user already exists.")
         except Exception as e:
-            print(f"[REMS] Superadmin INSERT failed: {e}")
+            log.error("[SETUP] Superadmin INSERT failed: %s", e)
         finally:
             sa_session.close()
     except Exception as e:
-        print(f"[REMS] Superadmin seed skipped: {e}")
+        log.warning("[SETUP] Superadmin seed skipped: %s", e)
 
     try:
         from app.models.company import Company
         from app.core.security import hash_password
         sa_session = _tm.get_master_session()
         try:
+            log.info("[SETUP] Creating default company...")
             company_row = sa_session.execute(
-                text("SELECT id FROM companies WHERE slug = 'default'"),
+                text("SELECT id FROM companies WHERE slug IN ('default-company', 'default')"),
             ).fetchone()
             if not company_row:
                 now = datetime.now(timezone.utc)
                 sa_session.execute(
                     text("""
                         INSERT INTO companies (name, slug, status, currency_code, created_at, updated_at)
-                        VALUES ('Default Company', 'default', 'active', 'PKR', :now, :now)
+                        VALUES ('Default Company', 'default-company', 'active', 'PKR', :now, :now)
                     """),
                     {"now": now},
                 )
                 sa_session.commit()
                 company_row = sa_session.execute(
-                    text("SELECT id FROM companies WHERE slug = 'default'"),
+                    text("SELECT id FROM companies WHERE slug = 'default-company'"),
                 ).fetchone()
+                log.info("[SETUP] Default company created with slug='default-company'")
+            else:
+                slug_val = company_row[1] if len(company_row) > 1 else '?'
+                log.info("[SETUP] Default company already exists (id=%s, slug=%s)", company_row[0], slug_val)
+
             cid = company_row[0] if company_row else None
+            log.info("[SETUP] Creating company admin...")
 
             existing = sa_session.execute(
-                text("SELECT id, company_id FROM users WHERE email = 'admin@rems.local'"),
+                text("""
+                    SELECT id, company_id, is_super_admin, status, is_approved,
+                           is_active, approval_status, hashed_password
+                    FROM users WHERE email = 'admin@rems.local'
+                """),
             ).fetchone()
             if not existing:
                 pw_hash = hash_password("Admin@123")
@@ -187,22 +198,60 @@ def _startup():
                     {"pw": pw_hash, "cid": cid, "now": now},
                 )
                 sa_session.commit()
-                print("[REMS] Company admin (admin@rems.local) seeded.")
+                log.info("[SETUP] Company admin (admin@rems.local) created.")
             else:
-                if existing.company_id is None and cid:
+                fixes = []
+                uid = existing[0]
+                # Fix each flag if it's wrong — idempotent repair
+                if existing[1] is None and cid:
                     sa_session.execute(
                         text("UPDATE users SET company_id = :cid WHERE id = :uid"),
-                        {"cid": cid, "uid": existing.id},
+                        {"cid": cid, "uid": uid},
                     )
+                    fixes.append("company_id")
+                if existing[2]:  # is_super_admin was True
+                    sa_session.execute(
+                        text("UPDATE users SET is_super_admin = FALSE WHERE id = :uid"),
+                        {"uid": uid},
+                    )
+                    fixes.append("is_super_admin→False")
+                if existing[3] != "active":  # status
+                    sa_session.execute(
+                        text("UPDATE users SET status = 'active' WHERE id = :uid"),
+                        {"uid": uid},
+                    )
+                    fixes.append("status→active")
+                if not existing[4]:  # is_approved
+                    sa_session.execute(
+                        text("UPDATE users SET is_approved = TRUE WHERE id = :uid"),
+                        {"uid": uid},
+                    )
+                    fixes.append("is_approved→True")
+                if not existing[5]:  # is_active
+                    sa_session.execute(
+                        text("UPDATE users SET is_active = TRUE WHERE id = :uid"),
+                        {"uid": uid},
+                    )
+                    fixes.append("is_active→True")
+                if existing[6] != "approved":  # approval_status
+                    sa_session.execute(
+                        text("UPDATE users SET approval_status = 'approved' WHERE id = :uid"),
+                        {"uid": uid},
+                    )
+                    fixes.append("approval_status→approved")
+                if fixes:
                     sa_session.commit()
-                    print("[REMS] Assigned company_id to existing admin@rems.local.")
-                print("[REMS] Company admin (admin@rems.local) already exists.")
+                    log.info("[SETUP] Fixed existing admin@rems.local: %s", ", ".join(fixes))
+                else:
+                    log.info("[SETUP] Company admin (admin@rems.local) already exists and is correct.")
         except Exception as e:
-            print(f"[REMS] Company admin INSERT failed: {e}")
+            log.error("[SETUP] Company admin seed failed: %s", e)
         finally:
             sa_session.close()
     except Exception as e:
-        print(f"[REMS] Company admin seed skipped: {e}")
+        log.warning("[SETUP] Company admin seed skipped: %s", e)
+
+    log.info("[SETUP] Default tenant ready.")
 
     def _column_exists(conn, table, column):
         try:

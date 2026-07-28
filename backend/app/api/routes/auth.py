@@ -195,7 +195,6 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             log.info("Falling back to User model lookup for %s", payload.email)
             login_user = db.query(User).filter(
                 User.email == payload.email,
-                User.is_super_admin == False,
             ).first()
             if not login_user:
                 log.warning("Company admin not found in users table: %s", payload.email)
