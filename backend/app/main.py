@@ -152,27 +152,28 @@ def _startup():
         from app.core.security import hash_password
         sa_session = _tm.get_master_session()
         try:
-            existing = sa_session.execute(
-                text("SELECT id FROM users WHERE email = 'admin@rems.local' AND is_super_admin = FALSE"),
+            company_row = sa_session.execute(
+                text("SELECT id FROM companies WHERE slug = 'default'"),
             ).fetchone()
-            if not existing:
+            if not company_row:
+                now = datetime.now(timezone.utc)
+                sa_session.execute(
+                    text("""
+                        INSERT INTO companies (name, slug, status, currency_code, created_at, updated_at)
+                        VALUES ('Default Company', 'default', 'active', 'PKR', :now, :now)
+                    """),
+                    {"now": now},
+                )
+                sa_session.commit()
                 company_row = sa_session.execute(
                     text("SELECT id FROM companies WHERE slug = 'default'"),
                 ).fetchone()
-                if not company_row:
-                    now = datetime.now(timezone.utc)
-                    sa_session.execute(
-                        text("""
-                            INSERT INTO companies (name, slug, status, currency_code, created_at, updated_at)
-                            VALUES ('Default Company', 'default', 'active', 'PKR', :now, :now)
-                        """),
-                        {"now": now},
-                    )
-                    sa_session.commit()
-                    company_row = sa_session.execute(
-                        text("SELECT id FROM companies WHERE slug = 'default'"),
-                    ).fetchone()
-                cid = company_row[0] if company_row else None
+            cid = company_row[0] if company_row else None
+
+            existing = sa_session.execute(
+                text("SELECT id, company_id FROM users WHERE email = 'admin@rems.local'"),
+            ).fetchone()
+            if not existing:
                 pw_hash = hash_password("Admin@123")
                 now = datetime.now(timezone.utc)
                 sa_session.execute(
@@ -181,14 +182,21 @@ def _startup():
                                            is_super_admin, status, is_approved, is_active,
                                            approval_status, created_at)
                         VALUES ('admin@rems.local', 'System Administrator', :pw, :cid,
-                                FALSE, 'active', TRUE, TRUE, 'approved', :now)
+                                TRUE, 'active', TRUE, TRUE, 'approved', :now)
                     """),
                     {"pw": pw_hash, "cid": cid, "now": now},
                 )
                 sa_session.commit()
-                print("[REMS] Company admin user (admin@rems.local) seeded.")
+                print("[REMS] Admin user (admin@rems.local) seeded.")
             else:
-                print("[REMS] Company admin user already exists.")
+                if existing.company_id is None and cid:
+                    sa_session.execute(
+                        text("UPDATE users SET company_id = :cid WHERE id = :uid"),
+                        {"cid": cid, "uid": existing.id},
+                    )
+                    sa_session.commit()
+                    print("[REMS] Assigned company_id to existing admin@rems.local.")
+                print("[REMS] Admin user (admin@rems.local) already exists.")
         except Exception as e:
             print(f"[REMS] Company admin INSERT failed: {e}")
         finally:
