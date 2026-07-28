@@ -42,8 +42,15 @@ export function isTokenExpired(token: string): boolean {
   }
 }
 
+function resolveApiUrl(): string {
+  if (typeof window !== "undefined" && window.REMS_CONFIG?.API_URL) {
+    return window.REMS_CONFIG.API_URL;
+  }
+  return import.meta.env.VITE_API_URL || "";
+}
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "",
+  baseURL: resolveApiUrl(),
 });
 
 api.interceptors.request.use((config) => {

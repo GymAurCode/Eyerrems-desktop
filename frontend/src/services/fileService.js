@@ -1,6 +1,9 @@
 import { getAuthToken } from "../lib/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+const API_BASE_URL =
+  typeof window !== "undefined" && window.REMS_CONFIG?.API_URL
+    ? window.REMS_CONFIG.API_URL
+    : import.meta.env.VITE_API_URL || "";
 
 function getToken() {
   return getAuthToken();
