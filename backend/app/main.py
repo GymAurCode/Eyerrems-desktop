@@ -181,13 +181,13 @@ def _startup():
                         INSERT INTO users (email, full_name, hashed_password, company_id,
                                            is_super_admin, status, is_approved, is_active,
                                            approval_status, created_at)
-                        VALUES ('admin@rems.local', 'System Administrator', :pw, :cid,
-                                TRUE, 'active', TRUE, TRUE, 'approved', :now)
+                        VALUES ('admin@rems.local', 'Default Company Admin', :pw, :cid,
+                                FALSE, 'active', TRUE, TRUE, 'approved', :now)
                     """),
                     {"pw": pw_hash, "cid": cid, "now": now},
                 )
                 sa_session.commit()
-                print("[REMS] Admin user (admin@rems.local) seeded.")
+                print("[REMS] Company admin (admin@rems.local) seeded.")
             else:
                 if existing.company_id is None and cid:
                     sa_session.execute(
@@ -196,7 +196,7 @@ def _startup():
                     )
                     sa_session.commit()
                     print("[REMS] Assigned company_id to existing admin@rems.local.")
-                print("[REMS] Admin user (admin@rems.local) already exists.")
+                print("[REMS] Company admin (admin@rems.local) already exists.")
         except Exception as e:
             print(f"[REMS] Company admin INSERT failed: {e}")
         finally:

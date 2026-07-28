@@ -32,10 +32,10 @@ def seed_rbac(db: Session) -> None:
     else:
         print(f"[seed_rbac] Default company already exists (id={company.id})")
 
-    # ── Default admin user ──────────────────────────────────────────
+    # ── Default company admin user ──────────────────────────────────
     admin_email = os.getenv("REMS_ADMIN_EMAIL", "admin@rems.local")
     admin_password = os.getenv("REMS_ADMIN_PASSWORD", "Admin@123")
-    admin_name = os.getenv("REMS_ADMIN_NAME", "System Admin")
+    admin_name = os.getenv("REMS_ADMIN_NAME", "Default Company Admin")
 
     user = db.query(User).filter(User.email == admin_email).first()
     if not user:
@@ -45,19 +45,19 @@ def seed_rbac(db: Session) -> None:
             full_name=admin_name,
             hashed_password=hashed,
             company_id=company.id,
-            is_super_admin=True,
+            is_super_admin=False,
             approval_status="approved",
             is_approved=True,
             is_active=True,
             status="active",
         )
         db.add(user)
-        print(f"[seed_rbac] Created admin user: {admin_email} (company_id={company.id})")
+        print(f"[seed_rbac] Created company admin: {admin_email} (company_id={company.id})")
     else:
         if user.company_id is None:
             user.company_id = company.id
-            print(f"[seed_rbac] Assigned existing admin user to default company (id={company.id})")
-        print(f"[seed_rbac] Admin user already exists: {admin_email}")
+            print(f"[seed_rbac] Assigned existing user to default company (id={company.id})")
+        print(f"[seed_rbac] Company admin already exists: {admin_email}")
 
     db.commit()
     print("[seed_rbac] Seeding complete")
