@@ -181,8 +181,6 @@ function createWindow() {
       console.warn("[renderer] window became unresponsive");
     });
 
-    // Open DevTools in production for debugging
-    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on("closed", () => {
