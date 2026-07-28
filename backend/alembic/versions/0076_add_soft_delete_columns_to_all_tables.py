@@ -63,10 +63,14 @@ def _column_exists(conn: Connection, table: str, column: str) -> bool:
 
 def upgrade() -> None:
     conn = op.get_bind()
+    insp = inspect(conn)
     tables = _get_soft_delete_tables()
     log.info("Soft-delete migration: checking %d tables", len(tables))
 
     for table in tables:
+        if not insp.has_table(table):
+            log.warning("Table %s does not exist — skipping", table)
+            continue
         for col_name, col_type in SOFT_DELETE_COLUMNS.items():
             if not _column_exists(conn, table, col_name):
                 log.info("Adding %s.%s", table, col_name)
@@ -77,8 +81,11 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
+    insp = inspect(conn)
     tables = _get_soft_delete_tables()
     for table in tables:
+        if not insp.has_table(table):
+            continue
         for col_name in SOFT_DELETE_COLUMNS:
             if _column_exists(conn, table, col_name):
                 with op.batch_alter_table(table) as batch_op:
