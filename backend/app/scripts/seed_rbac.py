@@ -10,10 +10,10 @@ from app.models.auth import User
 
 
 def seed_rbac(db: Session) -> None:
-    """Idempotent seed: RBAC permissions + default super admin."""
+    """Idempotent seed: RBAC permissions + default admin user."""
 
-    seed_all_v3_permissions(db)
-    db.flush()
+    slug_to_id = seed_all_v3_permissions(db)
+    print(f"[seed_rbac] Seeded {len(slug_to_id)} modules and 6 actions")
 
     admin_email = os.getenv("REMS_ADMIN_EMAIL", "admin@rems.local")
     admin_password = os.getenv("REMS_ADMIN_PASSWORD", "Admin@123")
@@ -33,5 +33,9 @@ def seed_rbac(db: Session) -> None:
             status="active",
         )
         db.add(user)
+        print(f"[seed_rbac] Created admin user: {admin_email}")
+    else:
+        print(f"[seed_rbac] Admin user already exists: {admin_email}")
 
     db.commit()
+    print("[seed_rbac] Seeding complete")

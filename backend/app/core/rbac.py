@@ -303,8 +303,95 @@ def invalidate_permission_cache(user_id: Optional[int] = None) -> None:
     _invalidate_permission_cache(user_id)
 
 
+MODULES = [
+    {"key": "dashboard",       "label": "Dashboard",       "icon": "dashboard"},
+    {"key": "properties",      "label": "Properties",      "icon": "building"},
+    {"key": "towns",           "label": "Towns",           "icon": "map"},
+    {"key": "crm",             "label": "CRM",             "icon": "users"},
+    {"key": "tenants",         "label": "Tenants",         "icon": "user"},
+    {"key": "maintenance",     "label": "Maintenance",     "icon": "tool"},
+    {"key": "construction",    "label": "Construction",    "icon": "hard-hat"},
+    {"key": "hr",              "label": "HR",              "icon": "users"},
+    {"key": "finance",         "label": "Finance",         "icon": "wallet"},
+    {"key": "reports",         "label": "Reports",         "icon": "file-text"},
+    {"key": "spreadsheet",     "label": "Spreadsheet",     "icon": "table"},
+    {"key": "ai",              "label": "AI Intel",        "icon": "cpu"},
+    {"key": "communication",   "label": "Communication",   "icon": "mail"},
+    {"key": "reminders",       "label": "Reminders",       "icon": "bell"},
+    {"key": "admin",           "label": "Admin",           "icon": "settings"},
+    {"key": "history",         "label": "History",         "icon": "clock"},
+    {"key": "import",          "label": "Import",          "icon": "upload"},
+    {"key": "advance-options", "label": "Advance Options", "icon": "sliders"},
+]
+
+ACTIONS = [
+    {"key": "view",   "name": "View"},
+    {"key": "create", "name": "Create"},
+    {"key": "edit",   "name": "Edit"},
+    {"key": "delete", "name": "Delete"},
+    {"key": "export", "name": "Export"},
+    {"key": "approve","name": "Approve"},
+]
+
+
 def seed_all_v3_permissions(db: Session) -> dict[str, int]:
-    return {}
+    """Idempotent seed of rbac3_modules and rbac3_actions. Returns {slug: id}."""
+    from sqlalchemy import text
+
+    slug_to_id: dict[str, int] = {}
+
+    # ── Actions ────────────────────────────────────────────────────────────
+    action_ids = {}
+    for a in ACTIONS:
+        row = db.execute(
+            text("SELECT id FROM rbac3_actions WHERE action_key = :key"),
+            {"key": a["key"]},
+        ).fetchone()
+        if row:
+            action_ids[a["key"]] = row[0]
+        else:
+            db.execute(
+                text("""
+                    INSERT INTO rbac3_actions (action_key, name, description, sort_order)
+                    VALUES (:key, :name, :desc, :ord)
+                """),
+                {"key": a["key"], "name": a["name"],
+                 "desc": f"Allows {a['name'].lower()} access", "ord": len(action_ids)},
+            )
+            db.flush()
+            row = db.execute(
+                text("SELECT id FROM rbac3_actions WHERE action_key = :key"),
+                {"key": a["key"]},
+            ).fetchone()
+            action_ids[a["key"]] = row[0] if row else None
+
+    # ── Modules ────────────────────────────────────────────────────────────
+    existing_slugs = {
+        row[0] for row in
+        db.execute(text("SELECT slug FROM rbac3_modules")).fetchall()
+    }
+
+    for i, m in enumerate(MODULES):
+        if m["key"] not in existing_slugs:
+            db.execute(
+                text("""
+                    INSERT INTO rbac3_modules (name, slug, icon, sort_order, is_active)
+                    VALUES (:name, :slug, :icon, :ord, TRUE)
+                """),
+                {"name": m["label"], "slug": m["key"],
+                 "icon": m["icon"], "ord": i},
+            )
+            db.flush()
+
+    # Build the return map
+    for row in db.execute(
+        text("SELECT id, slug FROM rbac3_modules")
+    ).fetchall():
+        slug_to_id[row[1]] = row[0]
+
+    db.commit()
+    log.info("Seeded %d modules and %d actions", len(slug_to_id), len(action_ids))
+    return slug_to_id
 
 
 def assign_v3_role_to_user(db: Session, user_id: int, role_id: int) -> None:
